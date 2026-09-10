@@ -16,7 +16,7 @@ Todo lo que el código asume sobre estas APIs está verificado contra el servido
 y documentado en **[`notas/hallazgos_apis.md`](notas/hallazgos_apis.md)**.
 Léelo antes de tocar el parseo: hay al menos una trampa que produce datos
 plausibles pero mal escalados por un factor entero que además varía con el año
-(hasta 4× en mayo de 2026).
+(hasta 5× en enero de 2026).
 
 ## Instalación
 
@@ -45,7 +45,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 186 pruebas, ninguna toca la red
+python -m pytest tests -q          # 193 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -142,6 +142,30 @@ y pyarrow. Esas versiones están ahí porque el hash depende de ellas.
 
 **Es el único archivo bajo `data/` que se versiona en git.** Sin eso, el
 registro de qué datos había en cada momento viviría solo en un disco local.
+
+## Datasets en CSV y notebooks
+
+Para trabajo exploratorio, fuera del pipeline de Parquet:
+
+```bash
+python scripts/descargar_datasets.py             # genera datasets/ entero
+python scripts/descargar_datasets.py --sin-ciiu  # sin la descarga larga
+python scripts/generar_notebooks.py              # regenera notebooks/
+```
+
+`datasets/` contiene la demanda de SIMEM desagregada (un CSV por año), la serie
+nacional agregada, el catálogo de las 193 métricas de XM, la demanda real y
+comercial del SIN, y la demanda comercial por CIIU (un `.csv.gz` por año). Qué
+es cada archivo, sus columnas y sus trampas: [`datasets/README.md`](datasets/README.md).
+
+`notebooks/` trae cuatro cuadernos que **reutilizan el paquete**, no lo
+reimplementan: `00_configuracion`, `01_carga_y_exploracion`,
+`02_diagnostico_calidad` y `03_limpieza`. Se publican ya ejecutados.
+
+> La métrica de CIIU (`DemaComeNoReg`/Entity=CIIU) trae `Activity` y
+> `Subactivity` **dentro de `Values`**, no en el `Id` de la entidad. El cliente
+> las descartaba en silencio y dejaba miles de filas con la misma marca de
+> tiempo; ahora las conserva como columnas.
 
 ## Panel de modelado
 
@@ -394,6 +418,8 @@ src/ingesta/
   manifiesto.py   qué se descargó, hasta dónde llega, qué falta
   cli.py          orquestación y escritura a Parquet
 scripts/
+  descargar_datasets.py  genera datasets/ en CSV, tramo a tramo
+  generar_notebooks.py   define y regenera los notebooks
   construir_panel.py  demanda limpia + clima + calendario -> tabla de modelado
   explorar_apis.py    vuelca el JSON crudo y describe su estructura
   verificar_apis.py   comprueba los invariantes de los que depende el código
@@ -409,4 +435,6 @@ tests/
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
 descargar.py          CLI de la capa cruda
+datasets/             CSV de trabajo (fuera de git salvo README y manifiesto)
+notebooks/            00 configuración · 01 exploración · 02 diagnóstico · 03 limpieza
 ```

@@ -1,0 +1,537 @@
+{
+  "version_formato": 1,
+  "generaciones": [
+    {
+      "momento": "2026-09-10T05:48:40",
+      "argumentos": {
+        "fuente": "xm",
+        "desde": "2021-01-01",
+        "hasta": "2026-09-10",
+        "sin_ciiu": true
+      },
+      "entorno": {
+        "python": "3.11.8",
+        "pandas": "2.3.3"
+      },
+      "archivos": [
+        {
+          "archivo": "datasets\\xm\\xm_catalogo_metricas.csv",
+          "n_filas": 193,
+          "n_columnas": 9,
+          "columnas": [
+            "MetricId",
+            "MetricName",
+            "Entity",
+            "MaxDays",
+            "Type",
+            "Url",
+            "Filter",
+            "MetricUnits",
+            "MetricDescription"
+          ],
+          "bytes": 50017,
+          "rango": null,
+          "hash": "sha256:b396660c56b76bc7f85696a47c7dc25089beac4503022c6b8d8fe1d334849e86",
+          "comprimido": false
+        },
+        {
+          "archivo": "datasets\\xm\\xm_demareal_sistema.csv",
+          "n_filas": 49824,
+          "n_columnas": 5,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "entidad",
+            "valor"
+          ],
+          "bytes": 2897960,
+          "rango": [
+            "2021-01-01 00:00:00-05:00",
+            "2026-09-07 23:00:00-05:00"
+          ],
+          "hash": "sha256:1938ec3587d981846cd401ad13063d065d4e5d0d1656b3ea7159e16bdae9d5bf",
+          "comprimido": false
+        },
+        {
+          "archivo": "datasets\\xm\\xm_demacome_sistema.csv",
+          "n_filas": 49824,
+          "n_columnas": 5,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "entidad",
+            "valor"
+          ],
+          "bytes": 2900156,
+          "rango": [
+            "2021-01-01 00:00:00-05:00",
+            "2026-09-07 23:00:00-05:00"
+          ],
+          "hash": "sha256:758aeafa0b7cdf2e1833d8bb87253e80f062737993dc77cb024647860e683c13",
+          "comprimido": false
+        }
+      ],
+      "bytes_totales": 5848133
+    },
+    {
+      "momento": "2026-09-10T06:16:25",
+      "argumentos": {
+        "fuente": "simem",
+        "desde": "2021-01-01",
+        "hasta": "2026-09-10",
+        "sin_ciiu": false,
+        "solo_ciiu": false
+      },
+      "entorno": {
+        "python": "3.11.8",
+        "pandas": "2.3.3"
+      },
+      "archivos": [
+        {
+          "archivo": "datasets/simem/simem_14fabb_2021.csv",
+          "n_filas": 755640,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "CodigoVariable",
+            "FechaHora",
+            "CodigoSICAgente",
+            "TipoMercado",
+            "Version",
+            "Valor",
+            "UnidadMedida",
+            "CodigoDuracion"
+          ],
+          "bytes": 79320929,
+          "rango": [
+            "2021-01-01 00:00:00-05:00",
+            "2021-12-31 23:00:00-05:00"
+          ],
+          "sha256_archivo": "d6bd13dd4b57760eabbaf6f6849bb0172a3d7e7023f55875622d53d894d69f20",
+          "comprimido": false
+        },
+        {
+          "archivo": "datasets/simem/simem_14fabb_2022.csv",
+          "n_filas": 769416,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "CodigoVariable",
+            "FechaHora",
+            "CodigoSICAgente",
+            "TipoMercado",
+            "Version",
+            "Valor",
+            "UnidadMedida",
+            "CodigoDuracion"
+          ],
+          "bytes": 80690793,
+          "rango": [
+            "2022-01-01 00:00:00-05:00",
+            "2022-12-31 23:00:00-05:00"
+          ],
+          "sha256_archivo": "36f631627791518b840e17ec49f489bdc78f17935de196a55399d16a2620d238",
+          "comprimido": false
+        },
+        {
+          "archivo": "datasets/simem/simem_14fabb_2023.csv",
+          "n_filas": 784680,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "CodigoVariable",
+            "FechaHora",
+            "CodigoSICAgente",
+            "TipoMercado",
+            "Version",
+            "Valor",
+            "UnidadMedida",
+            "CodigoDuracion"
+          ],
+          "bytes": 82293347,
+          "rango": [
+            "2023-01-01 00:00:00-05:00",
+            "2023-12-31 23:00:00-05:00"
+          ],
+          "sha256_archivo": "8a153051c9bd5f550ca6f62e7589ae8053e59ed1161367a7dda9a2ec2b01edae",
+          "comprimido": false
+        },
+        {
+          "archivo": "datasets/simem/simem_14fabb_2024.csv",
+          "n_filas": 772632,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "CodigoVariable",
+            "FechaHora",
+            "CodigoSICAgente",
+            "TipoMercado",
+            "Version",
+            "Valor",
+            "UnidadMedida",
+            "CodigoDuracion"
+          ],
+          "bytes": 81034843,
+          "rango": [
+            "2024-01-01 00:00:00-05:00",
+            "2024-12-31 23:00:00-05:00"
+          ],
+          "sha256_archivo": "3adfe3b216b27d990c79d9dee53777cefb1fa9d23c59a5ce26a51d0a683f61a0",
+          "comprimido": false
+        },
+        {
+          "archivo": "datasets/simem/simem_14fabb_2025.csv",
+          "n_filas": 2226960,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "CodigoVariable",
+            "FechaHora",
+            "CodigoSICAgente",
+            "TipoMercado",
+            "Version",
+            "Valor",
+            "UnidadMedida",
+            "CodigoDuracion"
+          ],
+          "bytes": 233732651,
+          "rango": [
+            "2025-01-01 00:00:00-05:00",
+            "2025-12-31 23:00:00-05:00"
+          ],
+          "sha256_archivo": "0ddc449459c05762ab44467db1b48993247205a02dca175df7e7e4e78811261d",
+          "comprimido": false
+        },
+        {
+          "archivo": "datasets/simem/simem_14fabb_2026.csv",
+          "n_filas": 2093856,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "CodigoVariable",
+            "FechaHora",
+            "CodigoSICAgente",
+            "TipoMercado",
+            "Version",
+            "Valor",
+            "UnidadMedida",
+            "CodigoDuracion"
+          ],
+          "bytes": 219974956,
+          "rango": [
+            "2026-01-01 00:00:00-05:00",
+            "2026-09-05 23:00:00-05:00"
+          ],
+          "sha256_archivo": "afe5a6838ecc98d9034342d83b1673e625a9fe1b4fa6323f03d3143d5eb4c30f",
+          "comprimido": false
+        },
+        {
+          "archivo": "datasets/simem/simem_14fabb_nacional.csv",
+          "n_filas": 49776,
+          "columnas": [
+            "fecha_hora",
+            "fuente",
+            "metrica",
+            "entidad",
+            "valor_kwh",
+            "version"
+          ],
+          "bytes": 3271683,
+          "rango": null,
+          "sha256_archivo": "dfa96b6ef76d899e64d864823a0824cf43b3cdbe47f279df714ba5aff6b783e3",
+          "comprimido": false
+        }
+      ],
+      "bytes_totales": 780319202
+    },
+    {
+      "momento": "2026-09-10T06:25:57",
+      "argumentos": {
+        "fuente": "xm",
+        "desde": "2021-01-01",
+        "hasta": "2026-09-10",
+        "sin_ciiu": true,
+        "solo_ciiu": false
+      },
+      "entorno": {
+        "python": "3.11.8",
+        "pandas": "2.3.3"
+      },
+      "archivos": [
+        {
+          "archivo": "datasets/xm/xm_catalogo_metricas.csv",
+          "n_filas": 193,
+          "columnas": [
+            "MetricId",
+            "MetricName",
+            "Entity",
+            "MaxDays",
+            "Type",
+            "Url",
+            "Filter",
+            "MetricUnits",
+            "MetricDescription"
+          ],
+          "bytes": 50017,
+          "rango": null,
+          "sha256_archivo": "9735a69f19c91dc9dc16cb848062dfddd149ab43c3153b475ee565a44a24f74c",
+          "comprimido": false
+        },
+        {
+          "archivo": "datasets/xm/xm_demareal_sistema.csv",
+          "n_filas": 49824,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "entidad",
+            "valor"
+          ],
+          "bytes": 2897960,
+          "rango": [
+            "2021-01-01 00:00:00-05:00",
+            "2026-09-07 23:00:00-05:00"
+          ],
+          "sha256_archivo": "6dc21f34b4cd408bb43eb0817db96803b0625b21dea9dfdc917814239711dcc2",
+          "comprimido": false
+        },
+        {
+          "archivo": "datasets/xm/xm_demacome_sistema.csv",
+          "n_filas": 49824,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "entidad",
+            "valor"
+          ],
+          "bytes": 2900156,
+          "rango": [
+            "2021-01-01 00:00:00-05:00",
+            "2026-09-07 23:00:00-05:00"
+          ],
+          "sha256_archivo": "a0fe037328272ebf4a17ed06ac2a85c1d3e88f54359d0fd82223cbcdcdd27d9e",
+          "comprimido": false
+        }
+      ],
+      "bytes_totales": 5848133
+    },
+    {
+      "momento": "2026-09-10T06:26:02",
+      "argumentos": {
+        "fuente": "xm",
+        "desde": "2021-01-01",
+        "hasta": "2026-09-10",
+        "sin_ciiu": true,
+        "solo_ciiu": false
+      },
+      "entorno": {
+        "python": "3.11.8",
+        "pandas": "2.3.3"
+      },
+      "archivos": [
+        {
+          "archivo": "datasets/xm/xm_catalogo_metricas.csv",
+          "n_filas": 193,
+          "columnas": [
+            "MetricId",
+            "MetricName",
+            "Entity",
+            "MaxDays",
+            "Type",
+            "Url",
+            "Filter",
+            "MetricUnits",
+            "MetricDescription"
+          ],
+          "bytes": 50017,
+          "rango": null,
+          "sha256_archivo": "9735a69f19c91dc9dc16cb848062dfddd149ab43c3153b475ee565a44a24f74c",
+          "comprimido": false
+        },
+        {
+          "archivo": "datasets/xm/xm_demareal_sistema.csv",
+          "n_filas": 49824,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "entidad",
+            "valor"
+          ],
+          "bytes": 2897960,
+          "rango": [
+            "2021-01-01 00:00:00-05:00",
+            "2026-09-07 23:00:00-05:00"
+          ],
+          "sha256_archivo": "6dc21f34b4cd408bb43eb0817db96803b0625b21dea9dfdc917814239711dcc2",
+          "comprimido": false
+        },
+        {
+          "archivo": "datasets/xm/xm_demacome_sistema.csv",
+          "n_filas": 49824,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "entidad",
+            "valor"
+          ],
+          "bytes": 2900156,
+          "rango": [
+            "2021-01-01 00:00:00-05:00",
+            "2026-09-07 23:00:00-05:00"
+          ],
+          "sha256_archivo": "a0fe037328272ebf4a17ed06ac2a85c1d3e88f54359d0fd82223cbcdcdd27d9e",
+          "comprimido": false
+        }
+      ],
+      "bytes_totales": 5848133
+    },
+    {
+      "momento": "2026-09-10T06:44:23",
+      "argumentos": {
+        "fuente": "xm",
+        "desde": "2021-01-01",
+        "hasta": "2026-09-10",
+        "sin_ciiu": false,
+        "solo_ciiu": true
+      },
+      "entorno": {
+        "python": "3.11.8",
+        "pandas": "2.3.3"
+      },
+      "archivos": [
+        {
+          "archivo": "datasets/xm/ciiu/xm_demacomenoreg_ciiu_2021.csv.gz",
+          "n_filas": 3091296,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "entidad",
+            "valor",
+            "Activity",
+            "Subactivity"
+          ],
+          "bytes": 70534887,
+          "rango": [
+            "2021-01-01 00:00:00-05:00",
+            "2021-12-31 23:00:00-05:00"
+          ],
+          "sha256_archivo": "b2fcc42308008a3aef17f6711315e3157383e369d71ecd5af3d8fee1a0ea4863",
+          "comprimido": true
+        },
+        {
+          "archivo": "datasets/xm/ciiu/xm_demacomenoreg_ciiu_2022.csv.gz",
+          "n_filas": 3098112,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "entidad",
+            "valor",
+            "Activity",
+            "Subactivity"
+          ],
+          "bytes": 70726847,
+          "rango": [
+            "2022-01-01 00:00:00-05:00",
+            "2022-12-31 23:00:00-05:00"
+          ],
+          "sha256_archivo": "dada008bd75e5cb537b82019ffca74f1b16b3f93cf00d6d62d304564c737eaed",
+          "comprimido": true
+        },
+        {
+          "archivo": "datasets/xm/ciiu/xm_demacomenoreg_ciiu_2023.csv.gz",
+          "n_filas": 3105720,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "entidad",
+            "valor",
+            "Activity",
+            "Subactivity"
+          ],
+          "bytes": 70634194,
+          "rango": [
+            "2023-01-01 00:00:00-05:00",
+            "2023-12-31 23:00:00-05:00"
+          ],
+          "sha256_archivo": "9568167cfcae3ae83ffaa76f13c4db88c67523d109017a7601bcb90085dfc082",
+          "comprimido": true
+        },
+        {
+          "archivo": "datasets/xm/ciiu/xm_demacomenoreg_ciiu_2024.csv.gz",
+          "n_filas": 3064080,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "entidad",
+            "valor",
+            "Activity",
+            "Subactivity"
+          ],
+          "bytes": 70117936,
+          "rango": [
+            "2024-01-01 00:00:00-05:00",
+            "2024-12-31 23:00:00-05:00"
+          ],
+          "sha256_archivo": "9979f33bf70025add6b04882f2c8996c06bf195b5909b5d2dba5a5a192219732",
+          "comprimido": true
+        },
+        {
+          "archivo": "datasets/xm/ciiu/xm_demacomenoreg_ciiu_2025.csv.gz",
+          "n_filas": 3073080,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "entidad",
+            "valor",
+            "Activity",
+            "Subactivity"
+          ],
+          "bytes": 70260296,
+          "rango": [
+            "2025-01-01 00:00:00-05:00",
+            "2025-12-31 23:00:00-05:00"
+          ],
+          "sha256_archivo": "4d260f52f2e603ba3146edba8149dad79ded8b3171539223c0794db8eef1d142",
+          "comprimido": true
+        },
+        {
+          "archivo": "datasets/xm/ciiu/xm_demacomenoreg_ciiu_2026.csv.gz",
+          "n_filas": 2104392,
+          "columnas": [
+            "timestamp",
+            "fuente",
+            "identificador",
+            "entidad",
+            "valor",
+            "Activity",
+            "Subactivity"
+          ],
+          "bytes": 48347583,
+          "rango": [
+            "2026-01-01 00:00:00-05:00",
+            "2026-09-07 23:00:00-05:00"
+          ],
+          "sha256_archivo": "f43fc9a00611aa04dc8b8b7c05837c818f591cdb52c45bd1b803fa288a72b397",
+          "comprimido": true
+        }
+      ],
+      "bytes_totales": 400621743
+    }
+  ]
+}

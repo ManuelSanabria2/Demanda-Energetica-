@@ -497,8 +497,19 @@ class ClienteXM(ClienteAPI):
         esa convencion. Ver su documentacion en config.py: esta verificada
         empiricamente, pero si hubiera que corregirla se corrige alli y este
         codigo la sigue.
+
+        **Dimensiones extra.** No todas las metricas tienen la misma forma. La
+        mayoria trae en `Values` solo `code` y las 24 horas, y su dimension es
+        el `Id` de la entidad. Pero `DemaComeNoReg`/`Entity=CIIU` mete ademas
+        `Activity` y `Subactivity` dentro de `Values`, y deja `Id` fijo en
+        "CIIU": para dos dias devuelve 349 combinaciones actividad/subactividad.
+        Descartar esas claves, como se hacia antes, dejaba 16 704 filas con la
+        misma marca de tiempo y sin forma de saber a que actividad pertenecia
+        cada una. Ahora cualquier clave no horaria distinta de `code`/`Id` se
+        conserva como columna propia.
         """
         filas: list[dict[str, Any]] = []
+        dimensiones_extra: set[str] = set()
 
         for item in crudo.get("Items") or []:
             fecha = dt.date.fromisoformat(str(item["Date"])[:10])
@@ -506,6 +517,13 @@ class ClienteXM(ClienteAPI):
             for entidad in item.get("HourlyEntities", []):
                 valores = entidad.get("Values", {})
                 codigo = entidad.get("Id") or valores.get("code") or "desconocida"
+
+                extra = {
+                    clave: bruto
+                    for clave, bruto in valores.items()
+                    if clave not in self._NO_HORARIAS and not clave.startswith("Hour")
+                }
+                dimensiones_extra.update(extra)
 
                 for clave, bruto in valores.items():
                     if clave in self._NO_HORARIAS or not clave.startswith("Hour"):
@@ -523,13 +541,25 @@ class ClienteXM(ClienteAPI):
                             "identificador": identificador,
                             "entidad": str(codigo),
                             "valor": _a_float(bruto),
+                            **extra,
                         }
                     )
+
+        if dimensiones_extra:
+            log.info(
+                "xm %s: la metrica trae dimensiones extra en Values, se conservan "
+                "como columnas: %s",
+                identificador,
+                sorted(dimensiones_extra),
+            )
 
         if not filas:
             return self._marco_vacio()
 
-        marco = pd.DataFrame(filas, columns=self.COLUMNAS)
+        # Las columnas fijas primero y las dimensiones extra despues: fijar
+        # `columns=self.COLUMNAS` las habria descartado en silencio.
+        columnas = self.COLUMNAS + sorted(dimensiones_extra)
+        marco = pd.DataFrame(filas, columns=columnas)
         marco["timestamp"] = config.a_zona_colombia(marco["timestamp"])
         return marco
 

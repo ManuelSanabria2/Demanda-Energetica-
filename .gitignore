@@ -17,6 +17,13 @@ data/processed/*
 data/procesado/*
 !data/procesado/registro_limpieza.json
 
+# datasets/: cientos de MB de CSV regenerables con scripts/descargar_datasets.py.
+# Se versionan solo el README y el manifiesto, que dice que se genero, cuando y
+# con que hash, por la misma razon que los otros dos manifiestos.
+datasets/*
+!datasets/README.md
+!datasets/manifiesto_datasets.json
+
 __pycache__/
 *.pyc
 .pytest_cache/
