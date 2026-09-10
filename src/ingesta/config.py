@@ -10,10 +10,17 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[2]
 DIR_DATOS = RAIZ / "data"
 DIR_MUESTRAS = DIR_DATOS / "raw_samples"  # scripts/explorar_apis.py
+DIR_CRUDO = DIR_DATOS / "raw"  # capa cruda particionada (descarga.py)
 DIR_PROCESADO = DIR_DATOS / "processed"
 DIR_CACHE = DIR_DATOS / "cache"
-RUTA_MANIFIESTO = DIR_DATOS / "manifiesto.json"
 DIR_NOTAS = RAIZ / "notas"
+
+# Dos manifiestos, con dos propositos distintos:
+#   RUTA_MANIFIESTO_CRUDO  bitacora append-only de descargas, con hashes; es el
+#                          registro de reproducibilidad (que datos habia cuando)
+#   RUTA_MANIFIESTO        cobertura de la capa procesada (huecos, rezago)
+RUTA_MANIFIESTO_CRUDO = DIR_CRUDO / "manifiesto.json"
+RUTA_MANIFIESTO = DIR_DATOS / "manifiesto.json"
 
 # Los tramos que terminan dentro de esta ventana no se sirven desde la cache.
 # Dos razones: la demanda real llega con ~3 dias de rezago (un tramo reciente

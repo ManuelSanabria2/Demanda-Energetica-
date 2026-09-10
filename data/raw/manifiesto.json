@@ -1,0 +1,194 @@
+{
+  "version_formato": 1,
+  "descargas": [
+    {
+      "timestamp_ejecucion": "2026-09-10T02:58:18",
+      "duracion_segundos": 1.86,
+      "fuente": "xm",
+      "identificador": "DemaReal",
+      "parametros": {
+        "entidad": "Sistema"
+      },
+      "modo": "rango explicito",
+      "rango_solicitado": [
+        "2025-01-01",
+        "2025-03-15"
+      ],
+      "rango_obtenido": [
+        "2025-01-01",
+        "2025-03-15"
+      ],
+      "n_registros": 1776,
+      "hash_resultado": "sha256:4e578550b9b962896add7b7c71580596d34b6ab56a0ffc9527a74b79d58cb7f2",
+      "particiones_escritas": {
+        "anio=2025/mes=01": {
+          "n_registros": 744,
+          "hash": "sha256:c8f2e05d7d0d8c779236f1bd8a4b64c84bf79209222e1c1d7beb81faab593baa"
+        },
+        "anio=2025/mes=02": {
+          "n_registros": 672,
+          "hash": "sha256:bc071ed748ab939759e5d8595cfeb14df50bb49f16ee3cf5a3a0afda6a5bdd61"
+        },
+        "anio=2025/mes=03": {
+          "n_registros": 360,
+          "hash": "sha256:c8643d358cd9f77613108c99be1dbcf6833b5f2641ceea61b27fc9c42f50a682"
+        }
+      },
+      "n_registros_total": 1776,
+      "entorno": {
+        "python": "3.11.8",
+        "pandas": "2.3.3",
+        "pyarrow": "14.0.2",
+        "plataforma": "win32"
+      }
+    },
+    {
+      "timestamp_ejecucion": "2026-09-10T02:58:30",
+      "duracion_segundos": 0.59,
+      "fuente": "xm",
+      "identificador": "DemaReal",
+      "parametros": {
+        "entidad": "Sistema"
+      },
+      "modo": "rango explicito",
+      "rango_solicitado": [
+        "2025-01-01",
+        "2025-03-15"
+      ],
+      "rango_obtenido": [
+        "2025-01-01",
+        "2025-03-15"
+      ],
+      "n_registros": 1776,
+      "hash_resultado": "sha256:4e578550b9b962896add7b7c71580596d34b6ab56a0ffc9527a74b79d58cb7f2",
+      "particiones_escritas": {
+        "anio=2025/mes=01": {
+          "n_registros": 744,
+          "hash": "sha256:c8f2e05d7d0d8c779236f1bd8a4b64c84bf79209222e1c1d7beb81faab593baa"
+        },
+        "anio=2025/mes=02": {
+          "n_registros": 672,
+          "hash": "sha256:bc071ed748ab939759e5d8595cfeb14df50bb49f16ee3cf5a3a0afda6a5bdd61"
+        },
+        "anio=2025/mes=03": {
+          "n_registros": 360,
+          "hash": "sha256:c8643d358cd9f77613108c99be1dbcf6833b5f2641ceea61b27fc9c42f50a682"
+        }
+      },
+      "n_registros_total": 1776,
+      "entorno": {
+        "python": "3.11.8",
+        "pandas": "2.3.3",
+        "pyarrow": "14.0.2",
+        "plataforma": "win32"
+      }
+    },
+    {
+      "timestamp_ejecucion": "2026-09-10T02:58:31",
+      "duracion_segundos": 2.29,
+      "fuente": "xm",
+      "identificador": "DemaReal",
+      "parametros": {
+        "entidad": "Sistema"
+      },
+      "modo": "incremental",
+      "rango_solicitado": [
+        "2025-01-29",
+        "2025-04-30"
+      ],
+      "rango_obtenido": [
+        "2025-01-29",
+        "2025-04-30"
+      ],
+      "n_registros": 2208,
+      "hash_resultado": "sha256:9523ee2718f456a54c511f5c07736064a9593bf6afcee66ceb63fd250ab600be",
+      "particiones_escritas": {
+        "anio=2025/mes=01": {
+          "n_registros": 744,
+          "hash": "sha256:c8f2e05d7d0d8c779236f1bd8a4b64c84bf79209222e1c1d7beb81faab593baa"
+        },
+        "anio=2025/mes=02": {
+          "n_registros": 672,
+          "hash": "sha256:bc071ed748ab939759e5d8595cfeb14df50bb49f16ee3cf5a3a0afda6a5bdd61"
+        },
+        "anio=2025/mes=03": {
+          "n_registros": 744,
+          "hash": "sha256:ec9311376882de1f9004fba2df8d4fb0f59b133581d39608f36609a569e584ef"
+        },
+        "anio=2025/mes=04": {
+          "n_registros": 720,
+          "hash": "sha256:16f5f9f1816136eb21bacf2b0e6d9193b4df190da78df501481649113ba9f4f5"
+        }
+      },
+      "n_registros_total": 2880,
+      "entorno": {
+        "python": "3.11.8",
+        "pandas": "2.3.3",
+        "pyarrow": "14.0.2",
+        "plataforma": "win32"
+      }
+    },
+    {
+      "timestamp_ejecucion": "2026-09-10T02:58:45",
+      "duracion_segundos": 7.73,
+      "fuente": "simem",
+      "identificador": "14fabb",
+      "parametros": {},
+      "modo": "rango explicito",
+      "rango_solicitado": [
+        "2026-05-01",
+        "2026-05-05"
+      ],
+      "rango_obtenido": [
+        "2026-05-01",
+        "2026-05-05"
+      ],
+      "n_registros": 44640,
+      "hash_resultado": "sha256:0b32e08422d76c6b396c79d6bb9a3f087fd6ed34235ea8489feacbe5011c4bbd",
+      "particiones_escritas": {
+        "anio=2026/mes=05": {
+          "n_registros": 44640,
+          "hash": "sha256:0b32e08422d76c6b396c79d6bb9a3f087fd6ed34235ea8489feacbe5011c4bbd"
+        }
+      },
+      "n_registros_total": 44640,
+      "entorno": {
+        "python": "3.11.8",
+        "pandas": "2.3.3",
+        "pyarrow": "14.0.2",
+        "plataforma": "win32"
+      }
+    },
+    {
+      "timestamp_ejecucion": "2026-09-10T02:58:54",
+      "duracion_segundos": 0.39,
+      "fuente": "simem",
+      "identificador": "14fabb",
+      "parametros": {},
+      "modo": "rango explicito",
+      "rango_solicitado": [
+        "2026-05-01",
+        "2026-05-05"
+      ],
+      "rango_obtenido": [
+        "2026-05-01",
+        "2026-05-05"
+      ],
+      "n_registros": 44640,
+      "hash_resultado": "sha256:0b32e08422d76c6b396c79d6bb9a3f087fd6ed34235ea8489feacbe5011c4bbd",
+      "particiones_escritas": {
+        "anio=2026/mes=05": {
+          "n_registros": 44640,
+          "hash": "sha256:0b32e08422d76c6b396c79d6bb9a3f087fd6ed34235ea8489feacbe5011c4bbd"
+        }
+      },
+      "n_registros_total": 44640,
+      "entorno": {
+        "python": "3.11.8",
+        "pandas": "2.3.3",
+        "pyarrow": "14.0.2",
+        "plataforma": "win32"
+      }
+    }
+  ]
+}
