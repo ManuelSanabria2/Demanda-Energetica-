@@ -134,6 +134,40 @@ y pyarrow. Esas versiones están ahí porque el hash depende de ellas.
 **Es el único archivo bajo `data/` que se versiona en git.** Sin eso, el
 registro de qué datos había en cada momento viviría solo en un disco local.
 
+## Diagnóstico de calidad
+
+`src/calidad/diagnostico.py` describe qué está mal en una serie. **No corrige
+nada**: no rellena huecos, no elimina duplicados, no recorta extremos.
+
+```python
+from calidad.diagnostico import diagnosticar, resumen
+
+informe = diagnosticar(marco)          # dict serializable a JSON
+print(resumen(informe))                # versión legible
+```
+
+Cubre completitud temporal (huecos clasificados por duración, duplicados, días
+que no tienen 24 horas), valores (nulos por columna, ceros y negativos,
+atípicos por IQR global y por desviación frente a la misma hora del mismo día
+de la semana) y estructura (rango, continuidad, cardinalidad de las
+categóricas).
+
+Distingue tablas **agregadas** de **desagregadas** por el número de filas por
+marca de tiempo. En SIMEM los timestamps repetidos son normales, así que pasarle
+`columnas_clave` permite separar un duplicado real de la desagregación
+legítima, y `columnas_grupo` evita comparar agentes distintos entre sí.
+
+Los hallazgos sobre los datos reales están en
+**[`notas/hallazgos_calidad.md`](notas/hallazgos_calidad.md)**. Dos importan
+para el modelado:
+
+1. **Los dos últimos días publicados traen valores parciales** (~24 % de lo
+   normal) aunque tengan las 24 horas y ningún nulo. El rezago útil es de ~5
+   días, no de 3.
+2. **`cli.py` puede destruir datos**: su `existing_data_behavior="delete_matching"`
+   borra la partición entera, así que una ingesta parcial elimina el resto del
+   mes. Ya ocurrió con marzo de 2025. Sin corregir.
+
 ## Salida
 
 ```
@@ -214,6 +248,8 @@ a las métricas de pronóstico del CND, que sí se publican por adelantado.
 ## Estructura
 
 ```
+src/calidad/
+  diagnostico.py  informe de calidad: completitud, valores, estructura
 src/ingesta/
   config.py       rutas, constantes, precedencia de versiones, desfase horario
   clientes.py     ClienteXM y ClienteSIMEM: descarga, troceo, reintentos, caché
@@ -229,6 +265,7 @@ scripts/
 tests/
   test_clientes.py    troceo, reintentos, caché, ancho→largo (sin red)
   test_descarga.py    particionado, idempotencia, incremental, manifiesto
+  test_diagnostico.py huecos, atípicos por dos criterios, fiabilidad
   test_ingesta.py     ventanas, colapso de versiones, cobertura
 descargar.py          CLI de la capa cruda
 ```
