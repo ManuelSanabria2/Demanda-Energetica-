@@ -169,6 +169,50 @@ para el modelado:
    que una ingesta parcial eliminaba el resto del mes; ocurrió con marzo de
    2025. Ahora lee y fusiona antes de reescribir, y marzo está reingestado.
 
+## Fuentes complementarias: clima y calendario
+
+`src/ingesta/complementarias.py` añade las dos fuentes exógenas y las une con la
+demanda.
+
+```python
+from ingesta.complementarias import descargar_clima, calendario_horario, unir
+
+clima, reg = descargar_clima(inicio, fin, pesos={"bogota": 0.45, ...})
+cal, _     = calendario_horario(inicio, fin)
+panel, informe = unir(demanda, clima, cal)   # falla si el merge no cuadra
+```
+
+**Clima** (Open-Meteo Archive): temperatura horaria de Bogotá, Medellín, Cali y
+Barranquilla, agregada a una serie nacional por media ponderada. **Los pesos son
+un parámetro**, se validan y se anotan en `data/processed/registro_clima.json`
+en cada descarga, así que siempre consta con qué ponderación se construyó cada
+serie.
+
+> ⚠️ `PESOS_DEFECTO` es un **proxy provisional** por tamaño de área
+> metropolitana, no una medición de la demanda por zona. La base correcta sería
+> la participación de cada zona, calculable con los conjuntos de SIMEM
+> `d91840` (demanda por área operativa) o `38FF5B` (por STR), pero el mapeo de
+> área a ciudad no está hecho. `normalizar_pesos()` acepta magnitudes crudas
+> (GWh por zona) para sustituir el proxy en cuanto tengas los datos.
+
+Si a una hora le falta una ciudad se renormalizan los pesos de las presentes, y
+`ciudades_disponibles` deja constancia de cuántas entraron.
+
+**Calendario**: `holidays` con `country='CO'`, que ya aplica la **Ley Emiliani**
+(traslado de festivos al lunes siguiente). Banderas: `es_festivo`,
+`es_vispera_festivo`, `es_puente`, `es_semana_santa`,
+`es_ultima_semana_diciembre`. Las definiciones de `es_puente` y
+`es_semana_santa` son decisiones, no hechos, y quedan escritas en el registro.
+
+**Integración**: `unir()` conserva exactamente las filas de la demanda y **falla
+ruidosamente** si no. Aborta si la demanda o cualquier fuente traen marcas de
+tiempo repetidas (multiplicaría filas en silencio), si dos tablas comparten
+columnas, o —con `exigir_cobertura_total=True`— si alguna fuente deja huecos.
+
+Resultado sobre los datos reales: 49 824 filas de demanda → 49 824 del panel,
+**0 % sin cobertura** en clima y calendario. El clima diagnostica 100 % de
+completitud, sin huecos ni nulos.
+
 ## Limpieza trazable
 
 `src/limpieza/limpiar.py` aplica la limpieza y **registra cada transformación**.
@@ -301,6 +345,8 @@ src/limpieza/
 src/calidad/
   diagnostico.py  informe de calidad: completitud, valores, estructura
 src/ingesta/
+  complementarias.py  clima (Open-Meteo) + calendario CO + unión validada
+  particiones.py  escritura Parquet que fusiona en vez de sobrescribir
   config.py       rutas, constantes, precedencia de versiones, desfase horario
   clientes.py     ClienteXM y ClienteSIMEM: descarga, troceo, reintentos, caché
   descarga.py     capa cruda: Parquet particionado, incremental, manifiesto
@@ -318,6 +364,7 @@ tests/
   test_diagnostico.py huecos, atípicos por dos criterios, fiabilidad
   test_limpieza.py    esquema, dedup, interpolación acotada, procedencia
   test_cli_escritura.py  regresión: una ingesta parcial no borra el resto del mes
+  test_complementarias.py pesos, ponderación, Ley Emiliani, validación del merge
   test_ingesta.py     ventanas, colapso de versiones, cobertura
 descargar.py          CLI de la capa cruda
 ```
