@@ -1,4 +1,5 @@
 pandas==2.3.3
 requests==2.33.0
 pyarrow==14.0.2
+holidays==0.104
 pytest>=8.0

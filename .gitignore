@@ -2,6 +2,9 @@
 data/*
 !data/raw/
 data/raw/*
+!data/processed/
+data/processed/*
+!data/processed/registro_clima.json
 
 # Excepcion: el manifiesto de descargas es el registro de reproducibilidad
 # del proyecto. Si no se versiona, no hay forma de reconstruir despues que
