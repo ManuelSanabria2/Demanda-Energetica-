@@ -14,6 +14,7 @@ from __future__ import annotations
 import argparse
 import datetime as dt
 import logging
+from pathlib import Path
 
 import pandas as pd
 import pyarrow as pa
@@ -38,26 +39,93 @@ ESQUEMA = pa.schema(
 )
 
 
+# Identifica una observacion en el esquema procesado. Si dos filas coinciden en
+# estas columnas son la misma hora de la misma serie, y la mas reciente sustituye
+# a la anterior.
+CLAVE_PROCESADA = ["fecha_hora", "fuente", "metrica", "entidad"]
+
+
+def _leer_particiones(destino: Path, pares: set[tuple[int, int]]) -> pd.DataFrame:
+    """Lee lo que ya hay almacenado en las particiones que se van a tocar.
+
+    Devuelve las filas sin las columnas de particion: se recalculan despues a
+    partir de `fecha_hora`, que es la fuente de verdad.
+    """
+    marcos = []
+    for anio, mes in sorted(pares):
+        carpeta = destino / f"anio={anio}" / f"mes={mes}"
+        archivos = sorted(carpeta.glob("*.parquet")) if carpeta.exists() else []
+        for archivo in archivos:
+            marcos.append(pd.read_parquet(archivo))
+
+    if not marcos:
+        return pd.DataFrame(columns=[c for c in ESQUEMA.names if c not in ("anio", "mes")])
+    return pd.concat(marcos, ignore_index=True)
+
+
 def escribir_parquet(tabla: pd.DataFrame, subcarpeta: str) -> int:
     """Escribe la serie en Parquet particionado por anio y mes.
 
-    Reescribe solo las particiones tocadas, para que una reingesta parcial no
-    borre el resto del historico.
+    Escribir no es reemplazar. `pq.write_to_dataset` con
+    `existing_data_behavior="delete_matching"` borra la particion entera antes
+    de escribir, asi que una ingesta acotada a unos pocos dias se llevaria por
+    delante el resto del mes. Ya paso una vez: una prueba de cinco dias borro
+    los 26 restantes de marzo de 2025 sin ningun aviso.
+
+    Por eso, para cada particion afectada se lee lo que ya habia, se combina con
+    lo nuevo y se deduplica por CLAVE_PROCESADA antes de reescribirla. Lo recien
+    ingestado gana, de modo que una revision de la fuente sustituye al dato
+    previo en vez de convivir con el.
     """
     if tabla.empty:
         log.warning("Nada que escribir en %s", subcarpeta)
         return 0
 
-    salida = tabla.copy()
-    salida["fecha_hora"] = pd.to_datetime(salida["fecha_hora"])
+    nuevas = tabla.copy()
+    nuevas["fecha_hora"] = pd.to_datetime(nuevas["fecha_hora"])
+
+    destino = config.DIR_PROCESADO / subcarpeta
+    destino.mkdir(parents=True, exist_ok=True)
+
+    pares = set(
+        zip(nuevas["fecha_hora"].dt.year, nuevas["fecha_hora"].dt.month)
+    )
+    existentes = _leer_particiones(destino, pares)
+
+    columnas = [c for c in ESQUEMA.names if c not in ("anio", "mes")]
+    for columna in columnas:
+        if columna not in nuevas.columns:
+            nuevas[columna] = None
+    # Concatenar con un marco vacio confunde la inferencia de tipos de pandas
+    # (y esta en vias de deprecacion), asi que se evita cuando no hay historico.
+    combinado = (
+        nuevas[columnas].copy()
+        if existentes.empty
+        else pd.concat([existentes, nuevas[columnas]], ignore_index=True)
+    )
+
+    antes = len(combinado)
+    combinado = combinado.drop_duplicates(subset=CLAVE_PROCESADA, keep="last")
+    conservadas_del_historico = max(0, len(combinado) - len(nuevas))
+    if antes != len(combinado):
+        log.info(
+            "%s: %d filas ya existentes sustituidas por la version recien ingestada",
+            subcarpeta,
+            antes - len(combinado),
+        )
+    if conservadas_del_historico:
+        log.info(
+            "%s: %d filas del historico conservadas en las particiones tocadas",
+            subcarpeta,
+            conservadas_del_historico,
+        )
+
+    salida = combinado.sort_values("fecha_hora").reset_index(drop=True)
     salida["anio"] = salida["fecha_hora"].dt.year.astype("int32")
     salida["mes"] = salida["fecha_hora"].dt.month.astype("int32")
     salida["version"] = salida["version"].astype("object").where(
         salida["version"].notna(), None
     )
-
-    destino = config.DIR_PROCESADO / subcarpeta
-    destino.mkdir(parents=True, exist_ok=True)
 
     pq.write_to_dataset(
         pa.Table.from_pandas(salida[ESQUEMA.names], schema=ESQUEMA, preserve_index=False),
@@ -65,7 +133,13 @@ def escribir_parquet(tabla: pd.DataFrame, subcarpeta: str) -> int:
         partition_cols=["anio", "mes"],
         existing_data_behavior="delete_matching",
     )
-    log.info("Escritas %d filas en %s", len(salida), destino)
+    log.info(
+        "Escritas %d filas en %s (%d nuevas, %d preservadas)",
+        len(salida),
+        destino,
+        len(nuevas),
+        conservadas_del_historico,
+    )
     return len(salida)
 
 

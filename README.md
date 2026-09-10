@@ -164,9 +164,10 @@ para el modelado:
 1. **Los dos últimos días publicados traen valores parciales** (~24 % de lo
    normal) aunque tengan las 24 horas y ningún nulo. El rezago útil es de ~5
    días, no de 3.
-2. **`cli.py` puede destruir datos**: su `existing_data_behavior="delete_matching"`
-   borra la partición entera, así que una ingesta parcial elimina el resto del
-   mes. Ya ocurrió con marzo de 2025. Sin corregir.
+2. ~~**`cli.py` puede destruir datos**~~ — **corregido**. Su
+   `existing_data_behavior="delete_matching"` borraba la partición entera, así
+   que una ingesta parcial eliminaba el resto del mes; ocurrió con marzo de
+   2025. Ahora lee y fusiona antes de reescribir, y marzo está reingestado.
 
 ## Limpieza trazable
 
@@ -211,8 +212,9 @@ Columnas de procedencia: `origen_valor` (`observado` / `interpolado` /
 `faltante`), `imputado`, `hueco_horas`, `atipico`, `atipico_iqr`,
 `atipico_evaluable`, `z_estacional`, `periodo_atipico`, `etiqueta_periodo`.
 
-Sobre los datos reales: 49 200 observados (98.75 %), 624 faltantes dejados como
-`NaN` (todo marzo de 2025), 151 atípicos marcados, 0 valores inventados.
+Sobre los datos reales, tras reparar marzo de 2025: **49 824 observados
+(100 %)**, 0 interpolados, 0 faltantes, 157 atípicos marcados y 0 valores
+inventados.
 
 ## Salida
 
@@ -315,6 +317,7 @@ tests/
   test_descarga.py    particionado, idempotencia, incremental, manifiesto
   test_diagnostico.py huecos, atípicos por dos criterios, fiabilidad
   test_limpieza.py    esquema, dedup, interpolación acotada, procedencia
+  test_cli_escritura.py  regresión: una ingesta parcial no borra el resto del mes
   test_ingesta.py     ventanas, colapso de versiones, cobertura
 descargar.py          CLI de la capa cruda
 ```
