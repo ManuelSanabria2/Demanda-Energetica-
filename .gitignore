@@ -1,0 +1,7 @@
+# Datos: regenerables desde las APIs, y pesados para un repo.
+data/
+
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
