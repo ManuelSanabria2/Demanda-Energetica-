@@ -8,6 +8,12 @@ data/raw/*
 # datos habia en cada momento, que es justo para lo que existe.
 !data/raw/manifiesto.json
 
+# Misma razon para el registro de limpieza: es lo que permite responder
+# despues de donde salio cada valor.
+!data/procesado/
+data/procesado/*
+!data/procesado/registro_limpieza.json
+
 __pycache__/
 *.pyc
 .pytest_cache/
