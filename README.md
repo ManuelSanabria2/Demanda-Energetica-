@@ -45,8 +45,17 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q
+python -m pytest tests -q          # 186 pruebas, ninguna toca la red
 ```
+
+`tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
+intente salir falla con un mensaje que dice dónde mirar, en vez de tardar treinta
+segundos y depender de que XM y SIMEM estén disponibles. Para una prueba que sí
+la necesite: `@pytest.mark.red` y `pytest -m red`.
+
+`tests/test_criticos.py` agrupa lo que puede fallar **en silencio** — troceo de
+fechas, conversión `HourNN`, idempotencia, límite de interpolación e integridad
+del merge — organizado por riesgo y no por módulo.
 
 ## Capa de acceso a datos
 
@@ -365,6 +374,8 @@ tests/
   test_limpieza.py    esquema, dedup, interpolación acotada, procedencia
   test_cli_escritura.py  regresión: una ingesta parcial no borra el resto del mes
   test_complementarias.py pesos, ponderación, Ley Emiliani, validación del merge
+  test_criticos.py    lo que falla en silencio (JSON real fijado, casos borde)
+  conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
 descargar.py          CLI de la capa cruda
 ```
