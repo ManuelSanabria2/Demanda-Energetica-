@@ -9,9 +9,7 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[2]
 DIR_DATOS = RAIZ / "data"
-DIR_CRUDO = DIR_DATOS / "raw"
-DIR_CRUDO_XM = DIR_CRUDO / "xm"
-DIR_CRUDO_SIMEM = DIR_CRUDO / "simem"
+DIR_MUESTRAS = DIR_DATOS / "raw_samples"  # scripts/explorar_apis.py
 DIR_PROCESADO = DIR_DATOS / "processed"
 DIR_CACHE = DIR_DATOS / "cache"
 RUTA_MANIFIESTO = DIR_DATOS / "manifiesto.json"
@@ -76,8 +74,7 @@ FECHA_INICIO_DEFECTO = dt.date(2021, 1, 1)
 # de alcance entre ambas series, no de un desalineamiento temporal.
 #
 # Si alguna vez hubiera que corregirlo, se corrige AQUI y en ningun otro sitio:
-# tanto normalizar.xm_ancho_a_largo() como clientes.ClienteXM leen esta
-# constante en vez de tener su propia copia.
+# clientes.ClienteXM es el unico que traduce HourNN, y lee esta constante.
 DESFASE_HORA_XM = 1
 
 # Precedencia de versiones de liquidacion de SIMEM, de mas a menos definitiva.
