@@ -143,6 +143,28 @@ fuente primaria) para agosto de 2026, probando tres desfases:
 
 Reproducible con `python scripts/reconciliar.py --mes 2026-08`.
 
+### Contraste sobre un mes ya liquidado
+
+Repetida la reconciliación sobre **marzo de 2025**, un mes cerrado en el que
+`14fabb` trae una única versión (`TX4`):
+
+```
+ desfase      n   correlacion   error medio %
+      -1    743      0.952317           2.929
+       0    744      0.999614           0.470
+       1    743      0.953245           2.918
+```
+
+**Correlación 0.9996 y 0.47 % de error**, frente a 0.9912 y 1.90 % en agosto de
+2026. Esto resuelve buena parte de la duda que quedaba abierta: la discrepancia
+entre las dos fuentes se debe en gran medida a las **versiones preliminares**,
+no a un desajuste estructural. Sobre datos ya liquidados las dos series
+prácticamente coinciden, y el desfase óptimo sigue siendo 0.
+
+Consecuencia práctica para el modelado: los meses recientes traen un objetivo
+algo más ruidoso que los históricos, y el ruido se reduce solo cuando XM
+publica la liquidación definitiva.
+
 ### Contraste sobre el histórico completo
 
 Comparando las dos series ya ingestadas, 49 752 horas de 2021-01-01 a 2026-09-04:
@@ -166,7 +188,9 @@ Causas plausibles, pendientes de confirmar:
 - `DemaReal` de XM excluye explícitamente el alumbrado público; no está
   confirmado que `14fabb` lo excluya igual.
 - El salto a ~2.1 % en 2023–2024 frente a ~1.0 % en el resto sugiere un cambio
-  de perímetro o de agentes reportantes en esos años, no ruido.
+  de perímetro o de agentes reportantes en esos años, no ruido. Como esos meses
+  ya están liquidados, la explicación de las versiones preliminares no aplica
+  ahí: queda como pregunta abierta.
 
 ---
 

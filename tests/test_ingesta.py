@@ -47,41 +47,6 @@ def test_partir_rango_invertido_falla():
         partir_rango(dt.date(2025, 2, 1), dt.date(2025, 1, 1), 31)
 
 
-# --- XM ancho a largo -----------------------------------------------------
-
-
-def _item_xm(fecha: str, **horas: str) -> dict:
-    valores = {"code": "Sistema"}
-    valores.update({f"Hour{n:02d}": "1000.0" for n in range(1, 25)})
-    valores.update(horas)
-    return {"Date": fecha, "HourlyEntities": [{"Id": "Sistema", "Values": valores}]}
-
-
-def test_xm_ancho_a_largo_produce_24_horas():
-    tabla = normalizar.xm_ancho_a_largo([_item_xm("2025-01-01")], "DemaReal")
-
-    assert len(tabla) == 24
-    assert list(tabla.columns) == normalizar.COLUMNAS_SALIDA
-    assert tabla["fecha_hora"].min() == pd.Timestamp("2025-01-01 00:00:00")
-    assert tabla["fecha_hora"].max() == pd.Timestamp("2025-01-01 23:00:00")
-    assert tabla["valor_kwh"].dtype == float
-
-
-def test_xm_valores_ausentes_son_nan_no_cero():
-    item = _item_xm("2025-01-01", Hour05="", Hour06=None)
-    tabla = normalizar.xm_ancho_a_largo([item], "DemaReal").set_index("fecha_hora")
-
-    assert pd.isna(tabla.loc["2025-01-01 04:00:00", "valor_kwh"])
-    assert pd.isna(tabla.loc["2025-01-01 05:00:00", "valor_kwh"])
-    assert (tabla["valor_kwh"] == 0).sum() == 0
-
-
-def test_xm_sin_items_devuelve_tabla_vacia_con_esquema():
-    tabla = normalizar.xm_ancho_a_largo([], "DemaReal")
-    assert tabla.empty
-    assert list(tabla.columns) == normalizar.COLUMNAS_SALIDA
-
-
 # --- SIMEM: colapso de versiones -----------------------------------------
 
 
@@ -150,8 +115,22 @@ def test_agregar_nacional_suma_una_sola_version():
 # --- cobertura ------------------------------------------------------------
 
 
+def _dia_completo(fecha: str = "2025-01-01") -> pd.DataFrame:
+    """Un dia de 24 horas en el esquema comun."""
+    return pd.DataFrame(
+        {
+            "fecha_hora": pd.date_range(fecha, periods=24, freq="h"),
+            "fuente": "xm",
+            "metrica": "DemaReal",
+            "entidad": "Sistema",
+            "valor_kwh": 1000.0,
+            "version": None,
+        }
+    )
+
+
 def test_reporte_cobertura_detecta_huecos():
-    tabla = normalizar.xm_ancho_a_largo([_item_xm("2025-01-01")], "DemaReal")
+    tabla = _dia_completo()
     tabla = tabla[tabla["fecha_hora"] != pd.Timestamp("2025-01-01 10:00:00")]
 
     reporte = normalizar.reporte_cobertura(
@@ -164,8 +143,8 @@ def test_reporte_cobertura_detecta_huecos():
 
 
 def test_reporte_cobertura_cuenta_nan_aparte():
-    item = _item_xm("2025-01-01", Hour03="")
-    tabla = normalizar.xm_ancho_a_largo([item], "DemaReal")
+    tabla = _dia_completo()
+    tabla.loc[2, "valor_kwh"] = float("nan")
 
     reporte = normalizar.reporte_cobertura(
         tabla, inicio=dt.date(2025, 1, 1), fin=dt.date(2025, 1, 1)

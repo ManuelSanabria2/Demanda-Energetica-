@@ -3,10 +3,8 @@
 __all__ = [
     "config",
     "clientes",
-    "http",
     "ventanas",
-    "xm",
-    "simem",
     "normalizar",
     "manifiesto",
+    "cli",
 ]

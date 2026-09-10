@@ -1,5 +1,9 @@
 """Normalizacion de ambas fuentes a un esquema horario comun.
 
+La descarga y el paso de formato ancho a largo los hace `clientes`; aqui solo
+se unifica el esquema, se colapsan las versiones de liquidacion de SIMEM y se
+mide la cobertura.
+
 Esquema de salida:
 
     fecha_hora   datetime64[ns]  hora local de Colombia (naive; no hay DST)
@@ -24,54 +28,6 @@ log = logging.getLogger(__name__)
 
 COLUMNAS_SALIDA = ["fecha_hora", "fuente", "metrica", "entidad", "valor_kwh", "version"]
 
-# Claves de Values que no son horas y hay que ignorar al pasar de ancho a largo.
-_CLAVES_NO_HORARIAS = {"code", "Code", "Id"}
-
-
-def xm_ancho_a_largo(items: list[dict[str, Any]], metrica: str) -> pd.DataFrame:
-    """Convierte los Items horarios de XM del formato ancho al esquema comun.
-
-    Cada `Values` trae Hour01..Hour24 como cadenas. El indice N de HourNN se
-    mapea a la hora de reloj N - config.DESFASE_HORA_XM; con el desfase en 1,
-    Hour01 es el intervalo 00:00-01:00. Los valores ausentes, nulos o vacios
-    se convierten en NaN, nunca en cero: un cero es un dato, un hueco no.
-    """
-    filas: list[dict[str, Any]] = []
-
-    for item in items:
-        fecha = dt.date.fromisoformat(str(item["Date"])[:10])
-        for entidad in item.get("HourlyEntities", []):
-            valores = entidad.get("Values", {})
-            codigo = entidad.get("Id") or valores.get("code") or "desconocida"
-
-            for clave, bruto in valores.items():
-                if clave in _CLAVES_NO_HORARIAS or not clave.startswith("Hour"):
-                    continue
-
-                indice = int(clave[4:])
-                hora = indice - config.DESFASE_HORA_XM
-                if not 0 <= hora <= 23:
-                    log.warning("Hora fuera de rango en %s: %s", fecha, clave)
-                    continue
-
-                filas.append(
-                    {
-                        "fecha_hora": dt.datetime.combine(fecha, dt.time(hora)),
-                        "fuente": "xm",
-                        "metrica": metrica,
-                        "entidad": str(codigo),
-                        "valor_kwh": _a_float(bruto),
-                        "version": None,
-                    }
-                )
-
-    if not filas:
-        return pd.DataFrame(columns=COLUMNAS_SALIDA)
-
-    tabla = pd.DataFrame(filas)
-    tabla["fecha_hora"] = pd.to_datetime(tabla["fecha_hora"])
-    return tabla.sort_values(["entidad", "fecha_hora"]).reset_index(drop=True)
-
 
 def xm_cliente_a_esquema_comun(tabla: pd.DataFrame) -> pd.DataFrame:
     """Pasa la salida de ClienteXM al esquema comun de las tablas procesadas.
@@ -92,20 +48,6 @@ def xm_cliente_a_esquema_comun(tabla: pd.DataFrame) -> pd.DataFrame:
     ).copy()
     comun["version"] = None
     return comun[COLUMNAS_SALIDA].sort_values("fecha_hora").reset_index(drop=True)
-
-
-def _a_float(bruto: Any) -> float:
-    """Convierte un valor de XM a float; ausente, nulo o vacio dan NaN."""
-    if bruto is None:
-        return float("nan")
-    texto = str(bruto).strip()
-    if not texto:
-        return float("nan")
-    try:
-        return float(texto)
-    except ValueError:
-        log.warning("Valor no numerico en XM: %r", bruto)
-        return float("nan")
 
 
 def simem_colapsar_versiones(
