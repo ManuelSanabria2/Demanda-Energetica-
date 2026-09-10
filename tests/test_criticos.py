@@ -676,3 +676,78 @@ def test_la_imputacion_causal_no_usa_el_valor_posterior():
     assert obtenido_causal.loc["2025-01-15 03:00"] == anterior
     obtenido_temporal = temporal.set_index("fecha_hora")["valor_kwh"]
     assert obtenido_temporal.loc["2025-01-15 02:00"] != anterior
+
+
+# ==========================================================================
+# 7. Metricas con dimensiones extra (CIIU)
+# ==========================================================================
+#
+# El riesgo: descartar dimensiones que vienen dentro de Values. No falla; deja
+# miles de filas con la misma marca de tiempo y sin saber a que pertenecen.
+
+# Recorte textual de la respuesta real de DemaComeNoReg/Entity=CIIU. Las claves
+# Activity y Subactivity viven DENTRO de Values, y el Id de la entidad es
+# siempre "CIIU": la dimension real no esta donde el resto de metricas la pone.
+RESPUESTA_CIIU_REAL: dict[str, Any] = {
+    "Metric": {"Id": "DemaComeNoReg", "Name": "Demanda Comercial por CIIU"},
+    "Items": [
+        {
+            "Date": "2025-01-01",
+            "HourlyEntities": [
+                {
+                    "Id": "CIIU",
+                    "Values": {
+                        "Activity": "ACTIVIDADES ARTÍSTICAS, DE ENTRETENEMIENTO Y RECREACIÓN",
+                        "code": "CIIU",
+                        "Subactivity": "ARTES PLÁSTICAS Y VISUALES",
+                        **{f"Hour{n:02d}": f"{12 + n}.5" for n in range(1, 25)},
+                    },
+                },
+                {
+                    "Id": "CIIU",
+                    "Values": {
+                        "Activity": "ACTIVIDADES ARTÍSTICAS, DE ENTRETENEMIENTO Y RECREACIÓN",
+                        "code": "CIIU",
+                        "Subactivity": "ACTIVIDADES DE BIBLIOTECAS Y ARCHIVOS",
+                        **{f"Hour{n:02d}": f"{99 + n}.5" for n in range(1, 25)},
+                    },
+                },
+            ],
+        }
+    ],
+}
+
+
+def test_las_dimensiones_de_ciiu_se_conservan():
+    """Antes se perdian: Activity y Subactivity no llegaban al DataFrame."""
+    tabla = ClienteXM(sesion=mock.MagicMock())._a_dataframe(
+        RESPUESTA_CIIU_REAL, "DemaComeNoReg"
+    )
+
+    assert "Activity" in tabla.columns
+    assert "Subactivity" in tabla.columns
+    assert tabla["Subactivity"].nunique() == 2
+    assert tabla["Activity"].notna().all()
+
+
+def test_ciiu_no_deja_duplicados_sobre_su_clave_real():
+    """El Id de la entidad no distingue nada: la clave la dan las dimensiones."""
+    tabla = ClienteXM(sesion=mock.MagicMock())._a_dataframe(
+        RESPUESTA_CIIU_REAL, "DemaComeNoReg"
+    )
+
+    assert len(tabla) == 2 * 24
+    # Por marca de tiempo hay dos filas, una por subactividad: eso es correcto.
+    assert tabla["timestamp"].duplicated().sum() == 24
+    # Sobre la clave completa no puede repetirse ninguna.
+    clave = ["timestamp", "Activity", "Subactivity"]
+    assert not tabla.duplicated(subset=clave).any()
+
+
+def test_una_metrica_normal_no_gana_columnas():
+    """La correccion no debe cambiar el resto de metricas."""
+    tabla = convertir()
+
+    assert list(tabla.columns) == ClienteXM.COLUMNAS
+    assert len(tabla) == 24
+    assert tabla["timestamp"].duplicated().sum() == 0

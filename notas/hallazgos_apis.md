@@ -89,6 +89,7 @@ El número de versiones simultáneas **cambia con la antigüedad del dato**:
 |---|---|---|
 | 2021-01 | `TX4` | 1× (sin riesgo) |
 | 2023-06 | `TX5` | 1× (sin riesgo) |
+| 2026-01 | `TX2`, `TX3`, `TX4`, `TXR`, `TXF` | **5×** |
 | 2026-05 | `TX2`, `TX3`, `TXR`, `TXF` | **4×** |
 | 2026-08 | `TX2`, `TXR` | **2×** |
 
