@@ -65,7 +65,11 @@ el ciclo de liquidación) o si queda así de forma permanente.
 
 ---
 
-## 2. ⚠️ Falta marzo de 2025 en la capa procesada — causado por el propio código
+## 2. ✅ RESUELTO — Faltaba marzo de 2025 en la capa procesada, por un bug propio
+
+> **Estado: corregido el 2026-09-10.** El `delete_matching` de `cli.py` ya no
+> destruye datos, y marzo de 2025 está reingestado en ambas fuentes. Lo que
+> sigue documenta el fallo y su arreglo.
 
 `data/processed/xm_demanda_real_sistema` tenía **624 horas faltantes**, un único
 tramo continuo:
@@ -86,14 +90,37 @@ una ingesta de prueba acotada a `--desde 2025-03-01 --hasta 2025-03-05`, la
 partición `anio=2025/mes=3` se borró completa y se reescribió con solo esos 5
 días. Los otros 26 desaparecieron sin ningún aviso.
 
-Es exactamente el fallo que `descarga.py` evita en la capa cruda leyendo,
-fusionando y reescribiendo la partición. `cli.py` no hace eso todavía.
+Era exactamente el fallo que `descarga.py` ya evitaba en la capa cruda
+leyendo, fusionando y reescribiendo la partición; `cli.py` no lo hacía.
 
-- **Alcance**: solo la capa procesada. La capa cruda (`data/raw/`) y la caché no
-  se vieron afectadas.
-- **Recuperable**: sí, reingestando el rango. Los datos siguen en la API.
-- **Sin corregir**: el `delete_matching` de `cli.py` sigue ahí. Cualquier
-  ingesta parcial vuelve a destruir el resto de sus particiones.
+- **Alcance**: las dos series de la capa procesada. `xm_demanda_real_sistema` y
+  `simem_demanda_real_nacional` perdieron los mismos 26 días, porque la prueba
+  se lanzó con `--fuente todas`. La capa cruda (`data/raw/`) y la caché no se
+  vieron afectadas.
+- **Recuperable**: sí, y se recuperó reingestando el rango.
+
+### El arreglo
+
+`escribir_parquet` ya no escribe encima: para cada partición afectada lee lo que
+había, lo combina con lo nuevo, deduplica por `(fecha_hora, fuente, metrica,
+entidad)` quedándose con lo recién ingestado, y reescribe la partición completa.
+Es la misma semántica de leer-fusionar-reescribir que `descarga.py` aplica en la
+capa cruda.
+
+`tests/test_cli_escritura.py` cubre la regresión con el caso exacto que falló:
+escribir 31 días, reingestar 5 y comprobar que siguen estando los 744 registros.
+
+### Verificación tras la reingesta
+
+```
+xm_demanda_real_sistema      total=49 824  marzo2025=744/744  completitud=100.0%
+simem_demanda_real_nacional  total=49 752  marzo2025=744/744  completitud=100.0%
+horas faltantes=0   tramos=0   duplicados=0
+```
+
+La capa limpia regenerada sobre estos datos queda con **100 % de valores
+observados**: cero interpolados y cero faltantes, así que ya no hace falta
+imputar nada.
 
 ---
 
@@ -106,10 +133,10 @@ fusionando y reescribiendo la partición. `cli.py` no hace eso todavía.
   horas**, lo que confirma que el parseo de `HourNN` es correcto (Colombia no
   aplica horario de verano, así que cualquiera de esos casos habría sido un
   error de parseo).
-- **Atípicos estacionales: 151 de 49 200 (0.31 %)** con fiabilidad alta
-  (≈290 observaciones por grupo). Las horas 07–11 concentran la mayoría, lo que
-  es consistente con el hallazgo 1: los días parciales tienen su mayor
-  desviación relativa por la mañana.
+- **Atípicos estacionales: 157 de 49 824 (0.32 %)** con fiabilidad alta
+  (≈297 observaciones por grupo) sobre la serie ya reparada. Las horas 07–11
+  concentran la mayoría, lo que es consistente con el hallazgo 1: los días
+  parciales tienen su mayor desviación relativa por la mañana.
 - **SIMEM desagregado** (`14fabb`): 44 520 timestamps repetidos y **0 claves
   repetidas** sobre (timestamp, agente, mercado, versión). Correcto: la
   repetición es la desagregación por 65 agentes × 2 mercados × 4 versiones.
