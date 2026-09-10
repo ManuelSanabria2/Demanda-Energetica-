@@ -91,18 +91,68 @@ La capa de acceso **no** colapsa las versiones de liquidación de SIMEM: las
 devuelve tal como llegan. Eso es trabajo de `normalizar`, y hacerlo aquí
 esconderría la decisión más delicada del proyecto dentro de una descarga.
 
+## Capa cruda: descarga incremental
+
+`src/ingesta/descarga.py` persiste lo que devuelven los clientes, y
+`descargar.py` es su CLI:
+
+```bash
+python descargar.py --fuente xm --id DemaReal                      # incremental
+python descargar.py --fuente xm --id DemaReal --desde 2021-01-01   # rango explícito
+python descargar.py --fuente simem --id 14fabb --hasta 2025-03-31
+python descargar.py --fuente xm --id DemaReal --forzar             # ignora estado y caché
+
+python descargar.py --historial                                    # bitácora de descargas
+python descargar.py --estado --fuente xm --id DemaReal             # qué hay almacenado
+```
+
+Ruta en disco: `data/raw/{fuente}/{identificador}/anio={AAAA}/mes={MM}/datos.parquet`.
+`anio` y `mes` viven solo en la ruta; `pandas.read_parquet` sobre el directorio
+raíz los reconstruye como columnas.
+
+**Incremental.** Sin `--desde`, mira la fecha máxima almacenada y pide desde
+`VENTANA_REFRESCO_DIAS` (45) **antes** de esa fecha, no justo después. No es un
+descuido: la demanda de XM llega con 3 días de rezago y las versiones de
+liquidación de SIMEM se revisan durante semanas, así que los últimos días
+guardados pueden estar incompletos o desactualizados.
+
+**Idempotente.** Escribir no es añadir. Para cada partición afectada se lee lo
+que había, se combina, se deduplica por una clave explícita y se reescribe la
+partición entera. Verificado contra las APIs reales: dos ejecuciones idénticas
+dan el mismo número de filas y el mismo hash.
+
+La clave de deduplicación es *todas las columnas menos el valor*. Esto importa
+en SIMEM: `Version` forma parte de la identidad, así que las cuatro versiones
+que conviven sobre una misma hora se conservan las cuatro. La capa cruda guarda
+lo que la fuente publicó; colapsarlas es trabajo de `normalizar`.
+
+**Manifiesto.** `data/raw/manifiesto.json` es una bitácora *append-only*: cada
+descarga anota rango solicitado, rango realmente obtenido, número de registros,
+hash del resultado, hash por partición, duración y versiones de Python, pandas
+y pyarrow. Esas versiones están ahí porque el hash depende de ellas.
+
+**Es el único archivo bajo `data/` que se versiona en git.** Sin eso, el
+registro de qué datos había en cada momento viviría solo en un disco local.
+
 ## Salida
 
 ```
 data/
-  raw_samples/  muestras crudas de cada API (scripts/explorar_apis.py)
-  cache/xm/     DemaReal_Sistema_hourly_20210101_20210131.parquet  (un tramo)
-  cache/simem/  14fabb_20210101_20210131.parquet
+  raw_samples/     muestras crudas de cada API (scripts/explorar_apis.py)
+  cache/xm/        un Parquet por tramo descargado (caché de los clientes)
+  raw/
+    manifiesto.json                            bitácora de descargas (en git)
+    xm/DemaReal/anio=2025/mes=01/datos.parquet capa cruda particionada
+    simem/14fabb/anio=2026/mes=05/datos.parquet
   processed/
     xm_demanda_real_sistema/anio=2025/mes=1/*.parquet
     simem_demanda_real_nacional/anio=2025/mes=1/*.parquet
-  manifiesto.json
+  manifiesto.json  cobertura de la capa procesada (huecos, rezago)
 ```
+
+Hay **dos manifiestos, con dos propósitos**: `data/raw/manifiesto.json` es la
+bitácora de descargas con hashes (reproducibilidad), y `data/manifiesto.json`
+registra la cobertura de la capa procesada (huecos y rezago).
 
 Esquema común de las tablas procesadas:
 
@@ -167,6 +217,7 @@ a las métricas de pronóstico del CND, que sí se publican por adelantado.
 src/ingesta/
   config.py       rutas, constantes, precedencia de versiones, desfase horario
   clientes.py     ClienteXM y ClienteSIMEM: descarga, troceo, reintentos, caché
+  descarga.py     capa cruda: Parquet particionado, incremental, manifiesto
   ventanas.py     partición del rango en llamados según MaxDays
   normalizar.py   esquema común, colapso de versiones (SIMEM), cobertura
   manifiesto.py   qué se descargó, hasta dónde llega, qué falta
@@ -177,5 +228,7 @@ scripts/
   reconciliar.py      XM vs SIMEM; resuelve empíricamente la convención HourNN
 tests/
   test_clientes.py    troceo, reintentos, caché, ancho→largo (sin red)
+  test_descarga.py    particionado, idempotencia, incremental, manifiesto
   test_ingesta.py     ventanas, colapso de versiones, cobertura
+descargar.py          CLI de la capa cruda
 ```

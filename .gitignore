@@ -1,5 +1,12 @@
-# Datos: regenerables desde las APIs, y pesados para un repo.
-data/
+# Los datos son regenerables desde las APIs y pesados para un repo.
+data/*
+!data/raw/
+data/raw/*
+
+# Excepcion: el manifiesto de descargas es el registro de reproducibilidad
+# del proyecto. Si no se versiona, no hay forma de reconstruir despues que
+# datos habia en cada momento, que es justo para lo que existe.
+!data/raw/manifiesto.json
 
 __pycache__/
 *.pyc
