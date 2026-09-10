@@ -63,8 +63,9 @@ UMBRAL_Z = 3.5
 MINIMO_POR_GRUPO = 20
 
 # Por debajo de esta mediana de observaciones por grupo, el informe avisa de
-# que la tasa de atipicos estacionales esta inflada.
-GRUPO_COMODO = 30
+# que la tasa de atipicos estacionales esta inflada. Vive en config para que
+# diagnostico y limpieza no puedan reportar fiabilidades distintas.
+from ingesta.config import GRUPO_COMODO, UMBRAL_FILAS_POR_MARCA  # noqa: E402
 
 HORAS_DEL_DIA = 24
 
@@ -342,6 +343,7 @@ def z_estacional(
     columna_valor: str,
     columnas_grupo: list[str] | None = None,
     minimo_por_grupo: int = MINIMO_POR_GRUPO,
+    causal: bool = False,
 ) -> tuple[pd.Series, pd.Series, dict[str, Any]]:
     """Puntuacion z modificada de cada fila frente a su (dia de semana, hora).
 
@@ -351,6 +353,22 @@ def z_estacional(
 
     Devuelve (z, no_evaluable, contexto). Las filas no evaluables llevan z nula
     y no deben contarse como normales ni como atipicas: simplemente no se sabe.
+
+    **`causal` decide si hay fuga temporal.**
+
+    Con `causal=False` (por defecto) la mediana y la MAD de cada grupo se
+    calculan sobre la serie entera, futuro incluido. Para *diagnosticar* eso es
+    lo correcto: se quiere el mejor juicio posible con todo lo que se sabe.
+
+    Con `causal=True` cada fila se juzga solo contra las observaciones
+    **anteriores** de su mismo grupo, con estadisticos expansivos. Es lo que
+    hay que usar si la marca va a entrar en un modelo -- como variable o como
+    filtro de entrenamiento -- porque si no, el pasado se estaria etiquetando
+    con conocimiento del futuro y la validacion saldria optimista.
+
+    Medido sobre la serie real: cortando en 2023-12-31, el modo global marca 90
+    atipicos y el causal 255; 165 banderas cambian segun se incluya o no el
+    futuro.
     """
     datos = marco[[columna_tiempo, columna_valor]].copy()
     datos[columna_valor] = pd.to_numeric(datos[columna_valor], errors="coerce")
@@ -363,18 +381,48 @@ def z_estacional(
         datos[columna] = marco[columna]
 
     agrupado = datos.groupby(claves, dropna=False)[columna_valor]
-    mediana = agrupado.transform("median")
-    tamano = agrupado.transform("size")
 
-    desviacion = (datos[columna_valor] - mediana).abs()
-    por_grupo = [datos[c] for c in claves]
-    mad = desviacion.groupby(por_grupo, dropna=False).transform("median")
+    if causal:
+        # Estadisticos expansivos sobre las observaciones ANTERIORES de cada
+        # grupo. El shift(1) es lo que garantiza que la propia fila no entre en
+        # el estadistico que la juzga.
+        orden = momentos.sort_values().index
+        ordenados = datos.loc[orden]
+        agrupado_ord = ordenados.groupby(claves, dropna=False)[columna_valor]
+
+        mediana = agrupado_ord.transform(
+            lambda s: s.shift(1).expanding().median()
+        ).reindex(datos.index)
+        tamano = agrupado_ord.transform(
+            lambda s: s.shift(1).expanding().count()
+        ).reindex(datos.index)
+
+        desviacion = (datos[columna_valor] - mediana).abs()
+        desv_ord = desviacion.loc[orden]
+        claves_ord = [ordenados[c] for c in claves]
+        mad = (
+            desv_ord.groupby(claves_ord, dropna=False)
+            .transform(lambda s: s.shift(1).expanding().median())
+            .reindex(datos.index)
+        )
+        desviacion_media = (
+            desv_ord.groupby(claves_ord, dropna=False)
+            .transform(lambda s: s.shift(1).expanding().mean())
+            .reindex(datos.index)
+        )
+    else:
+        mediana = agrupado.transform("median")
+        tamano = agrupado.transform("size")
+
+        desviacion = (datos[columna_valor] - mediana).abs()
+        por_grupo = [datos[c] for c in claves]
+        mad = desviacion.groupby(por_grupo, dropna=False).transform("median")
 
     # La MAD tiene un punto ciego: si un grupo es constante salvo por un unico
     # valor extremo, su mediana de desviaciones es cero y el atipico queda
     # invisible. Iglewicz y Hoaglin proponen para ese caso recurrir a la
     # desviacion absoluta media, que si reacciona a un solo valor.
-    desviacion_media = desviacion.groupby(por_grupo, dropna=False).transform("mean")
+        desviacion_media = desviacion.groupby(por_grupo, dropna=False).transform("mean")
 
     with np.errstate(divide="ignore", invalid="ignore"):
         z_mad = 0.6745 * (datos[columna_valor] - mediana) / mad
@@ -387,11 +435,14 @@ def z_estacional(
     # Solo es inevaluable un grupo verdaderamente constante (ninguna dispersion
     # por ninguna de las dos medidas) o con muy pocas observaciones.
     sin_dispersion = (mad == 0) & (desviacion_media == 0)
-    poco_poblados = tamano < minimo_por_grupo
-    no_evaluable = sin_dispersion | poco_poblados | datos[columna_valor].isna()
+    poco_poblados = tamano.fillna(0) < minimo_por_grupo
+    no_evaluable = (
+        sin_dispersion.fillna(True) | poco_poblados | datos[columna_valor].isna()
+    )
     z = z.where(~no_evaluable)
 
     contexto = {
+        "causal": causal,
         "mediana_grupo": mediana,
         "tamano_grupo": tamano,
         "mad": mad,
@@ -402,10 +453,40 @@ def z_estacional(
     return z, no_evaluable, contexto
 
 
+def limites_iqr_causal(
+    valores: pd.Series,
+    momentos: pd.Series,
+    factor: float = FACTOR_IQR,
+    minimo: int = MINIMO_POR_GRUPO,
+) -> tuple[pd.Series, pd.Series]:
+    """Limites IQR calculados solo con las observaciones anteriores a cada fila.
+
+    Devuelve dos series alineadas con `valores`. Las primeras filas, sin
+    historico suficiente, llevan NaN: no se puede juzgar y no se inventa.
+
+    La version global de esta funcion mira la serie entera; sobre los datos
+    reales el limite superior se desplaza 333 092 kWh segun se incluya o no el
+    futuro, asi que para marcar filas destinadas a un modelo hay que usar esta.
+    """
+    numeros = pd.to_numeric(valores, errors="coerce")
+    orden = pd.to_datetime(momentos).sort_values().index
+    ordenados = numeros.loc[orden]
+
+    previos = ordenados.shift(1)
+    q1 = previos.expanding(min_periods=minimo).quantile(0.25).reindex(numeros.index)
+    q3 = previos.expanding(min_periods=minimo).quantile(0.75).reindex(numeros.index)
+    iqr = q3 - q1
+    return (q1 - factor * iqr, q3 + factor * iqr)
+
+
 def limites_iqr(
     valores: pd.Series, factor: float = FACTOR_IQR
 ) -> tuple[float, float]:
-    """Limites inferior y superior del criterio global por rango intercuartilico."""
+    """Limites inferior y superior del criterio global por rango intercuartilico.
+
+    Usa la serie entera, futuro incluido. Correcto para diagnosticar; para
+    marcar filas que van a un modelo, usar `limites_iqr_causal`.
+    """
     limpios = pd.to_numeric(valores, errors="coerce").dropna()
     if limpios.empty:
         return (float("nan"), float("nan"))
@@ -647,7 +728,7 @@ def diagnosticar(
 
     momentos = pd.to_datetime(marco[columna_tiempo])
     filas_por_momento = len(marco) / momentos.nunique()
-    desagregada = filas_por_momento > 1.01
+    desagregada = filas_por_momento > UMBRAL_FILAS_POR_MARCA
 
     avisos: list[str] = []
     if desagregada:

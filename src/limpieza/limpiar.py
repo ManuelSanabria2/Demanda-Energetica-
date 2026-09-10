@@ -34,11 +34,13 @@ from typing import Any
 
 import pandas as pd
 
+from ingesta import config
 from calidad.diagnostico import (
     FACTOR_IQR,
     MINIMO_POR_GRUPO,
     UMBRAL_Z,
     limites_iqr,
+    limites_iqr_causal,
     z_estacional,
 )
 
@@ -48,9 +50,8 @@ log = logging.getLogger(__name__)
 # Constantes
 # --------------------------------------------------------------------------
 
-# Colombia no aplica horario de verano, asi que un desplazamiento fijo de -5 es
-# exacto y no depende de la base de datos de zonas horarias del sistema.
-ZONA_COLOMBIA = dt.timezone(dt.timedelta(hours=-5), name="UTC-05:00")
+# La zona vive en ingesta.config: una sola definicion para todo el proyecto.
+ZONA_COLOMBIA = config.ZONA_COLOMBIA
 
 # Maximo de horas consecutivas que se interpolan. Por encima, NaN honesto.
 MAX_HORAS_INTERPOLACION = 3
@@ -215,7 +216,7 @@ def deduplicar(
     momentos = pd.to_datetime(marco[columna_tiempo])
     filas_por_momento = antes / momentos.nunique() if momentos.nunique() else 0
 
-    if filas_por_momento > 1.5 and not permitir_desagregada:
+    if filas_por_momento > config.UMBRAL_FILAS_POR_MARCA and not permitir_desagregada:
         raise ErrorLimpieza(
             f"El marco tiene {filas_por_momento:.1f} filas por marca de tiempo: "
             "parece desagregado (varias entidades o versiones por hora). "
@@ -266,8 +267,21 @@ def completar_rejilla(
     columna_tiempo: str = "fecha_hora",
     columna_valor: str = "valor_kwh",
     max_horas: int = MAX_HORAS_INTERPOLACION,
+    metodo: str = "temporal",
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Completa la rejilla horaria e interpola solo los huecos cortos.
+
+    `metodo` decide si la imputacion mira al futuro:
+
+    - `"temporal"` (por defecto): interpolacion lineal entre el valor anterior
+      y el posterior. Da el mejor relleno posible, pero **usa informacion
+      posterior a la fila que rellena**. El registro lo anota como tal.
+    - `"causal"`: arrastra el ultimo valor observado hacia delante, sin mirar
+      el futuro. Peor relleno, pero apto para filas que van a entrar en un
+      modelo sin contaminar la validacion.
+
+    Sea cual sea, las filas imputadas quedan marcadas en `imputado` y
+    `origen_valor`, asi que siempre se pueden excluir despues.
 
     Un hueco de hasta `max_horas` se interpola linealmente en el tiempo. Uno
     mayor se queda como NaN: rellenar dias enteros seria inventar el perfil de
@@ -299,13 +313,22 @@ def completar_rejilla(
     tramo = (faltante != faltante.shift()).cumsum()
     longitud = faltante.groupby(tramo).transform("sum").where(faltante, 0).astype(int)
 
+    if metodo not in ("temporal", "causal"):
+        raise ErrorLimpieza(
+            f"Metodo de imputacion desconocido: {metodo!r}. Usa 'temporal' o 'causal'."
+        )
+
     interpolable = faltante & (longitud <= max_horas)
 
     # limit_area="inside" impide extrapolar antes del primer dato o despues del
     # ultimo, que seria inventar fuera del rango observado.
     serie = completo.set_index(columna_tiempo)[columna_valor]
-    interpolada = serie.interpolate(method="time", limit_area="inside")
-    valores_interpolados = interpolada.to_numpy()
+    if metodo == "temporal":
+        rellenada = serie.interpolate(method="time", limit_area="inside")
+    else:
+        # Solo hacia delante: ninguna fila usa un valor posterior a si misma.
+        rellenada = serie.ffill(limit=max_horas)
+    valores_interpolados = rellenada.to_numpy()
 
     completo[columna_valor] = completo[columna_valor].where(
         ~interpolable, valores_interpolados
@@ -329,12 +352,17 @@ def completar_rejilla(
     registro = _registro(
         "completar_rejilla",
         (
-            f"rejilla horaria completa; interpolacion temporal solo para huecos "
+            f"rejilla horaria completa; imputacion '{metodo}' solo para huecos "
             f"de hasta {max_horas} h; sin extrapolar en los extremos"
         ),
         antes,
         len(completo),
         filas_afectadas=int(interpolado_real.sum()),
+        metodo_imputacion=metodo,
+        # Declarado explicitamente: una interpolacion temporal usa el valor
+        # posterior al hueco, asi que las filas imputadas contienen informacion
+        # del futuro respecto al momento que representan.
+        usa_informacion_futura=(metodo == "temporal" and int(interpolado_real.sum()) > 0),
         max_horas_interpolacion=max_horas,
         filas_creadas_para_completar_rejilla=int(filas_creadas),
         horas_faltantes_totales=int(faltante.sum()),
@@ -345,7 +373,10 @@ def completar_rejilla(
         n_tramos_no_imputados=len(tramos_largos),
         nota=(
             "Los huecos mayores al limite se dejan como NaN a proposito. Un NaN "
-            "se distingue del dato real; un valor inventado, no."
+            "se distingue del dato real; un valor inventado, no. Con metodo "
+            "'temporal' las filas imputadas usan el valor posterior al hueco: "
+            "si van a entrar en un modelo, excluyelas por `imputado` o usa "
+            "metodo='causal'."
         ),
     )
     log.info(
@@ -392,15 +423,33 @@ def marcar_atipicos(
     umbral_z: float = UMBRAL_Z,
     factor_iqr: float = FACTOR_IQR,
     minimo_por_grupo: int = MINIMO_POR_GRUPO,
+    causal: bool = True,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
     """Anade columnas de marcado de atipicos. No elimina ni corrige ningun valor.
 
     Usa los mismos criterios que el diagnostico, importando su implementacion en
     vez de repetirla: si el criterio cambia, cambia en los dos sitios a la vez.
 
-    `atipico` se decide por el criterio estacional, que es el que distingue un
-    valor alto a las 2 p.m. (normal) de uno igual a las 3 a.m. (no lo es). El
-    criterio global por IQR se marca aparte, como referencia.
+    **Causal por defecto, y esto importa.** Cada fila se juzga solo contra las
+    observaciones anteriores de su grupo (dia de semana, hora). Marcar con
+    estadisticos calculados sobre la serie entera etiquetaria el pasado con
+    conocimiento del futuro: medido sobre estos datos, cortando en 2023-12-31,
+    el modo global marca 90 atipicos y el causal 255, y 165 banderas cambian
+    segun se incluya o no el futuro. Una marca contaminada asi infla el
+    resultado de validacion de cualquier modelo que la use.
+
+    Columnas resultantes:
+
+        atipico            criterio estacional CAUSAL -- apta como variable
+        atipico_iqr        criterio IQR CAUSAL         -- apta como variable
+        z_estacional       puntuacion z causal
+        atipico_evaluable  False mientras el grupo no tenga historico suficiente
+        atipico_global     criterio estacional con TODA la serie -- solo lectura
+        atipico_iqr_global criterio IQR con TODA la serie        -- solo lectura
+
+    Las dos ultimas llevan `_global` en el nombre a proposito: son el mejor
+    juicio disponible para inspeccionar la serie, pero meterlas en un modelo es
+    fuga temporal.
 
     Excluir o no las filas marcadas es decision del modelado, no de la limpieza.
     """
@@ -408,50 +457,77 @@ def marcar_atipicos(
     datos = marco.copy()
     valores = pd.to_numeric(datos[columna_valor], errors="coerce")
 
+    # Causal: lo que puede entrar en un modelo.
     z, no_evaluable, contexto = z_estacional(
-        datos, columna_tiempo, columna_valor, columnas_grupo, minimo_por_grupo
+        datos, columna_tiempo, columna_valor, columnas_grupo,
+        minimo_por_grupo, causal=causal,
     )
-    bajo, alto = limites_iqr(valores, factor_iqr)
-
     datos["z_estacional"] = z
     datos["atipico"] = (z.abs() > umbral_z).fillna(False)
-    datos["atipico_iqr"] = ((valores < bajo) | (valores > alto)).fillna(False)
     datos["atipico_evaluable"] = ~no_evaluable
+
+    if causal:
+        bajo_c, alto_c = limites_iqr_causal(
+            valores, datos[columna_tiempo], factor_iqr, minimo_por_grupo
+        )
+        datos["atipico_iqr"] = (
+            (valores < bajo_c) | (valores > alto_c)
+        ).fillna(False)
+    else:
+        bajo_c, alto_c = limites_iqr(valores, factor_iqr)
+        datos["atipico_iqr"] = ((valores < bajo_c) | (valores > alto_c)).fillna(False)
+
+    # Global: referencia de diagnostico, marcada como tal.
+    z_global, _, _ = z_estacional(
+        datos, columna_tiempo, columna_valor, columnas_grupo,
+        minimo_por_grupo, causal=False,
+    )
+    bajo_g, alto_g = limites_iqr(valores, factor_iqr)
+    datos["atipico_global"] = (z_global.abs() > umbral_z).fillna(False)
+    datos["atipico_iqr_global"] = ((valores < bajo_g) | (valores > alto_g)).fillna(False)
 
     observaciones = contexto["tamano_grupo"][~valores.isna()]
     mediana_grupo = float(observaciones.median()) if len(observaciones) else 0.0
     fiabilidad = (
         "alta"
-        if mediana_grupo >= 30
+        if mediana_grupo >= config.GRUPO_COMODO
         else ("limitada" if mediana_grupo >= minimo_por_grupo else "insuficiente")
     )
 
     registro = _registro(
         "marcar_atipicos",
         (
-            f"columna atipico = |z modificada frente a (dia de semana, hora)| > "
-            f"{umbral_z}; atipico_iqr = fuera de {factor_iqr} rangos "
-            "intercuartilicos. Marcado, sin eliminar ni corregir."
+            f"atipico = |z modificada CAUSAL frente a (dia de semana, hora)| > "
+            f"{umbral_z}, calculada solo con observaciones anteriores; "
+            f"atipico_iqr = fuera de {factor_iqr} rangos intercuartilicos, "
+            "tambien causal. Marcado, sin eliminar ni corregir."
         ),
         antes,
         len(datos),
         filas_afectadas=int(datos["atipico"].sum()),
+        causal=bool(causal),
+        usa_informacion_futura=not bool(causal),
         n_atipicos_estacionales=int(datos["atipico"].sum()),
         n_atipicos_iqr=int(datos["atipico_iqr"].sum()),
+        n_atipicos_estacionales_global=int(datos["atipico_global"].sum()),
+        n_atipicos_iqr_global=int(datos["atipico_iqr_global"].sum()),
         n_no_evaluables=int(no_evaluable.sum()),
         umbral_z=umbral_z,
         factor_iqr=factor_iqr,
-        limite_iqr_inferior=bajo,
-        limite_iqr_superior=alto,
+        limite_iqr_global=[bajo_g, alto_g],
         observaciones_por_grupo_mediana=round(mediana_grupo, 1),
         fiabilidad=fiabilidad,
         columnas_grupo=list(columnas_grupo or []),
-        nota="La decision de excluirlos corresponde al modelado, no a la limpieza.",
+        nota=(
+            "La decision de excluirlos corresponde al modelado, no a la limpieza. "
+            "Las columnas *_global usan la serie entera y son fuga temporal si "
+            "entran en un modelo: para eso estan atipico y atipico_iqr, causales."
+        ),
     )
     log.info(
-        "Atipicos: %d por criterio estacional, %d por IQR (marcados, no eliminados)",
-        datos["atipico"].sum(),
-        datos["atipico_iqr"].sum(),
+        "Atipicos (causal=%s): %d estacionales, %d IQR; %d no evaluables por "
+        "falta de historico",
+        causal, datos["atipico"].sum(), datos["atipico_iqr"].sum(), no_evaluable.sum(),
     )
     return datos, registro
 
@@ -518,6 +594,7 @@ def limpiar(
     columna_valor: str | None = None,
     columna_recencia: str | None = None,
     max_horas_interpolacion: int = MAX_HORAS_INTERPOLACION,
+    metodo_imputacion: str = "temporal",
     columnas_grupo: list[str] | None = None,
     permitir_desagregada: bool = False,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
@@ -542,7 +619,9 @@ def limpiar(
     limpio, paso = deduplicar(limpio, tiempo, recencia, permitir_desagregada)
     operaciones.append(paso)
 
-    limpio, paso = completar_rejilla(limpio, tiempo, valor, max_horas_interpolacion)
+    limpio, paso = completar_rejilla(
+        limpio, tiempo, valor, max_horas_interpolacion, metodo_imputacion
+    )
     operaciones.append(paso)
 
     limpio, paso = marcar_atipicos(limpio, tiempo, valor, grupos)
@@ -562,8 +641,17 @@ def limpiar(
         "procedencia": _resumen_procedencia(limpio, valor),
         "politica": {
             "imputacion": (
-                f"solo huecos de hasta {max_horas_interpolacion} h, por "
-                "interpolacion temporal, sin extrapolar en los extremos"
+                f"solo huecos de hasta {max_horas_interpolacion} h, metodo "
+                f"'{metodo_imputacion}', sin extrapolar en los extremos"
+            ),
+            "fuga_temporal": (
+                "atipicos marcados con estadisticos causales; la imputacion "
+                f"'{metodo_imputacion}' "
+                + (
+                    "usa el valor posterior al hueco (ver `imputado`)"
+                    if metodo_imputacion == "temporal"
+                    else "no mira al futuro"
+                )
             ),
             "atipicos": "marcados, nunca eliminados ni corregidos",
             "periodos_estructurales": "marcados, nunca eliminados",

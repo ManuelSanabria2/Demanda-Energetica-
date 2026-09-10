@@ -139,7 +139,8 @@ def test_reporte_cobertura_detecta_huecos():
 
     assert reporte["horas_esperadas"] == 24
     assert reporte["horas_faltantes"] == 1
-    assert reporte["primeros_huecos"] == ["2025-01-01 10:00:00"]
+    # La marca lleva la zona del proyecto (-05:00), que es lo que se almacena.
+    assert reporte["primeros_huecos"] == ["2025-01-01 10:00:00-05:00"]
 
 
 def test_reporte_cobertura_cuenta_nan_aparte():

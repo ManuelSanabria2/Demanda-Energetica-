@@ -184,6 +184,11 @@ class ClienteAPI(ABC):
 
         if self._cache_utilizable(ruta, hasta):
             marco = pd.read_parquet(ruta)
+            # Los tramos cacheados antes de unificar la zona se guardaron sin
+            # ella. Normalizarlos al leer evita mezclar naive con tz-aware al
+            # concatenar, y hace la migracion transparente.
+            if "timestamp" in marco.columns:
+                marco["timestamp"] = config.a_zona_colombia(marco["timestamp"])
             log.info(
                 "%s: tramo %d/%d %s..%s desde cache (%d filas)",
                 self.fuente,
@@ -525,12 +530,14 @@ class ClienteXM(ClienteAPI):
             return self._marco_vacio()
 
         marco = pd.DataFrame(filas, columns=self.COLUMNAS)
-        marco["timestamp"] = pd.to_datetime(marco["timestamp"])
+        marco["timestamp"] = config.a_zona_colombia(marco["timestamp"])
         return marco
 
     def _marco_vacio(self) -> pd.DataFrame:
         vacio = pd.DataFrame(columns=self.COLUMNAS)
-        return vacio.astype({"timestamp": "datetime64[ns]", "valor": "float64"})
+        vacio = vacio.astype({"valor": "float64"})
+        vacio["timestamp"] = pd.Series(dtype=f"datetime64[ns, {config.ZONA_COLOMBIA}]")
+        return vacio
 
     def _clave_extra(self, **kwargs: Any) -> str:
         """La entidad y la granularidad forman parte de la identidad del tramo."""
@@ -650,14 +657,15 @@ class ClienteSIMEM(ClienteAPI):
                 f"Columnas recibidas: {list(marco.columns)}"
             )
 
-        marco.insert(0, "timestamp", pd.to_datetime(marco["FechaHora"]))
+        marco.insert(0, "timestamp", config.a_zona_colombia(marco["FechaHora"]))
         marco.insert(1, "fuente", self.fuente)
         marco.insert(2, "identificador", identificador)
         return marco
 
     def _marco_vacio(self) -> pd.DataFrame:
         vacio = pd.DataFrame(columns=self.COLUMNAS_BASE)
-        return vacio.astype({"timestamp": "datetime64[ns]"})
+        vacio["timestamp"] = pd.Series(dtype=f"datetime64[ns, {config.ZONA_COLOMBIA}]")
+        return vacio
 
     def _clave_extra(self, **kwargs: Any) -> str:
         """Ningun kwarg de SIMEM cambia los datos devueltos, solo el troceado."""

@@ -127,8 +127,8 @@ def test_xm_convierte_ancho_a_largo_con_timestamp_correcto(tmp_path: Path):
     assert len(marco) == 24
     assert list(marco.columns) == ClienteXM.COLUMNAS
     # Hour01 es la franja 00:00-01:00 (config.DESFASE_HORA_XM = 1).
-    assert marco["timestamp"].iloc[0] == pd.Timestamp("2024-01-01 00:00:00")
-    assert marco["timestamp"].iloc[-1] == pd.Timestamp("2024-01-01 23:00:00")
+    assert marco["timestamp"].iloc[0] == pd.Timestamp("2024-01-01 00:00:00", tz="America/Bogota")
+    assert marco["timestamp"].iloc[-1] == pd.Timestamp("2024-01-01 23:00:00", tz="America/Bogota")
     assert marco["valor"].iloc[0] == 1001.5
     assert marco["valor"].iloc[-1] == 1024.5
     assert set(marco["fuente"]) == {"xm"}
@@ -144,7 +144,7 @@ def test_xm_respeta_la_constante_de_desfase(tmp_path: Path, monkeypatch):
     )
 
     # Con desfase 0, Hour01 pasa a ser la 01:00 y Hour24 se sale del dia.
-    assert marco["timestamp"].iloc[0] == pd.Timestamp("2024-01-01 01:00:00")
+    assert marco["timestamp"].iloc[0] == pd.Timestamp("2024-01-01 01:00:00", tz="America/Bogota")
     assert len(marco) == 23
 
 
@@ -342,7 +342,7 @@ def test_simem_conserva_las_dimensiones_y_la_version(tmp_path: Path):
     assert list(marco.columns[:3]) == ClienteSIMEM.COLUMNAS_BASE
     # La capa de acceso no colapsa versiones: eso es trabajo de normalizar.
     assert "Version" in marco.columns
-    assert marco["timestamp"].iloc[0] == pd.Timestamp("2024-01-01 00:00:00")
+    assert marco["timestamp"].iloc[0] == pd.Timestamp("2024-01-01 00:00:00", tz="America/Bogota")
     assert set(marco["identificador"]) == {"14fabb"}
 
 

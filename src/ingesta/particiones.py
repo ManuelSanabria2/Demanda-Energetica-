@@ -21,6 +21,8 @@ import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
 
+from . import config
+
 log = logging.getLogger(__name__)
 
 COLUMNAS_PARTICION = ("anio", "mes")
@@ -44,7 +46,15 @@ def leer_particiones(
 
     if not marcos:
         return pd.DataFrame(columns=columnas)
-    return pd.concat(marcos, ignore_index=True)
+
+    leido = pd.concat(marcos, ignore_index=True)
+    # Las particiones antiguas se escribieron sin zona. Normalizarlas al leer
+    # evita que un concat mezcle naive con tz-aware y reviente, y hace la
+    # migracion transparente.
+    for columna in leido.columns:
+        if pd.api.types.is_datetime64_any_dtype(leido[columna]):
+            leido[columna] = config.a_zona_colombia(leido[columna])
+    return leido
 
 
 def escribir_particionado(
@@ -67,7 +77,7 @@ def escribir_particionado(
 
     nombre = etiqueta or destino.name
     nuevas = tabla.copy()
-    nuevas[columna_tiempo] = pd.to_datetime(nuevas[columna_tiempo])
+    nuevas[columna_tiempo] = config.a_zona_colombia(nuevas[columna_tiempo])
     destino.mkdir(parents=True, exist_ok=True)
 
     columnas = [c for c in esquema.names if c not in COLUMNAS_PARTICION]

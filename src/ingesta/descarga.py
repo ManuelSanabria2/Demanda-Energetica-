@@ -186,16 +186,21 @@ def _escribir_particion(
         combinado = pd.concat([existente, grupo], ignore_index=True)
         antes = len(combinado)
         combinado = combinado.drop_duplicates(subset=claves, keep="last")
-        log.debug(
-            "%s: %d filas existentes + %d nuevas -> %d tras deduplicar (%d repetidas)",
-            destino.name,
-            len(existente),
-            len(grupo),
-            len(combinado),
-            antes - len(combinado),
+        repetidas = antes - len(combinado)
+        log.info(
+            "%s: %d existentes + %d nuevas -> %d tras deduplicar (%d sustituidas)",
+            destino.name, len(existente), len(grupo), len(combinado), repetidas,
         )
     else:
+        antes = len(grupo)
         combinado = grupo.drop_duplicates(subset=claves, keep="last")
+        if antes != len(combinado):
+            # Repetidas dentro de la propia descarga: no es una sustitucion de
+            # historico, es que la fuente devolvio la misma fila dos veces.
+            log.warning(
+                "%s: la descarga traia %d filas repetidas dentro de si misma",
+                destino.name, antes - len(combinado),
+            )
 
     combinado = combinado.sort_values("timestamp").reset_index(drop=True)
 

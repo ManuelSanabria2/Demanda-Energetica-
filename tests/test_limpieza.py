@@ -66,8 +66,10 @@ def test_los_nombres_pasan_a_snake_case():
 def test_la_marca_de_tiempo_queda_en_utc_menos_5():
     limpio, registro = L.normalizar_esquema(serie(dias=10))
 
-    assert str(limpio["fecha_hora"].dt.tz) == "UTC-05:00"
-    assert registro["detalle"]["zona_horaria"] == "UTC-05:00"
+    # America/Bogota es exactamente -05:00 todo el ano: Colombia no aplica DST.
+    assert str(limpio["fecha_hora"].dt.tz) == "America/Bogota"
+    assert registro["detalle"]["zona_horaria"] == "America/Bogota"
+    assert limpio["fecha_hora"].iloc[0].utcoffset() == dt.timedelta(hours=-5)
     # Localizar, no convertir: la hora de reloj no debe moverse.
     assert limpio["fecha_hora"].iloc[0].hour == 0
 
@@ -407,8 +409,8 @@ def test_guardar_escribe_parquet_y_registro(tmp_path: Path):
 
     releido = pd.read_parquet(rutas["datos"])
     assert len(releido) == len(limpio)
-    # Parquet conserva el desplazamiento aunque renombre la zona
-    # (UTC-05:00 vuelve como pytz.FixedOffset(-300)): lo que importa son -5 h.
+    # La zona sobrevive al Parquet, nombre incluido.
+    assert str(releido["fecha_hora"].dt.tz) == "America/Bogota"
     assert releido["fecha_hora"].iloc[0].utcoffset() == dt.timedelta(hours=-5)
     assert releido["fecha_hora"].iloc[0] == limpio["fecha_hora"].iloc[0]
 

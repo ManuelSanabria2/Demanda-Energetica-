@@ -25,7 +25,7 @@ log = logging.getLogger("ingesta")
 
 ESQUEMA = pa.schema(
     [
-        ("fecha_hora", pa.timestamp("ns")),
+        ("fecha_hora", pa.timestamp("ns", tz=config.ZONA_COLOMBIA)),
         ("fuente", pa.string()),
         ("metrica", pa.string()),
         ("entidad", pa.string()),

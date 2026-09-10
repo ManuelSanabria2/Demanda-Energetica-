@@ -39,6 +39,8 @@ def xm_cliente_a_esquema_comun(tabla: pd.DataFrame) -> pd.DataFrame:
     if tabla.empty:
         return pd.DataFrame(columns=COLUMNAS_SALIDA)
 
+    tabla = tabla.copy()
+    tabla["timestamp"] = config.a_zona_colombia(tabla["timestamp"])
     comun = tabla.rename(
         columns={
             "timestamp": "fecha_hora",
@@ -129,7 +131,7 @@ def simem_agregar_nacional(
     limpio = simem_colapsar_versiones(registros, dimensiones)
 
     limpio = limpio.copy()
-    limpio["fecha_hora"] = pd.to_datetime(limpio["FechaHora"])
+    limpio["fecha_hora"] = config.a_zona_colombia(limpio["FechaHora"])
 
     agregado = (
         limpio.groupby("fecha_hora")
@@ -164,10 +166,17 @@ def reporte_cobertura(
             "primeros_huecos": [],
         }
 
-    momentos = pd.to_datetime(tabla["fecha_hora"])
-    desde = pd.Timestamp(inicio) if inicio else momentos.min().normalize()
+    momentos = config.a_zona_colombia(tabla["fecha_hora"])
+    zona = momentos.dt.tz
+
+    # La rejilla esperada tiene que construirse en la misma zona que los datos.
+    # Compararla naive contra datos con zona no da error: da que faltan TODAS
+    # las horas, que es peor.
+    desde = (
+        pd.Timestamp(inicio, tz=zona) if inicio else momentos.min().normalize()
+    )
     hasta = (
-        pd.Timestamp(fin) + pd.Timedelta(hours=23)
+        pd.Timestamp(fin, tz=zona) + pd.Timedelta(hours=23)
         if fin
         else momentos.max().normalize() + pd.Timedelta(hours=23)
     )

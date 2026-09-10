@@ -50,8 +50,11 @@ URL_OPEN_METEO = "https://archive-api.open-meteo.com/v1/archive"
 ZONA_CONSULTA = "America/Bogota"
 VARIABLE_TEMPERATURA = "temperature_2m"
 
-# Open-Meteo no documenta un limite de dias por llamado tan estricto como XM,
-# pero trocear evita respuestas enormes y permite reintentar por partes.
+# Open-Meteo no publica un limite de dias por llamado como el MaxDays de XM.
+# Comprobado el 2026-09-10 que acepta al menos 2 anos seguidos en una sola
+# peticion; se trocea igualmente por anos para acotar el tamano de cada
+# respuesta y poder reintentar por partes en vez de reintentar el historico
+# entero. Si algun dia la API impusiera un limite, bajar este numero.
 MAX_DIAS_OPEN_METEO = 365
 
 
@@ -96,7 +99,7 @@ PESOS_DEFECTO: dict[str, float] = {
 
 ESQUEMA_CLIMA = pa.schema(
     [
-        ("fecha_hora", pa.timestamp("ns")),
+        ("fecha_hora", pa.timestamp("ns", tz=config.ZONA_COLOMBIA)),
         ("temperatura_c", pa.float64()),
         ("ciudades_disponibles", pa.int32()),
         ("anio", pa.int32()),
@@ -194,7 +197,7 @@ def descargar_temperatura(
         marcos.append(
             pd.DataFrame(
                 {
-                    "fecha_hora": pd.to_datetime(horario["time"]),
+                    "fecha_hora": config.a_zona_colombia(pd.Series(horario["time"])),
                     f"temp_{ciudad.clave}": horario[VARIABLE_TEMPERATURA],
                 }
             )
@@ -215,7 +218,17 @@ def descargar_temperatura(
     if not marcos:
         return pd.DataFrame(columns=["fecha_hora", f"temp_{ciudad.clave}"]), metadatos
 
-    tabla = pd.concat(marcos, ignore_index=True).drop_duplicates(subset=["fecha_hora"])
+    tabla = pd.concat(marcos, ignore_index=True)
+    antes = len(tabla)
+    tabla = tabla.drop_duplicates(subset=["fecha_hora"])
+    descartadas = antes - len(tabla)
+    if descartadas:
+        # Un descarte silencioso ocultaria que la API empezo a solapar tramos.
+        log.warning(
+            "Open-Meteo %s: %d horas repetidas descartadas al unir tramos",
+            ciudad.nombre, descartadas,
+        )
+    metadatos["horas_repetidas_descartadas"] = descartadas
     return tabla.sort_values("fecha_hora").reset_index(drop=True), metadatos
 
 
@@ -243,7 +256,19 @@ def descargar_clima(
         detalles.append({**metadatos, "n_horas": len(parcial)})
         if parcial.empty:
             continue
-        tabla = parcial if tabla is None else tabla.merge(parcial, on="fecha_hora", how="outer")
+        if tabla is None:
+            tabla = parcial
+            continue
+        # El outer puede crecer filas si una ciudad trae marcas que las otras
+        # no. Crecer es legitimo, pero tiene que verse.
+        antes = len(tabla)
+        tabla = tabla.merge(parcial, on="fecha_hora", how="outer")
+        if len(tabla) != antes:
+            log.warning(
+                "Clima: al anadir %s la rejilla paso de %d a %d horas; alguna "
+                "ciudad cubre un rango distinto",
+                ciudad.nombre, antes, len(tabla),
+            )
 
     if tabla is None or tabla.empty:
         raise ErrorComplementaria(
@@ -465,8 +490,8 @@ def calendario_horario(desde: dt.date, hasta: dt.date) -> tuple[pd.DataFrame, di
         dt.datetime.combine(hasta, dt.time(23)),
         freq="h",
     )
-    marco = pd.DataFrame({"fecha_hora": horas})
-    marco["fecha"] = marco["fecha_hora"].dt.normalize()
+    marco = pd.DataFrame({"fecha_hora": config.a_zona_colombia(pd.Series(horas))})
+    marco["fecha"] = marco["fecha_hora"].dt.normalize().dt.tz_localize(None)
     horario = marco.merge(diario, on="fecha", how="left").drop(columns="fecha")
     registro["n_horas"] = len(horario)
     return horario, registro
@@ -500,7 +525,10 @@ def unir(
 
     filas_esperadas = len(demanda)
     resultado = demanda.copy()
-    resultado[columna_tiempo] = pd.to_datetime(resultado[columna_tiempo])
+    # Normalizar las dos partes a UTC-5 permite unir capas que llegan con y sin
+    # zona. Antes, mezclar la capa limpia (tz-aware) con el clima (naive) daba
+    # un ValueError de pandas en mitad del merge.
+    resultado[columna_tiempo] = config.a_zona_colombia(resultado[columna_tiempo])
 
     duplicados_demanda = int(resultado[columna_tiempo].duplicated().sum())
     if duplicados_demanda:
@@ -521,7 +549,7 @@ def unir(
             continue
 
         derecha = tabla.copy()
-        derecha[columna_tiempo] = pd.to_datetime(derecha[columna_tiempo])
+        derecha[columna_tiempo] = config.a_zona_colombia(derecha[columna_tiempo])
 
         repetidas = int(derecha[columna_tiempo].duplicated().sum())
         if repetidas:
