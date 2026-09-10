@@ -56,7 +56,7 @@ def test_una_ingesta_parcial_no_borra_el_resto_del_mes():
 
     resultado = leer()
     assert len(resultado) == 744, "se perdieron horas del resto del mes"
-    assert resultado["fecha_hora"].max() == pd.Timestamp("2025-03-31 23:00:00")
+    assert resultado["fecha_hora"].max() == pd.Timestamp("2025-03-31 23:00:00", tz="America/Bogota")
 
 
 def test_lo_reingestado_sustituye_al_dato_previo():

@@ -193,9 +193,17 @@ RESPUESTA_XM_REAL: dict[str, Any] = {
 }
 
 
+ZONA = "America/Bogota"
+
+
 def convertir(crudo: dict[str, Any] = RESPUESTA_XM_REAL) -> pd.DataFrame:
     """Aplica la conversion del cliente sin tocar la red."""
     return ClienteXM(sesion=mock.MagicMock())._a_dataframe(crudo, "DemaReal")
+
+
+def marca(texto: str) -> pd.Timestamp:
+    """Marca de tiempo en la zona unica del proyecto."""
+    return pd.Timestamp(texto, tz=ZONA)
 
 
 def test_un_dia_se_desdobla_en_24_filas():
@@ -214,15 +222,15 @@ def test_hour01_es_la_medianoche_con_su_valor_real():
     """
     tabla = convertir().set_index("timestamp")
 
-    assert tabla.loc[pd.Timestamp("2025-01-01 00:00:00"), "valor"] == 7306335.34
+    assert tabla.loc[marca("2025-01-01 00:00:00"), "valor"] == 7306335.34
 
 
 def test_hour24_es_las_23_del_mismo_dia_no_las_00_del_siguiente():
     """El error clasico: mandar Hour24 al dia siguiente."""
     tabla = convertir().set_index("timestamp")
 
-    assert tabla.loc[pd.Timestamp("2025-01-01 23:00:00"), "valor"] == 7925012.28
-    assert pd.Timestamp("2025-01-02 00:00:00") not in tabla.index
+    assert tabla.loc[marca("2025-01-01 23:00:00"), "valor"] == 7925012.28
+    assert marca("2025-01-02 00:00:00") not in tabla.index
 
 
 def test_cada_hora_cae_donde_debe():
@@ -235,15 +243,15 @@ def test_cada_hora_cae_donde_debe():
         8431773.29, 8637418.15, 8555426.93, 8386926.63, 8221798.60, 7925012.28,
     ]
     for hora, valor in enumerate(esperado):
-        momento = pd.Timestamp("2025-01-01") + pd.Timedelta(hours=hora)
+        momento = marca("2025-01-01") + pd.Timedelta(hours=hora)
         assert tabla.loc[momento] == valor, f"la hora {hora:02d} no cuadra"
 
 
 def test_el_rango_horario_va_de_00_a_23():
     tabla = convertir()
 
-    assert tabla["timestamp"].min() == pd.Timestamp("2025-01-01 00:00:00")
-    assert tabla["timestamp"].max() == pd.Timestamp("2025-01-01 23:00:00")
+    assert tabla["timestamp"].min() == marca("2025-01-01 00:00:00")
+    assert tabla["timestamp"].max() == marca("2025-01-01 23:00:00")
     assert sorted(tabla["timestamp"].dt.hour) == list(range(24))
 
 
@@ -256,8 +264,8 @@ def test_un_desfase_distinto_desplazaria_la_serie():
     with mock.patch.object(config, "DESFASE_HORA_XM", 0):
         tabla = convertir().set_index("timestamp")
 
-    assert pd.Timestamp("2025-01-01 00:00:00") not in tabla.index
-    assert tabla.loc[pd.Timestamp("2025-01-01 01:00:00"), "valor"] == 7306335.34
+    assert marca("2025-01-01 00:00:00") not in tabla.index
+    assert tabla.loc[marca("2025-01-01 01:00:00"), "valor"] == 7306335.34
 
 
 def test_el_valor_llega_como_numero_no_como_cadena():
@@ -283,7 +291,7 @@ def test_varios_dias_seguidos_no_se_solapan():
 
     assert len(tabla) == 48
     assert tabla["timestamp"].nunique() == 48
-    esperadas = pd.date_range("2025-01-01", "2025-01-02 23:00", freq="h")
+    esperadas = pd.date_range("2025-01-01", "2025-01-02 23:00", freq="h", tz=ZONA)
     assert sorted(tabla["timestamp"]) == list(esperadas)
 
 
@@ -574,3 +582,97 @@ def test_el_orden_de_las_fuentes_no_altera_el_resultado():
         a.set_index("fecha_hora")["temperatura_c"],
         b.set_index("fecha_hora")["temperatura_c"],
     )
+
+
+# ==========================================================================
+# 6. Ausencia de fuga temporal
+# ==========================================================================
+#
+# El riesgo: etiquetar el pasado con conocimiento del futuro. No falla nunca;
+# solo hace que la validacion salga mejor de lo que sera en produccion.
+
+
+def _serie_con_estacionalidad(dias: int = 420) -> pd.DataFrame:
+    import random
+
+    aleatorio = random.Random(11)
+    momentos = pd.date_range("2025-01-06", periods=dias * 24, freq="h")
+    perfil = [0.85, 0.82, 0.80, 0.79, 0.79, 0.81, 0.86, 0.92, 0.97, 1.00,
+              1.02, 1.03, 1.03, 1.04, 1.03, 1.02, 1.02, 1.05, 1.15, 1.18,
+              1.16, 1.10, 1.02, 0.93]
+    return pd.DataFrame(
+        {
+            "fecha_hora": momentos,
+            "valor_kwh": [
+                7e6 * perfil[m.hour] * (1 + aleatorio.gauss(0, 0.02)) for m in momentos
+            ],
+        }
+    )
+
+
+def test_el_criterio_causal_no_cambia_al_recortar_el_futuro():
+    """La propiedad que define la ausencia de fuga.
+
+    Si una fila se juzga solo con su pasado, su bandera tiene que ser la misma
+    tanto si la serie termina hoy como si sigue dos anos mas. Con el criterio
+    global no lo es: sobre los datos reales, 165 banderas cambiaban.
+    """
+    from calidad.diagnostico import z_estacional
+
+    completa = _serie_con_estacionalidad()
+    corte = pd.Timestamp("2025-09-01")
+    recortada = completa[completa["fecha_hora"] < corte]
+
+    z_completa, _, _ = z_estacional(completa, "fecha_hora", "valor_kwh", causal=True)
+    z_recortada, _, _ = z_estacional(recortada, "fecha_hora", "valor_kwh", causal=True)
+
+    hasta_corte = (z_completa.abs() > 3.5).fillna(False)[: len(recortada)]
+    solo_pasado = (z_recortada.abs() > 3.5).fillna(False)
+
+    assert list(hasta_corte) == list(solo_pasado), "el criterio causal mira al futuro"
+
+
+def test_el_criterio_global_si_cambia_al_recortar():
+    """Demuestra que la prueba anterior no es trivial."""
+    from calidad.diagnostico import z_estacional
+
+    completa = _serie_con_estacionalidad()
+    completa.loc[completa.index[-500:], "valor_kwh"] *= 3  # el futuro cambia mucho
+    corte = pd.Timestamp("2025-09-01")
+    recortada = completa[completa["fecha_hora"] < corte]
+
+    z_completa, _, _ = z_estacional(completa, "fecha_hora", "valor_kwh", causal=False)
+    z_recortada, _, _ = z_estacional(recortada, "fecha_hora", "valor_kwh", causal=False)
+
+    a = (z_completa.abs() > 3.5).fillna(False)[: len(recortada)]
+    b = (z_recortada.abs() > 3.5).fillna(False)
+    assert list(a) != list(b), "sin fuga, el modo global seria identico al causal"
+
+
+def test_la_limpieza_marca_con_criterio_causal_por_defecto():
+    limpio, registro = L.marcar_atipicos(_serie_con_estacionalidad())
+    detalle = registro["detalle"]
+
+    assert detalle["causal"] is True
+    assert detalle["usa_informacion_futura"] is False
+    # Las columnas globales existen, pero etiquetadas para no usarlas de variable.
+    assert "atipico_global" in limpio.columns
+    assert "no a la limpieza" in detalle["nota"]
+
+
+def test_la_imputacion_causal_no_usa_el_valor_posterior():
+    marco = _quitar(_serie_horaria(dias=40), "2025-01-15 02:00", 2)
+
+    temporal, reg_t = L.completar_rejilla(marco, metodo="temporal")
+    causal, reg_c = L.completar_rejilla(marco, metodo="causal")
+
+    assert reg_t["detalle"]["usa_informacion_futura"] is True
+    assert reg_c["detalle"]["usa_informacion_futura"] is False
+
+    # La causal arrastra el ultimo valor observado; la temporal interpola.
+    anterior = marco.set_index("fecha_hora")["valor_kwh"].loc["2025-01-15 01:00"]
+    obtenido_causal = causal.set_index("fecha_hora")["valor_kwh"]
+    assert obtenido_causal.loc["2025-01-15 02:00"] == anterior
+    assert obtenido_causal.loc["2025-01-15 03:00"] == anterior
+    obtenido_temporal = temporal.set_index("fecha_hora")["valor_kwh"]
+    assert obtenido_temporal.loc["2025-01-15 02:00"] != anterior

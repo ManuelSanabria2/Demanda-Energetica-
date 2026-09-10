@@ -143,6 +143,36 @@ y pyarrow. Esas versiones están ahí porque el hash depende de ellas.
 **Es el único archivo bajo `data/` que se versiona en git.** Sin eso, el
 registro de qué datos había en cada momento viviría solo en un disco local.
 
+## Panel de modelado
+
+**Esta es la tabla para modelar.** Se construye siempre en el mismo orden:
+demanda cruda → limpieza (procedencia y marcas) → unión con clima y calendario.
+
+```bash
+python scripts/construir_panel.py                      # 49 824 × 25
+python scripts/construir_panel.py --imputacion causal   # sin mirar al futuro
+```
+
+Sale en `data/procesado/panel_modelado.parquet` con su informe al lado. Lleva
+la procedencia de cada valor **y** las exógenas; antes había dos tablas finales
+que no se hablaban y ninguna servía.
+
+⚠️ `atipico_global` y `atipico_iqr_global` se calculan sobre la serie entera:
+**no las uses como variables**, son fuga temporal. Para eso están `atipico` y
+`atipico_iqr`, que son causales.
+
+## Ausencia de fuga temporal
+
+Las marcas de atípicos se calculan con estadísticos **causales**: cada fila se
+juzga solo contra las observaciones anteriores de su grupo (día de semana,
+hora). Medido antes de corregirlo, sobre la serie real y cortando en
+2023-12-31, el criterio global marcaba 90 atípicos y el causal 255: **165
+banderas cambiaban** según se incluyera o no el futuro. Tras la corrección, 0.
+
+La zona horaria es **`America/Bogota` en todas las capas** — Colombia no aplica
+DST, así que equivale siempre a −05:00. Antes la capa limpia era tz-aware y el
+resto naive, y unirlas lanzaba un `ValueError` de pandas.
+
 ## Diagnóstico de calidad
 
 `src/calidad/diagnostico.py` describe qué está mal en una serie. **No corrige
@@ -364,6 +394,7 @@ src/ingesta/
   manifiesto.py   qué se descargó, hasta dónde llega, qué falta
   cli.py          orquestación y escritura a Parquet
 scripts/
+  construir_panel.py  demanda limpia + clima + calendario -> tabla de modelado
   explorar_apis.py    vuelca el JSON crudo y describe su estructura
   verificar_apis.py   comprueba los invariantes de los que depende el código
   reconciliar.py      XM vs SIMEM; resuelve empíricamente la convención HourNN
@@ -374,7 +405,7 @@ tests/
   test_limpieza.py    esquema, dedup, interpolación acotada, procedencia
   test_cli_escritura.py  regresión: una ingesta parcial no borra el resto del mes
   test_complementarias.py pesos, ponderación, Ley Emiliani, validación del merge
-  test_criticos.py    lo que falla en silencio (JSON real fijado, casos borde)
+  test_criticos.py    lo que falla en silencio + ausencia de fuga temporal
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
 descargar.py          CLI de la capa cruda

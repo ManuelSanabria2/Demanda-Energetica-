@@ -107,9 +107,42 @@ PRECEDENCIA_VERSIONES = (
     "TX1",
 )
 
-# Colombia no aplica horario de verano: las marcas de tiempo son naive y
-# corresponden siempre a la hora local (UTC-5).
-ZONA_HORARIA = "America/Bogota"
+# --------------------------------------------------------------------------
+# ZONA HORARIA  --  unica en todo el proyecto
+# --------------------------------------------------------------------------
+# Colombia no aplica horario de verano, asi que un desplazamiento fijo de -5 es
+# exacto y no depende de la base de datos de zonas del sistema.
+# Se usa el nombre IANA y no un desplazamiento fijo porque pandas, pyarrow y
+# Parquet lo entienden por igual, mientras que una cadena tipo "UTC-05:00" no es
+# una zona valida para pyarrow. Colombia no aplica horario de verano, asi que
+# America/Bogota equivale siempre y exactamente a -05:00.
+ZONA_COLOMBIA = "America/Bogota"
+ZONA_HORARIA = ZONA_COLOMBIA
+
+# Una tabla con mas de estas filas por marca de tiempo esta desagregada: hay
+# varias entidades o versiones por hora. El umbral es unico para todo el
+# proyecto; tenerlo por duplicado hacia que un modulo considerase agregada una
+# tabla que otro veia desagregada.
+UMBRAL_FILAS_POR_MARCA = 1.01
+
+# Observaciones por grupo (dia de semana, hora) a partir de las cuales el
+# criterio estacional se considera fiable. Compartido por diagnostico y
+# limpieza, para que ambos reporten la misma fiabilidad.
+GRUPO_COMODO = 30
+
+
+def a_zona_colombia(serie):
+    """Devuelve la serie de marcas de tiempo en UTC-5, sea cual sea su origen.
+
+    Localiza si viene sin zona y convierte si ya la trae. Es idempotente, asi
+    que se puede aplicar en cualquier frontera sin comprobar antes que llego.
+    """
+    import pandas as pd
+
+    momentos = pd.to_datetime(serie)
+    if getattr(momentos.dt, "tz", None) is None:
+        return momentos.dt.tz_localize(ZONA_COLOMBIA)
+    return momentos.dt.tz_convert(ZONA_COLOMBIA)
 
 
 def asegurar_directorios() -> None:

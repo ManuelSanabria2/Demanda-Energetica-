@@ -81,6 +81,91 @@
       "horas_con_todas_las_ciudades": 49824,
       "horas_con_ponderacion_parcial": 0,
       "horas_sin_ninguna_ciudad": 0
+    },
+    {
+      "momento": "2026-09-10T05:33:50",
+      "fuente": "open-meteo-archive",
+      "variable": "temperature_2m",
+      "rango_solicitado": [
+        "2021-01-01",
+        "2026-09-07"
+      ],
+      "rango_obtenido": [
+        "2021-01-01 00:00:00-05:00",
+        "2026-09-07 23:00:00-05:00"
+      ],
+      "n_registros": 49824,
+      "pesos_usados": {
+        "bogota": 0.45,
+        "medellin": 0.22,
+        "cali": 0.18,
+        "barranquilla": 0.15
+      },
+      "pesos_son_proxy": true,
+      "nota_pesos": "Los pesos por defecto son una aproximacion por tamano de area metropolitana, no una medicion de la demanda por zona.",
+      "ciudades": [
+        {
+          "ciudad": "Bogota",
+          "lat_pedida": 4.711,
+          "lon_pedida": -74.0721,
+          "lat_malla": 4.7451673,
+          "lon_malla": -74.10025,
+          "elevacion_m": 2557.0,
+          "zona": "America/Bogota",
+          "desfase_utc_s": -18000,
+          "unidad": "°C",
+          "horas_repetidas_descartadas": 0,
+          "n_horas": 49824
+        },
+        {
+          "ciudad": "Medellin",
+          "lat_pedida": 6.2442,
+          "lon_pedida": -75.5812,
+          "lat_malla": 6.2214413,
+          "lon_malla": -75.55185,
+          "elevacion_m": 1476.0,
+          "zona": "America/Bogota",
+          "desfase_utc_s": -18000,
+          "unidad": "°C",
+          "horas_repetidas_descartadas": 0,
+          "n_horas": 49824
+        },
+        {
+          "ciudad": "Cali",
+          "lat_pedida": 3.4516,
+          "lon_pedida": -76.532,
+          "lat_malla": 3.479789,
+          "lon_malla": -76.51822,
+          "elevacion_m": 1009.0,
+          "zona": "America/Bogota",
+          "desfase_utc_s": -18000,
+          "unidad": "°C",
+          "horas_repetidas_descartadas": 0,
+          "n_horas": 49824
+        },
+        {
+          "ciudad": "Barranquilla",
+          "lat_pedida": 10.9685,
+          "lon_pedida": -74.7813,
+          "lat_malla": 10.931458,
+          "lon_malla": -74.77414,
+          "elevacion_m": 21.0,
+          "zona": "America/Bogota",
+          "desfase_utc_s": -18000,
+          "unidad": "°C",
+          "horas_repetidas_descartadas": 0,
+          "n_horas": 49824
+        }
+      ],
+      "ciudades_incluidas": [
+        "bogota",
+        "medellin",
+        "cali",
+        "barranquilla"
+      ],
+      "horas_con_todas_las_ciudades": 49824,
+      "horas_con_ponderacion_parcial": 0,
+      "horas_sin_ninguna_ciudad": 0
     }
   ]
 }
