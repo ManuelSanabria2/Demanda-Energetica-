@@ -336,32 +336,31 @@ def _outliers_iqr(
     }
 
 
-def _outliers_estacionales(
+def z_estacional(
     marco: pd.DataFrame,
     columna_tiempo: str,
     columna_valor: str,
-    columnas_grupo: list[str] | None,
-    umbral: float,
-    minimo_por_grupo: int,
-    top: int,
-) -> dict[str, Any]:
-    """Atipicos frente a la misma hora del mismo dia de la semana.
+    columnas_grupo: list[str] | None = None,
+    minimo_por_grupo: int = MINIMO_POR_GRUPO,
+) -> tuple[pd.Series, pd.Series, dict[str, Any]]:
+    """Puntuacion z modificada de cada fila frente a su (dia de semana, hora).
 
-    Este es el criterio que importa. Un valor alto a las 2 p.m. de un martes es
-    normal; el mismo valor a las 3 a.m. de un domingo no lo es. Se compara cada
-    observacion contra la mediana de su grupo (dia de la semana, hora) usando
-    la puntuacion z modificada, que se apoya en la mediana y la desviacion
-    absoluta mediana y por tanto no se deja arrastrar por los propios atipicos.
+    Es el nucleo del criterio estacional, y vive aqui como funcion publica para
+    que el diagnostico y la limpieza compartan una unica implementacion: si el
+    criterio cambia, cambia para los dos a la vez.
+
+    Devuelve (z, no_evaluable, contexto). Las filas no evaluables llevan z nula
+    y no deben contarse como normales ni como atipicas: simplemente no se sabe.
     """
     datos = marco[[columna_tiempo, columna_valor]].copy()
+    datos[columna_valor] = pd.to_numeric(datos[columna_valor], errors="coerce")
     momentos = pd.to_datetime(marco[columna_tiempo])
     datos["_dia_semana"] = momentos.dt.dayofweek
     datos["_hora"] = momentos.dt.hour
 
     claves = ["_dia_semana", "_hora"] + list(columnas_grupo or [])
-    if columnas_grupo:
-        for columna in columnas_grupo:
-            datos[columna] = marco[columna]
+    for columna in columnas_grupo or []:
+        datos[columna] = marco[columna]
 
     agrupado = datos.groupby(claves, dropna=False)[columna_valor]
     mediana = agrupado.transform("median")
@@ -392,16 +391,68 @@ def _outliers_estacionales(
     no_evaluable = sin_dispersion | poco_poblados | datos[columna_valor].isna()
     z = z.where(~no_evaluable)
 
+    contexto = {
+        "mediana_grupo": mediana,
+        "tamano_grupo": tamano,
+        "mad": mad,
+        "desviacion_media": desviacion_media,
+        "n_grupos": int(agrupado.ngroups),
+        "minimo_por_grupo": minimo_por_grupo,
+    }
+    return z, no_evaluable, contexto
+
+
+def limites_iqr(
+    valores: pd.Series, factor: float = FACTOR_IQR
+) -> tuple[float, float]:
+    """Limites inferior y superior del criterio global por rango intercuartilico."""
+    limpios = pd.to_numeric(valores, errors="coerce").dropna()
+    if limpios.empty:
+        return (float("nan"), float("nan"))
+    q1, q3 = limpios.quantile([0.25, 0.75])
+    iqr = q3 - q1
+    return (float(q1 - factor * iqr), float(q3 + factor * iqr))
+
+
+def _outliers_estacionales(
+    marco: pd.DataFrame,
+    columna_tiempo: str,
+    columna_valor: str,
+    columnas_grupo: list[str] | None,
+    umbral: float,
+    minimo_por_grupo: int,
+    top: int,
+) -> dict[str, Any]:
+    """Atipicos frente a la misma hora del mismo dia de la semana.
+
+    Este es el criterio que importa. Un valor alto a las 2 p.m. de un martes es
+    normal; el mismo valor a las 3 a.m. de un domingo no lo es. Se compara cada
+    observacion contra la mediana de su grupo (dia de la semana, hora) usando
+    la puntuacion z modificada, que se apoya en la mediana y la desviacion
+    absoluta mediana y por tanto no se deja arrastrar por los propios atipicos.
+    """
+    momentos = pd.to_datetime(marco[columna_tiempo])
+    valores = pd.to_numeric(marco[columna_valor], errors="coerce")
+
+    z, no_evaluable, contexto = z_estacional(
+        marco, columna_tiempo, columna_valor, columnas_grupo, minimo_por_grupo
+    )
+    mediana = contexto["mediana_grupo"]
+    tamano = contexto["tamano_grupo"]
+    mad = contexto["mad"]
+    desviacion_media = contexto["desviacion_media"]
+    agrupado_n = contexto["n_grupos"]
+
     fuera = z.abs() > umbral
 
     detalle = pd.DataFrame(
         {
             "momento": momentos,
-            "valor": datos[columna_valor],
+            "valor": valores,
             "mediana_grupo": mediana,
             "z": z,
-            "dia_semana": datos["_dia_semana"],
-            "hora": datos["_hora"],
+            "dia_semana": momentos.dt.dayofweek,
+            "hora": momentos.dt.hour,
         }
     )
     peores = detalle[fuera.fillna(False)].reindex(
@@ -411,7 +462,7 @@ def _outliers_estacionales(
     dias = ["lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo"]
     por_hora = detalle[fuera.fillna(False)].groupby("hora").size()
 
-    observaciones = tamano[~datos[columna_valor].isna()]
+    observaciones = tamano[~valores.isna()]
     mediana_por_grupo = float(observaciones.median()) if len(observaciones) else 0.0
 
     fiabilidad = (
@@ -430,7 +481,7 @@ def _outliers_estacionales(
         "n_evaluables": int((~no_evaluable).sum()),
         "n_no_evaluables": int(no_evaluable.sum()),
         "n_por_desviacion_media": int(((mad == 0) & (desviacion_media > 0)).sum()),
-        "n_grupos": int(agrupado.ngroups),
+        "n_grupos": int(agrupado_n),
         "n_outliers": int(fuera.sum()),
         "pct": round(100 * fuera.sum() / max(1, (~no_evaluable).sum()), 4),
         "por_hora_del_dia": {int(h): int(n) for h, n in por_hora.items()},

@@ -168,6 +168,52 @@ para el modelado:
    borra la partición entera, así que una ingesta parcial elimina el resto del
    mes. Ya ocurrió con marzo de 2025. Sin corregir.
 
+## Limpieza trazable
+
+`src/limpieza/limpiar.py` aplica la limpieza y **registra cada transformación**.
+Cada operación devuelve `(marco, registro)` con el criterio aplicado y las filas
+afectadas; el registro completo va a `data/procesado/registro_limpieza.json`.
+
+```python
+from limpieza.limpiar import limpiar, guardar, procedencia, resumen
+
+limpio, registro = limpiar(crudo)
+guardar(limpio, registro, "demanda_horaria_sin")
+print(resumen(registro))
+```
+
+Operaciones, en orden: normalización de esquema (snake_case, marca de tiempo
+localizada en UTC-5, tipos fijos) → deduplicación por marca de tiempo → rejilla
+horaria completa con interpolación acotada → marcado de atípicos → marcado del
+periodo de pandemia.
+
+**Política de imputación, deliberadamente conservadora.** Solo se interpolan
+huecos de hasta 3 horas, y sin extrapolar en los extremos. Un hueco mayor se
+queda como `NaN` y se marca. Un `NaN` se distingue del dato real; un valor
+inventado, no.
+
+**Nada se elimina.** Los atípicos y el periodo de pandemia se *marcan*.
+Excluirlos o no es decisión del modelado.
+
+### De dónde salió cada valor
+
+El marco resultante lleva la procedencia fila a fila, y `procedencia()` la
+explica para cualquier hora:
+
+```python
+>>> procedencia(limpio, "2025-03-10 12:00")
+{'valor': None, 'origen_valor': 'faltante', 'hueco_horas': 624,
+ 'explicacion': 'Sin valor. Pertenece a un hueco de 624 h, por encima del
+                 limite de 3 h, asi que se dejo como NaN en vez de inventarlo.'}
+```
+
+Columnas de procedencia: `origen_valor` (`observado` / `interpolado` /
+`faltante`), `imputado`, `hueco_horas`, `atipico`, `atipico_iqr`,
+`atipico_evaluable`, `z_estacional`, `periodo_atipico`, `etiqueta_periodo`.
+
+Sobre los datos reales: 49 200 observados (98.75 %), 624 faltantes dejados como
+`NaN` (todo marzo de 2025), 151 atípicos marcados, 0 valores inventados.
+
 ## Salida
 
 ```
@@ -248,6 +294,8 @@ a las métricas de pronóstico del CND, que sí se publican por adelantado.
 ## Estructura
 
 ```
+src/limpieza/
+  limpiar.py      limpieza trazable: cada operación devuelve marco + registro
 src/calidad/
   diagnostico.py  informe de calidad: completitud, valores, estructura
 src/ingesta/
@@ -266,6 +314,7 @@ tests/
   test_clientes.py    troceo, reintentos, caché, ancho→largo (sin red)
   test_descarga.py    particionado, idempotencia, incremental, manifiesto
   test_diagnostico.py huecos, atípicos por dos criterios, fiabilidad
+  test_limpieza.py    esquema, dedup, interpolación acotada, procedencia
   test_ingesta.py     ventanas, colapso de versiones, cobertura
 descargar.py          CLI de la capa cruda
 ```

@@ -1,0 +1,137 @@
+{
+  "version_formato": 1,
+  "limpiezas": [
+    {
+      "version_formato": 1,
+      "momento": "2026-09-10T03:31:05",
+      "filas_iniciales": 49200,
+      "filas_finales": 49824,
+      "columna_tiempo": "fecha_hora",
+      "columna_valor": "valor_kwh",
+      "operaciones": [
+        {
+          "operacion": "normalizar_esquema",
+          "criterio": "nombres a snake_case; marca de tiempo localizada en UTC-5; valor a float64",
+          "momento": "2026-09-10T03:31:05",
+          "filas_antes": 49200,
+          "filas_despues": 49200,
+          "filas_afectadas": 0,
+          "detalle": {
+            "columna_tiempo": "fecha_hora",
+            "columna_valor": "valor_kwh",
+            "renombradas": {},
+            "zona_horaria": "UTC-05:00",
+            "zona_ya_presente": false,
+            "valores_no_numericos_a_nan": 0,
+            "columnas_normalizadas_a_texto": [
+              "fuente",
+              "metrica",
+              "entidad",
+              "version"
+            ]
+          }
+        },
+        {
+          "operacion": "deduplicar",
+          "criterio": "una fila por fecha_hora, conservando la ultima segun el orden de llegada",
+          "momento": "2026-09-10T03:31:05",
+          "filas_antes": 49200,
+          "filas_despues": 49200,
+          "filas_afectadas": 0,
+          "detalle": {
+            "eliminadas": 0,
+            "columna_recencia": null,
+            "marcas_de_tiempo_afectadas": [],
+            "filas_por_marca_antes": 1.0
+          }
+        },
+        {
+          "operacion": "completar_rejilla",
+          "criterio": "rejilla horaria completa; interpolacion temporal solo para huecos de hasta 3 h; sin extrapolar en los extremos",
+          "momento": "2026-09-10T03:31:05",
+          "filas_antes": 49200,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "max_horas_interpolacion": 3,
+            "filas_creadas_para_completar_rejilla": 624,
+            "horas_faltantes_totales": 624,
+            "horas_interpoladas": 0,
+            "horas_dejadas_como_nan": 624,
+            "huecos_por_longitud": {
+              "624": 1
+            },
+            "tramos_no_imputados": [
+              {
+                "inicio": "2025-03-06 00:00:00-05:00",
+                "fin": "2025-03-31 23:00:00-05:00",
+                "n_horas": 624
+              }
+            ],
+            "n_tramos_no_imputados": 1,
+            "nota": "Los huecos mayores al limite se dejan como NaN a proposito. Un NaN se distingue del dato real; un valor inventado, no."
+          }
+        },
+        {
+          "operacion": "marcar_atipicos",
+          "criterio": "columna atipico = |z modificada frente a (dia de semana, hora)| > 3.5; atipico_iqr = fuera de 1.5 rangos intercuartilicos. Marcado, sin eliminar ni corregir.",
+          "momento": "2026-09-10T03:31:05",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 151,
+          "detalle": {
+            "n_atipicos_estacionales": 151,
+            "n_atipicos_iqr": 48,
+            "n_no_evaluables": 624,
+            "umbral_z": 3.5,
+            "factor_iqr": 1.5,
+            "limite_iqr_inferior": 5330737.0024999995,
+            "limite_iqr_superior": 12871768.8425,
+            "observaciones_por_grupo_mediana": 297.0,
+            "fiabilidad": "alta",
+            "columnas_grupo": [],
+            "nota": "La decision de excluirlos corresponde al modelado, no a la limpieza."
+          }
+        },
+        {
+          "operacion": "marcar_periodo_atipico",
+          "criterio": "periodo_atipico = fecha entre 2020-03-01 y 2020-12-31 (pandemia_2020)",
+          "momento": "2026-09-10T03:31:05",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "etiqueta": "pandemia_2020",
+            "rango": [
+              "2020-03-01",
+              "2020-12-31"
+            ],
+            "n_filas_marcadas": 0,
+            "cubre_el_periodo": false,
+            "nota": "Evento estructural no reproducible. Se marca, no se elimina: aislarlo o no es decision del modelado."
+          }
+        }
+      ],
+      "procedencia": {
+        "por_origen": {
+          "observado": 49200,
+          "faltante": 624
+        },
+        "pct_observado": 98.7476,
+        "pct_interpolado": 0.0,
+        "pct_faltante": 1.2524,
+        "n_atipicos": 151,
+        "n_periodo_atipico": 0,
+        "n_utilizables_sin_marcas": 49049
+      },
+      "politica": {
+        "imputacion": "solo huecos de hasta 3 h, por interpolacion temporal, sin extrapolar en los extremos",
+        "atipicos": "marcados, nunca eliminados ni corregidos",
+        "periodos_estructurales": "marcados, nunca eliminados",
+        "nan": "se prefiere un NaN honesto a un valor inventado"
+      },
+      "conjunto": "demanda_horaria_sin",
+      "archivo": "demanda_horaria_sin.parquet"
+    }
+  ]
+}
