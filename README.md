@@ -45,7 +45,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 193 pruebas, ninguna toca la red
+python -m pytest tests -q          # 223 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -158,9 +158,21 @@ nacional agregada, el catálogo de las 193 métricas de XM, la demanda real y
 comercial del SIN, y la demanda comercial por CIIU (un `.csv.gz` por año). Qué
 es cada archivo, sus columnas y sus trampas: [`datasets/README.md`](datasets/README.md).
 
-`notebooks/` trae cuatro cuadernos que **reutilizan el paquete**, no lo
-reimplementan: `00_configuracion`, `01_carga_y_exploracion`,
-`02_diagnostico_calidad` y `03_limpieza`. Se publican ya ejecutados.
+`notebooks/` trae cuadernos que **reutilizan el paquete**, no lo reimplementan,
+y se publican ya ejecutados. Los de limpieza van uno por dataset y con su nombre:
+
+| notebook | qué hace |
+|---|---|
+| `00_configuracion` | comprueba entorno, paquete y datasets |
+| `01_carga_y_exploracion` | columnas, perfiles horario y semanal, la trampa de las versiones de SIMEM |
+| `02_diagnostico_calidad` | huecos, días incompletos, atípicos por dos criterios |
+| `03_limpieza_demanda_real` | limpieza de `DemaReal`/Sistema, la serie objetivo |
+| `04_limpieza_catalogo_metricas` | normaliza el catálogo de 193 métricas y corrige la URL `/list` → `/lists` |
+| `05_limpieza_demanda_comercial` | limpieza de `DemaCome`/Sistema y coherencia con la real |
+| `06_limpieza_ciiu` | limpieza de la demanda por CIIU, sector por sector |
+
+Las salidas limpias y sus registros van a `datasets/limpios/`. Para regenerar
+solo algunos notebooks: `python scripts/generar_notebooks.py 06_limpieza_ciiu`.
 
 > La métrica de CIIU (`DemaComeNoReg`/Entity=CIIU) trae `Activity` y
 > `Subactivity` **dentro de `Values`**, no en el `Id` de la entidad. El cliente
@@ -405,6 +417,8 @@ a las métricas de pronóstico del CND, que sí se publican por adelantado.
 ```
 src/limpieza/
   limpiar.py      limpieza trazable: cada operación devuelve marco + registro
+  grupos.py       limpieza de tablas desagregadas, un grupo cada vez
+  catalogo.py     limpieza del catálogo de métricas de XM
 src/calidad/
   diagnostico.py  informe de calidad: completitud, valores, estructura
 src/ingesta/
@@ -434,7 +448,11 @@ tests/
   test_criticos.py    lo que falla en silencio + ausencia de fuga temporal
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
+  test_datasets.py    escritor de CSV: escritura atómica, orden fijo, gzip
+  test_limpieza_catalogo.py  limpieza del catálogo de métricas
+  test_limpieza_grupos.py    limpieza por grupos y etiqueta en filas creadas
 descargar.py          CLI de la capa cruda
-datasets/             CSV de trabajo (fuera de git salvo README y manifiesto)
-notebooks/            00 configuración · 01 exploración · 02 diagnóstico · 03 limpieza
+datasets/             CSV de trabajo (fuera de git salvo README, manifiesto y registros)
+  limpios/            salidas de los notebooks de limpieza
+notebooks/            00–02 exploración y diagnóstico · 03–06 limpieza, uno por dataset
 ```

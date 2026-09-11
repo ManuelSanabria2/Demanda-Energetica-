@@ -234,7 +234,7 @@ print(parciales.round(1).to_string())'''),
 
 
 NB03 = cuaderno([
-    ("md", """# 03 · Limpieza
+    ("md", """# 03 · Limpieza · demanda real del SIN (XM)
 
 Toda transformación queda registrada: `limpieza.limpiar.limpiar()` devuelve el
 DataFrame y un registro de qué hizo, con qué criterio y a cuántas filas afectó.
@@ -294,6 +294,14 @@ ax.scatter(marcados.hora_local, marcados.valor_kwh / 1e6, c="crimson", s=8, zord
            label=f"atípicos causales ({len(marcados)})")
 ax.set(title="Demanda real del SIN (GWh)", ylabel="GWh")
 ax.legend(); ax.grid(alpha=.3); plt.tight_layout(); plt.show()'''),
+    ("md", "## Guardar\n\nLa serie limpia y su registro van a `datasets/limpios/`."),
+    ("code", '''import json
+SALIDA = DATASETS / "limpios"
+SALIDA.mkdir(parents=True, exist_ok=True)
+limpio.to_parquet(SALIDA / "demanda_real.parquet", index=False)
+with open(SALIDA / "registro_demanda_real.json", "w", encoding="utf-8") as f:
+    json.dump(registro, f, ensure_ascii=False, indent=2, default=str)
+print(f"{len(limpio):,} filas -> {SALIDA / 'demanda_real.parquet'}")'''),
     ("md", """## Siguiente paso
 
 El panel de modelado —demanda limpia + clima + calendario, validando que el merge
@@ -301,16 +309,353 @@ no altera filas— se construye con `python scripts/construir_panel.py`."""),
 ])
 
 
-def main() -> None:
+NB04 = cuaderno([
+    ("md", """# 04 · Limpieza · catálogo de métricas (XM)
+
+El catálogo es la lista de las 193 métricas que publica la API de XM. No es una
+serie temporal, así que no tiene huecos ni atípicos: sus problemas son de texto
+y de coherencia. Todos se encontraron mirando el archivo real:
+
+- el mismo centinela escrito de dos formas: `"No aplica"` y `"No Aplica"`;
+- la misma entidad con dos grafías: `"SubArea"` y `"Subarea"`;
+- 7 unidades vacías, 13 descripciones con espacios sobrantes y 5 nombres con doble espacio;
+- **una URL equivocada**: el catálogo anuncia `/list` para las métricas de listado,
+  pero ese endpoint responde 404; el que funciona es `/lists`.
+
+La limpieza la hace `limpieza.catalogo.limpiar_catalogo()`: normaliza lo que se
+puede normalizar, corrige solo lo que está verificado y marca lo demás."""),
+    ("code", ARRANQUE),
+    ("code", '''# keep_default_na=False: sin esto pandas convierte las cadenas vacías en NaN al
+# leer y el problema de los vacíos quedaría escondido antes de verlo.
+cat = pd.read_csv(DATASETS / "xm" / "xm_catalogo_metricas.csv", keep_default_na=False)
+print(f"{len(cat)} filas · {len(cat.columns)} columnas")
+cat.head()'''),
+    ("md", "## Qué está mal, antes de tocar nada"),
+    ("code", '''texto = cat.select_dtypes("object")
+print("duplicados (MetricId, Entity):", int(cat.duplicated(["MetricId", "Entity"]).sum()))
+print()
+print("centinela de 'sin filtro' escrito de varias formas:")
+print(cat.Filter[cat.Filter.str.casefold() == "no aplica"].value_counts().to_string())
+print()
+grafias = cat.Entity.groupby(cat.Entity.str.casefold()).unique()
+print("entidades que solo difieren en mayúsculas:", grafias[grafias.str.len() > 1].tolist())
+print()
+vacios = {c: int((texto[c].str.strip() == "").sum()) for c in texto}
+print("celdas vacías   :", {c: n for c, n in vacios.items() if n})
+sobrantes = {c: int((texto[c] != texto[c].str.strip()).sum()) for c in texto}
+print("espacios de más :", {c: n for c, n in sobrantes.items() if n})
+dobles = cat[cat.MetricName.str.contains("  ", regex=False)].MetricName.tolist()
+print("dobles espacios :", dobles)'''),
+    ("code", '''print("URL anunciada por tipo de métrica:")
+pd.crosstab(cat.Type, cat.Url)'''),
+    ("md", """> **Sobre `/list`.** Comprobado contra el servidor el 2026-09-10: `POST /list`
+> responde **404**, `POST /lists` responde 200 con las 193 métricas. Este notebook
+> no llama a la API —se ejecuta igual sin red—, así que la evidencia queda escrita
+> en el registro de la limpieza."""),
+    ("md", "## Limpieza"),
+    ("code", '''from limpieza.catalogo import limpiar_catalogo, resumen
+limpio, registro = limpiar_catalogo(cat)
+print(resumen(registro))'''),
+    ("md", """## Qué cambió en las filas tocadas
+
+`entity` se conserva **tal cual**: es el literal que se envía a la API en el
+campo `Entity`, y no está verificado que la API acepte las dos grafías. Para
+agrupar y contar está `entidad_normalizada`."""),
+    ("code", '''tocadas = limpio[
+    limpio.url_corregida | (limpio.entity != limpio.entidad_normalizada)
+]
+tocadas[["metric_id", "entity", "entidad_normalizada", "granularidad", "url", "url_corregida"]]'''),
+    ("code", '''print("filas con filtro real:", int(limpio.tiene_filtro.sum()), "de", len(limpio))
+print(limpio["filter"].value_counts().to_string())
+print()
+print("unidades (tras convertir los vacíos a nulo):")
+print(limpio.metric_units.value_counts(dropna=False).to_string())'''),
+    ("md", "## Comprobaciones"),
+    ("code", '''assert len(limpio) == len(cat), "se perdieron filas"
+assert not limpio.duplicated(["metric_id", "entity"]).any()
+assert limpio.url_coherente.all(), "hay URLs que no apuntan a su granularidad"
+assert limpio.granularidad.notna().all()
+assert (limpio.max_days > 0).all()
+print("OK: 193 métricas, sin duplicados, todas las URL coherentes con su granularidad")'''),
+    ("md", "## Guardar\n\nEs una tabla de referencia pequeña, así que va en CSV para poder abrirla en cualquier parte."),
+    ("code", '''import json
+SALIDA = DATASETS / "limpios"
+SALIDA.mkdir(parents=True, exist_ok=True)
+limpio.to_csv(SALIDA / "catalogo_metricas.csv", index=False, encoding="utf-8")
+with open(SALIDA / "registro_catalogo_metricas.json", "w", encoding="utf-8") as f:
+    json.dump(registro, f, ensure_ascii=False, indent=2, default=str)
+print(f"{len(limpio)} filas -> {SALIDA / 'catalogo_metricas.csv'}")'''),
+])
+
+
+NB05 = cuaderno([
+    ("md", """# 05 · Limpieza · demanda comercial del SIN (XM)
+
+`DemaCome` es la demanda **comercial**: la que se liquida en el mercado, que
+incluye las pérdidas de la red. Por eso debería quedar siempre algo por encima
+de la demanda real (`DemaReal`).
+
+Lo que se encontró al diagnosticarla:
+
+- serie completa, sin huecos ni duplicados;
+- ~156 atípicos estacionales, casi todos en los dos últimos días publicados,
+  que llegan parciales (el mismo defecto que la demanda real);
+- **4 horas en las que la comercial queda por debajo de la real**, lo que no
+  cuadra entre dos series de la misma fuente.
+
+Se limpia con el mismo `limpiar()` que la demanda real, y además se marca la
+incoherencia con la real. Marcar, no corregir: no hay forma de saber cuál de
+las dos está mal."""),
+    ("code", ARRANQUE),
+    ("code", '''from ingesta.normalizar import xm_cliente_a_esquema_comun
+com = xm_cliente_a_esquema_comun(pd.read_csv(DATASETS / "xm" / "xm_demacome_sistema.csv", parse_dates=["timestamp"]))
+real = xm_cliente_a_esquema_comun(pd.read_csv(DATASETS / "xm" / "xm_demareal_sistema.csv", parse_dates=["timestamp"]))
+print(f"comercial: {len(com):,} filas · {com.fecha_hora.min()} .. {com.fecha_hora.max()}")
+print(f"real     : {len(real):,} filas")'''),
+    ("md", "## Diagnóstico"),
+    ("code", '''from calidad.diagnostico import diagnosticar, resumen
+informe = diagnosticar(com)
+print(resumen(informe))'''),
+    ("md", "## Limpieza"),
+    ("code", '''from limpieza.limpiar import limpiar, procedencia, resumen as resumen_limpieza
+limpio, registro = limpiar(com)
+print(resumen_limpieza(registro))'''),
+    ("md", """## Coherencia con la demanda real
+
+La comercial incluye pérdidas, así que el cociente comercial / real debería
+estar siempre por encima de 1. Las horas en que no lo está se marcan en
+`menor_que_real`."""),
+    ("code", '''par = limpio.merge(
+    real[["fecha_hora", "valor_kwh"]].rename(columns={"valor_kwh": "real_kwh"}),
+    on="fecha_hora", how="left", validate="one_to_one",
+)
+assert len(par) == len(limpio), "el merge cambió el número de filas"
+
+cociente = par.valor_kwh / par.real_kwh
+limpio["menor_que_real"] = (par.valor_kwh < par.real_kwh).to_numpy()
+
+registro["operaciones"].append({
+    "operacion": "marcar_incoherencia_con_real",
+    "criterio": "menor_que_real = demanda comercial < demanda real en la misma hora; marcado, sin corregir",
+    "filas_afectadas": int(limpio.menor_que_real.sum()),
+    "detalle": {
+        "cociente_mediana": round(float(cociente.median()), 4),
+        "cociente_p1": round(float(cociente.quantile(.01)), 4),
+        "cociente_p99": round(float(cociente.quantile(.99)), 4),
+    },
+})
+
+print("cociente comercial / real:")
+print(cociente.describe(percentiles=[.01, .5, .99]).round(4).to_string())
+print()
+print("horas marcadas como menor_que_real:", int(limpio.menor_que_real.sum()))
+par.assign(cociente=cociente.round(4))[limpio.menor_que_real.to_numpy()][["fecha_hora", "valor_kwh", "real_kwh", "cociente"]]'''),
+    ("md", """## Los últimos días publicados
+
+Igual que en la demanda real, los dos últimos días llegan parciales. No hace
+falta una marca nueva: el criterio causal de atípicos ya los señala."""),
+    ("code", '''diario = limpio.set_index("fecha_hora").resample("D").agg(
+    gwh=("valor_kwh", lambda s: s.sum() / 1e6), atipicos=("atipico", "sum")
+)
+diario.tail(7).round(1)'''),
+    ("md", "## Guardar"),
+    ("code", '''import json
+SALIDA = DATASETS / "limpios"
+SALIDA.mkdir(parents=True, exist_ok=True)
+limpio.to_parquet(SALIDA / "demanda_comercial.parquet", index=False)
+with open(SALIDA / "registro_demanda_comercial.json", "w", encoding="utf-8") as f:
+    json.dump(registro, f, ensure_ascii=False, indent=2, default=str)
+print(f"{len(limpio):,} filas -> {SALIDA / 'demanda_comercial.parquet'}")'''),
+])
+
+
+NB06 = cuaderno([
+    ("md", """# 06 · Limpieza · demanda comercial por CIIU (XM)
+
+La demanda comercial no regulada, desagregada por actividad económica (CIIU):
+**17,5 millones de filas**, una por hora y por subactividad, con 367
+combinaciones `(Activity, Subactivity)` a lo largo del histórico y entre 349 y
+355 activas en cada hora.
+
+Lo que se encontró al mirarla:
+
+- **90 302 valores vacíos** dentro de filas que sí existen;
+- sectores que aparecen y desaparecen: alguno vive solo unas semanas;
+- ni ceros ni negativos.
+
+**Por qué por grupos.** `limpiar()` está pensada para una serie con una fila por
+hora, y se niega a tratar una tabla así: deduplicar por hora borraría el 99 % de
+los datos. Hay que partirla en 367 series y limpiar cada una por separado, para
+que los estadísticos de un sector no contaminen a otro —10 MWh es normal en la
+industria y disparatado en una biblioteca—. Lo hace
+`limpieza.grupos.limpiar_por_grupos()`.
+
+La rejilla horaria de cada sector va de **su** primera a **su** última hora: a
+un sector que solo existió unos meses no se le inventan horas antes ni después."""),
+    ("code", ARRANQUE + '''
+
+import json, time
+import pyarrow as pa
+import pyarrow.parquet as pq'''),
+    ("md", """## Carga con memoria acotada
+
+Leído tal cual, el CSV ocupa más de 1,6 GB en memoria por las descripciones de
+actividad repetidas en cada fila. Se lee por trozos, con `Activity` y
+`Subactivity` como categorías y la fecha ya convertida."""),
+    ("code", '''from pandas.api.types import union_categoricals
+
+t0 = time.time()
+partes = []
+for ruta in sorted(p for p in DATASETS.glob("xm/ciiu/*.csv.gz")):
+    for trozo in pd.read_csv(ruta, usecols=["timestamp", "valor", "Activity", "Subactivity"], chunksize=2_000_000):
+        trozo["timestamp"] = pd.to_datetime(trozo["timestamp"], format="ISO8601")
+        trozo["Activity"] = trozo["Activity"].astype("category")
+        trozo["Subactivity"] = trozo["Subactivity"].astype("category")
+        partes.append(trozo)
+
+ciiu = pd.DataFrame({
+    "timestamp": pd.concat([p.timestamp for p in partes], ignore_index=True),
+    "valor": pd.concat([p.valor for p in partes], ignore_index=True),
+    "Activity": union_categoricals([p.Activity for p in partes]),
+    "Subactivity": union_categoricals([p.Subactivity for p in partes]),
+})
+del partes
+print(f"{len(ciiu):,} filas en {time.time() - t0:.0f} s · {ciiu.memory_usage(deep=True).sum() / 1e6:.0f} MB en memoria")'''),
+    ("md", "## Diagnóstico"),
+    ("code", '''g = ciiu.groupby(["Activity", "Subactivity"], observed=True)
+filas = g.size()
+vida = g.timestamp.agg(["min", "max"])
+esperadas = ((vida["max"] - vida["min"]) / pd.Timedelta(hours=1) + 1).astype(int)
+nulos = g.valor.apply(lambda s: int(s.isna().sum()))
+
+print(f"actividades                   : {ciiu.Activity.nunique()}")
+print(f"grupos (actividad, subactividad): {len(filas)}")
+print(f"filas por grupo               : min {filas.min():,} · mediana {int(filas.median()):,} · máx {filas.max():,}")
+print(f"grupos con horas sin fila     : {int((esperadas > filas).sum())} ({int((esperadas - filas).sum()):,} horas)")
+print(f"valores vacíos                : {int(ciiu.valor.isna().sum()):,} en {int((nulos > 0).sum())} grupos")
+print(f"ceros / negativos             : {int((ciiu.valor == 0).sum())} / {int((ciiu.valor < 0).sum())}")
+por_hora = ciiu.groupby("timestamp").size()
+print(f"subactividades por hora       : {por_hora.min()} .. {por_hora.max()}")'''),
+    ("code", '''print("Los sectores de vida más corta:")
+vida.assign(filas=filas).sort_values("filas").head(6)'''),
+    ("md", """## Limpieza por grupos
+
+Cada sector se limpia como una serie propia y se escribe en cuanto está listo,
+sin juntar el resultado en memoria. El Parquet final se escribe primero como
+`.tmp` y se renombra al acabar, para que una ejecución interrumpida nunca deje
+un archivo que parezca completo.
+
+Tarda unos minutos: son 367 series de hasta 49 824 horas."""),
+    ("code", '''from limpieza.grupos import limpiar_por_grupos, fila_de_resumen, resumir
+
+SALIDA = DATASETS / "limpios"
+SALIDA.mkdir(parents=True, exist_ok=True)
+destino = SALIDA / "ciiu_limpio.parquet"
+temporal = destino.with_name(destino.name + ".tmp")
+
+ESQUEMA = pa.schema([
+    ("timestamp", pa.timestamp("ns", tz="America/Bogota")),
+    ("activity", pa.string()), ("subactivity", pa.string()),
+    ("valor", pa.float64()), ("origen_valor", pa.string()),
+    ("imputado", pa.bool_()), ("hueco_horas", pa.int64()),
+    ("z_estacional", pa.float64()), ("atipico", pa.bool_()),
+    ("atipico_evaluable", pa.bool_()), ("atipico_iqr", pa.bool_()),
+    ("atipico_global", pa.bool_()), ("atipico_iqr_global", pa.bool_()),
+    ("periodo_atipico", pa.bool_()),
+])
+
+filas_resumen = []
+t0 = time.time()
+with pq.ParquetWriter(temporal, ESQUEMA, compression="zstd") as escritor:
+    for n, (etiqueta, limpio, registro) in enumerate(limpiar_por_grupos(ciiu, ["Activity", "Subactivity"]), 1):
+        assert not limpio.timestamp.duplicated().any(), f"horas repetidas en {etiqueta}"
+        tabla = limpio[ESQUEMA.names].astype({"hueco_horas": "int64"})
+        escritor.write_table(pa.Table.from_pandas(tabla, schema=ESQUEMA, preserve_index=False))
+        filas_resumen.append(fila_de_resumen(etiqueta, limpio, registro))
+        if n % 60 == 0:
+            print(f"  {n:>3} grupos · {time.time() - t0:.0f} s")
+temporal.replace(destino)
+
+total = resumir(filas_resumen)
+print(f"{total['n_grupos']} grupos limpiados en {time.time() - t0:.0f} s")
+total'''),
+    ("md", "## Resultado"),
+    ("code", '''grupos = pd.DataFrame(filas_resumen)
+print(f"observados  : {total['observados']:>12,}  ({total['pct_observado']} %)")
+print(f"interpolados: {total['interpolados']:>12,}  en {total['grupos_con_interpolados']} grupos (huecos de hasta 3 h)")
+print(f"faltantes   : {total['faltantes']:>12,}  en {total['grupos_con_faltantes']} grupos (huecos largos, se quedan NaN)")
+print(f"atípicos    : {total['atipicos']:>12,}  (causales, dentro de cada sector)")
+print(f"horas creadas para completar la rejilla de cada sector: {total['horas_creadas']:,}")
+print()
+print("Sectores con más horas sin valor:")
+grupos.sort_values("faltantes", ascending=False).head(8)[
+    ["Activity", "Subactivity", "desde", "hasta", "faltantes", "tramos_no_imputados", "interpolados"]
+]'''),
+    ("md", "## Comprobaciones"),
+    ("code", '''meta = pq.ParquetFile(destino).metadata
+assert meta.num_rows == total["filas_finales"], "el Parquet no tiene las filas esperadas"
+assert total["filas_iniciales"] == len(ciiu), "no se procesaron todas las filas de entrada"
+assert total["observados"] + total["interpolados"] + total["faltantes"] == total["filas_finales"]
+assert total["filas_finales"] - total["filas_iniciales"] == total["horas_creadas"]
+print(f"OK: {len(ciiu):,} filas de entrada -> {meta.num_rows:,} en el Parquet")
+print(f"    (+{total['horas_creadas']:,} horas que faltaban en la rejilla de su sector, marcadas)")'''),
+    ("md", "## Registro"),
+    ("code", '''registro_ciiu = {
+    "version_formato": 1,
+    "conjunto": "ciiu_demacomenoreg",
+    "momento": pd.Timestamp.now().isoformat(timespec="seconds"),
+    "archivo": destino.name,
+    "politica": ("limpieza por (Activity, Subactivity); rejilla de cada sector entre su primera "
+                 "y su ultima hora; interpolacion solo en huecos de hasta 3 h; atipicos causales "
+                 "dentro de cada sector; nada se elimina"),
+    "resumen": total,
+    "grupos": filas_resumen,
+}
+with open(SALIDA / "registro_ciiu.json", "w", encoding="utf-8") as f:
+    json.dump(registro_ciiu, f, ensure_ascii=False, indent=2, default=str)
+print("registro ->", SALIDA / "registro_ciiu.json")'''),
+    ("md", """## Cómo leerlo sin cargar las 17,5 M de filas
+
+El Parquet se escribió sector a sector, así que se puede leer solo una parte."""),
+    ("code", '''educacion = pq.read_table(
+    destino,
+    columns=["timestamp", "subactivity", "valor", "origen_valor", "atipico"],
+    filters=[("activity", "==", "EDUCACIÓN")],
+).to_pandas()
+print(f"EDUCACIÓN: {len(educacion):,} filas · {educacion.subactivity.nunique()} subactividades")
+educacion.head()'''),
+])
+
+
+NOTEBOOKS = {
+    "00_configuracion": NB00,
+    "01_carga_y_exploracion": NB01,
+    "02_diagnostico_calidad": NB02,
+    "03_limpieza_demanda_real": NB03,
+    "04_limpieza_catalogo_metricas": NB04,
+    "05_limpieza_demanda_comercial": NB05,
+    "06_limpieza_ciiu": NB06,
+}
+
+
+def main(argv: list[str] | None = None) -> None:
+    import argparse
+
+    analizador = argparse.ArgumentParser(description="Genera los notebooks")
+    analizador.add_argument(
+        "nombres", nargs="*",
+        help="solo estos notebooks (por defecto todos); regenerar borra sus salidas",
+    )
+    args = analizador.parse_args(argv)
+
+    desconocidos = set(args.nombres) - set(NOTEBOOKS)
+    if desconocidos:
+        raise SystemExit(f"Notebooks desconocidos: {sorted(desconocidos)}. Validos: {list(NOTEBOOKS)}")
+
     DIR.mkdir(exist_ok=True)
-    for nombre, libro in [
-        ("00_configuracion", NB00),
-        ("01_carga_y_exploracion", NB01),
-        ("02_diagnostico_calidad", NB02),
-        ("03_limpieza", NB03),
-    ]:
+    for nombre in args.nombres or NOTEBOOKS:
         ruta = DIR / f"{nombre}.ipynb"
-        nbf.write(libro, ruta)
+        nbf.write(NOTEBOOKS[nombre], ruta)
         print("escrito", ruta.name)
 
 

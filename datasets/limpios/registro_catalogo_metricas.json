@@ -1,0 +1,168 @@
+{
+  "version_formato": 1,
+  "conjunto": "catalogo_metricas_xm",
+  "momento": "2026-09-11T04:59:15",
+  "filas_iniciales": 193,
+  "filas_finales": 193,
+  "columnas_finales": [
+    "metric_id",
+    "metric_name",
+    "entity",
+    "max_days",
+    "type",
+    "url",
+    "filter",
+    "metric_units",
+    "metric_description",
+    "tiene_filtro",
+    "entidad_normalizada",
+    "url_corregida",
+    "granularidad",
+    "url_coherente"
+  ],
+  "operaciones": [
+    {
+      "operacion": "normalizar_nombres",
+      "criterio": "nombres de columna a snake_case",
+      "momento": "2026-09-11T04:59:15",
+      "filas_antes": 193,
+      "filas_despues": 193,
+      "filas_afectadas": 0,
+      "detalle": {
+        "renombradas": {
+          "MetricId": "metric_id",
+          "MetricName": "metric_name",
+          "Entity": "entity",
+          "MaxDays": "max_days",
+          "Type": "type",
+          "Url": "url",
+          "Filter": "filter",
+          "MetricUnits": "metric_units",
+          "MetricDescription": "metric_description"
+        }
+      }
+    },
+    {
+      "operacion": "limpiar_texto",
+      "criterio": "espacios en los extremos eliminados y espacios repetidos colapsados a uno",
+      "momento": "2026-09-11T04:59:15",
+      "filas_antes": 193,
+      "filas_despues": 193,
+      "filas_afectadas": 23,
+      "detalle": {
+        "cambios_por_columna": {
+          "metric_name": 5,
+          "metric_description": 18
+        },
+        "ejemplos_originales": {
+          "metric_name": [
+            "'Compras en Contrato Energía  Mercado No Regulado por Sistema'",
+            "'Aportes  Energía por Sistema'",
+            "'Aportes  Energía por Rio'"
+          ],
+          "metric_description": [
+            "'“Es el valor a cargo de los comercializadores por concepto de restricciones después de aplicar los alivios definidos en la regulación vigente”, la regla de negocio de esta métrica sería la Resolución '",
+            "'Consumo aproximado de combustible de los generadores térmicos que no reportan diariamente consumo en MBTU, utilizado como insumo para el cálculo\\xa0 de emisión de CO2 de los recursos.'",
+            "'Emisiones totales de Dióxido de Carbono (CH4)\\xa0 de las plantas de generación registradas ante el Centro Nacional de Despacho, incluyendo las calculadas con base en información reportada y las estimadas'"
+          ]
+        }
+      }
+    },
+    {
+      "operacion": "vacios_a_nulo",
+      "criterio": "cadenas vacias convertidas a nulo",
+      "momento": "2026-09-11T04:59:15",
+      "filas_antes": 193,
+      "filas_despues": 193,
+      "filas_afectadas": 8,
+      "detalle": {
+        "nulos_por_columna": {
+          "metric_units": 7,
+          "metric_description": 1
+        }
+      }
+    },
+    {
+      "operacion": "normalizar_filtro",
+      "criterio": "valores 'No aplica' (sin distinguir mayusculas) a nulo; columna tiene_filtro",
+      "momento": "2026-09-11T04:59:15",
+      "filas_antes": 193,
+      "filas_despues": 193,
+      "filas_afectadas": 114,
+      "detalle": {
+        "grafias_encontradas": {
+          "No aplica": 107,
+          "No Aplica": 7
+        }
+      }
+    },
+    {
+      "operacion": "normalizar_entidad",
+      "criterio": "entidad_normalizada unifica grafias que solo difieren en mayusculas; entity conserva el literal que espera la API",
+      "momento": "2026-09-11T04:59:15",
+      "filas_antes": 193,
+      "filas_despues": 193,
+      "filas_afectadas": 2,
+      "detalle": {
+        "grafias_unificadas": {
+          "SubArea": [
+            "SubArea",
+            "Subarea"
+          ]
+        },
+        "n_entidades_originales": 13,
+        "n_entidades_normalizadas": 12
+      }
+    },
+    {
+      "operacion": "corregir_url",
+      "criterio": "URL sustituidas solo cuando hay una correccion verificada contra el servidor (CORRECCIONES_URL)",
+      "momento": "2026-09-11T04:59:15",
+      "filas_antes": 193,
+      "filas_despues": 193,
+      "filas_afectadas": 7,
+      "detalle": {
+        "correcciones": {
+          "https://servapibi.xm.com.co/list": "https://servapibi.xm.com.co/lists"
+        },
+        "filas_por_url_original": {
+          "https://servapibi.xm.com.co/list": 7
+        },
+        "evidencia": "2026-09-10: POST /list -> 404; POST /lists -> 200 con 193 metricas"
+      }
+    },
+    {
+      "operacion": "derivar_granularidad",
+      "criterio": "granularidad = traduccion de type; url_coherente = la URL apunta al endpoint de esa granularidad",
+      "momento": "2026-09-11T04:59:15",
+      "filas_antes": 193,
+      "filas_despues": 193,
+      "filas_afectadas": 0,
+      "detalle": {
+        "por_granularidad": {
+          "horaria": 115,
+          "diaria": 57,
+          "mensual": 14,
+          "listado": 7
+        },
+        "n_url_incoherentes": 0,
+        "url_incoherentes": []
+      }
+    },
+    {
+      "operacion": "validar",
+      "criterio": "(metric_id, entity) unico; max_days entero positivo",
+      "momento": "2026-09-11T04:59:15",
+      "filas_antes": 193,
+      "filas_despues": 193,
+      "filas_afectadas": 0,
+      "detalle": {
+        "valores_max_days": [
+          31,
+          731
+        ]
+      }
+    }
+  ],
+  "politica": "entity se conserva literal para la API; solo se corrigen URL con evidencia; lo demas se normaliza o se marca, nunca se inventa."
+}

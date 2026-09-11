@@ -24,6 +24,12 @@ datasets/*
 !datasets/README.md
 !datasets/manifiesto_datasets.json
 
+# datasets/limpios/: salidas de los notebooks de limpieza. Los datos no; los
+# registros de limpieza si, porque son los que dicen de donde salio cada valor.
+!datasets/limpios/
+datasets/limpios/*
+!datasets/limpios/registro_*.json
+
 __pycache__/
 *.pyc
 .pytest_cache/

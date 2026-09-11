@@ -299,12 +299,27 @@ def completar_rejilla(
     rejilla = pd.date_range(
         datos[columna_tiempo].min(), datos[columna_tiempo].max(), freq="h"
     )
+
+    # Columnas que valen lo mismo en todas las filas: la fuente, la entidad o,
+    # en una tabla limpiada por grupos, la etiqueta del grupo (la subactividad
+    # de CIIU, por ejemplo). Reindexar deja NaN en ellas en las filas creadas,
+    # y una fila creada sin su etiqueta ya no se sabe a que serie pertenece.
+    constantes = {
+        columna: datos[columna].iloc[0]
+        for columna in datos.columns
+        if columna not in (columna_tiempo, columna_valor)
+        and datos[columna].nunique(dropna=False) == 1
+        and pd.notna(datos[columna].iloc[0])
+    }
+
     completo = (
         datos.set_index(columna_tiempo)
         .reindex(rejilla)
         .rename_axis(columna_tiempo)
         .reset_index()
     )
+    for columna, valor in constantes.items():
+        completo[columna] = completo[columna].fillna(valor)
     filas_creadas = len(completo) - antes
 
     faltante = completo[columna_valor].isna()
@@ -365,6 +380,9 @@ def completar_rejilla(
         usa_informacion_futura=(metodo == "temporal" and int(interpolado_real.sum()) > 0),
         max_horas_interpolacion=max_horas,
         filas_creadas_para_completar_rejilla=int(filas_creadas),
+        # Las filas creadas heredan las columnas que valen lo mismo en toda la
+        # serie (fuente, entidad, etiqueta del grupo); el resto queda en NaN.
+        columnas_constantes_propagadas=sorted(constantes),
         horas_faltantes_totales=int(faltante.sum()),
         horas_interpoladas=int(interpolado_real.sum()),
         horas_dejadas_como_nan=int(completo[columna_valor].isna().sum()),

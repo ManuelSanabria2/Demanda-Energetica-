@@ -1,0 +1,135 @@
+{
+  "version_formato": 1,
+  "momento": "2026-09-11T04:58:03",
+  "filas_iniciales": 49824,
+  "filas_finales": 49824,
+  "columna_tiempo": "fecha_hora",
+  "columna_valor": "valor_kwh",
+  "operaciones": [
+    {
+      "operacion": "normalizar_esquema",
+      "criterio": "nombres a snake_case; marca de tiempo localizada en UTC-5; valor a float64",
+      "momento": "2026-09-11T04:58:02",
+      "filas_antes": 49824,
+      "filas_despues": 49824,
+      "filas_afectadas": 0,
+      "detalle": {
+        "columna_tiempo": "fecha_hora",
+        "columna_valor": "valor_kwh",
+        "renombradas": {},
+        "zona_horaria": "America/Bogota",
+        "zona_ya_presente": true,
+        "valores_no_numericos_a_nan": 0,
+        "columnas_normalizadas_a_texto": [
+          "fuente",
+          "metrica",
+          "entidad",
+          "version"
+        ]
+      }
+    },
+    {
+      "operacion": "deduplicar",
+      "criterio": "una fila por fecha_hora, conservando la ultima segun el orden de llegada",
+      "momento": "2026-09-11T04:58:02",
+      "filas_antes": 49824,
+      "filas_despues": 49824,
+      "filas_afectadas": 0,
+      "detalle": {
+        "eliminadas": 0,
+        "columna_recencia": null,
+        "marcas_de_tiempo_afectadas": [],
+        "filas_por_marca_antes": 1.0
+      }
+    },
+    {
+      "operacion": "completar_rejilla",
+      "criterio": "rejilla horaria completa; imputacion 'temporal' solo para huecos de hasta 3 h; sin extrapolar en los extremos",
+      "momento": "2026-09-11T04:58:02",
+      "filas_antes": 49824,
+      "filas_despues": 49824,
+      "filas_afectadas": 0,
+      "detalle": {
+        "metodo_imputacion": "temporal",
+        "usa_informacion_futura": false,
+        "max_horas_interpolacion": 3,
+        "filas_creadas_para_completar_rejilla": 0,
+        "columnas_constantes_propagadas": [
+          "entidad",
+          "fuente",
+          "metrica"
+        ],
+        "horas_faltantes_totales": 0,
+        "horas_interpoladas": 0,
+        "horas_dejadas_como_nan": 0,
+        "huecos_por_longitud": {},
+        "tramos_no_imputados": [],
+        "n_tramos_no_imputados": 0,
+        "nota": "Los huecos mayores al limite se dejan como NaN a proposito. Un NaN se distingue del dato real; un valor inventado, no. Con metodo 'temporal' las filas imputadas usan el valor posterior al hueco: si van a entrar en un modelo, excluyelas por `imputado` o usa metodo='causal'."
+      }
+    },
+    {
+      "operacion": "marcar_atipicos",
+      "criterio": "atipico = |z modificada CAUSAL frente a (dia de semana, hora)| > 3.5, calculada solo con observaciones anteriores; atipico_iqr = fuera de 1.5 rangos intercuartilicos, tambien causal. Marcado, sin eliminar ni corregir.",
+      "momento": "2026-09-11T04:58:03",
+      "filas_antes": 49824,
+      "filas_despues": 49824,
+      "filas_afectadas": 321,
+      "detalle": {
+        "causal": true,
+        "usa_informacion_futura": false,
+        "n_atipicos_estacionales": 321,
+        "n_atipicos_iqr": 48,
+        "n_atipicos_estacionales_global": 157,
+        "n_atipicos_iqr_global": 48,
+        "n_no_evaluables": 3360,
+        "umbral_z": 3.5,
+        "factor_iqr": 1.5,
+        "limite_iqr_global": [
+          5335212.523749999,
+          12874198.653750002
+        ],
+        "observaciones_por_grupo_mediana": 148.0,
+        "fiabilidad": "alta",
+        "columnas_grupo": [],
+        "nota": "La decision de excluirlos corresponde al modelado, no a la limpieza. Las columnas *_global usan la serie entera y son fuga temporal si entran en un modelo: para eso estan atipico y atipico_iqr, causales."
+      }
+    },
+    {
+      "operacion": "marcar_periodo_atipico",
+      "criterio": "periodo_atipico = fecha entre 2020-03-01 y 2020-12-31 (pandemia_2020)",
+      "momento": "2026-09-11T04:58:03",
+      "filas_antes": 49824,
+      "filas_despues": 49824,
+      "filas_afectadas": 0,
+      "detalle": {
+        "etiqueta": "pandemia_2020",
+        "rango": [
+          "2020-03-01",
+          "2020-12-31"
+        ],
+        "n_filas_marcadas": 0,
+        "cubre_el_periodo": false,
+        "nota": "Evento estructural no reproducible. Se marca, no se elimina: aislarlo o no es decision del modelado."
+      }
+    }
+  ],
+  "procedencia": {
+    "por_origen": {
+      "observado": 49824
+    },
+    "pct_observado": 100.0,
+    "pct_interpolado": 0.0,
+    "pct_faltante": 0.0,
+    "n_atipicos": 321,
+    "n_periodo_atipico": 0,
+    "n_utilizables_sin_marcas": 49503
+  },
+  "politica": {
+    "imputacion": "solo huecos de hasta 3 h, metodo 'temporal', sin extrapolar en los extremos",
+    "fuga_temporal": "atipicos marcados con estadisticos causales; la imputacion 'temporal' usa el valor posterior al hueco (ver `imputado`)",
+    "atipicos": "marcados, nunca eliminados ni corregidos",
+    "periodos_estructurales": "marcados, nunca eliminados",
+    "nan": "se prefiere un NaN honesto a un valor inventado"
+  }
+}

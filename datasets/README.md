@@ -130,3 +130,55 @@ tramo de 31 días podría rebasar el timeout de 180 s del cliente.
 - Lo ya descargado se sirve desde la caché de los clientes (`data/cache/`), así
   que regenerar es rápido salvo los últimos 45 días, que se piden siempre de
   nuevo porque aún pueden cambiar.
+
+---
+
+## `limpios/` — salidas de los notebooks de limpieza
+
+Un notebook por dataset (`notebooks/03`–`06`). Cada salida va con su
+`registro_*.json`, que dice qué operación se aplicó, con qué criterio y a cuántas
+filas; esos registros sí están en git.
+
+| archivo | notebook | filas | qué se hizo |
+|---|---|---|---|
+| `demanda_real.parquet` | `03_limpieza_demanda_real` | 49 824 | limpieza completa; 100 % observados |
+| `catalogo_metricas.csv` | `04_limpieza_catalogo_metricas` | 193 | texto normalizado, `/list` → `/lists`, `granularidad`, `entidad_normalizada` |
+| `demanda_comercial.parquet` | `05_limpieza_demanda_comercial` | 49 824 | limpieza completa + `menor_que_real` (4 horas) |
+| `ciiu_limpio.parquet` | `06_limpieza_ciiu` | 17 631 984 | limpieza sector por sector (367 grupos) |
+
+Las series llevan la procedencia de cada valor: `origen_valor` (`observado`,
+`interpolado`, `faltante`), `imputado`, `hueco_horas` y las marcas de atípicos.
+**Nada se elimina**: los atípicos se marcan y los huecos de más de 3 horas se
+quedan como NaN.
+
+**Catálogo.** `entity` conserva el literal que espera la API (`"SubArea"` y
+`"Subarea"` siguen distintas); para agrupar está `entidad_normalizada`. La URL
+de las 7 métricas de listado se corrigió de `/list` (404) a `/lists` (200), con
+`url_corregida = True`.
+
+**Demanda comercial.** Queda un 1,5 % por encima de la real (incluye pérdidas),
+salvo en 4 horas donde es menor —2021-02-12 12h, 2021-03-05 09h, 2024-06-09 09h y
+2024-11-30 10h—, marcadas en `menor_que_real`. No se corrigen: no hay forma de
+saber cuál de las dos series está mal.
+
+**CIIU.** De 17 536 680 filas de entrada salen 17 631 984: las 95 304 horas que
+faltaban dentro de la vida de 16 sectores se añaden a la rejilla, con su
+sector y marcadas. Resultado: 98,95 % observados, 8 511 interpolados (huecos de
+hasta 3 h, en 102 sectores) y 177 095 faltantes (huecos largos, en 90 sectores).
+La rejilla de cada sector va de *su* primera a *su* última hora: a un sector
+que vivió unos meses no se le inventan horas fuera de ellos.
+
+> ⚠️ **En CIIU la marca de atípicos sirve bastante menos.** Marca 901 528 horas
+> (5,1 %), frente al 0,3–0,6 % de las series nacionales: los sectores pequeños
+> son mucho más ruidosos y el umbral pensado para la demanda agregada salta con
+> frecuencia. Además, 1 401 758 filas no se pueden evaluar: son el arranque de
+> cada sector, mientras acumula el histórico mínimo, y los sectores de vida
+> corta. Antes de usar `atipico` en CIIU conviene revisar el umbral por sector.
+
+Leerlo sin cargar las 17,6 M de filas:
+
+```python
+import pyarrow.parquet as pq
+educacion = pq.read_table("datasets/limpios/ciiu_limpio.parquet",
+                          filters=[("activity", "==", "EDUCACIÓN")]).to_pandas()
+```
