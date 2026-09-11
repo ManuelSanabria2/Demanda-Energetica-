@@ -1,7 +1,7 @@
 {
   "version_formato": 1,
   "conjunto": "ciiu_demacomenoreg",
-  "momento": "2026-09-11T05:02:52",
+  "momento": "2026-09-11T05:33:29",
   "archivo": "ciiu_limpio.parquet",
   "politica": "limpieza por (Activity, Subactivity); rejilla de cada sector entre su primera y su ultima hora; interpolacion solo en huecos de hasta 3 h; atipicos causales dentro de cada sector; nada se elimina",
   "resumen": {

@@ -1,7 +1,7 @@
 {
   "version_formato": 1,
   "conjunto": "catalogo_metricas_xm",
-  "momento": "2026-09-11T04:59:15",
+  "momento": "2026-09-11T05:28:20",
   "filas_iniciales": 193,
   "filas_finales": 193,
   "columnas_finales": [
@@ -24,7 +24,7 @@
     {
       "operacion": "normalizar_nombres",
       "criterio": "nombres de columna a snake_case",
-      "momento": "2026-09-11T04:59:15",
+      "momento": "2026-09-11T05:28:20",
       "filas_antes": 193,
       "filas_despues": 193,
       "filas_afectadas": 0,
@@ -45,7 +45,7 @@
     {
       "operacion": "limpiar_texto",
       "criterio": "espacios en los extremos eliminados y espacios repetidos colapsados a uno",
-      "momento": "2026-09-11T04:59:15",
+      "momento": "2026-09-11T05:28:20",
       "filas_antes": 193,
       "filas_despues": 193,
       "filas_afectadas": 23,
@@ -71,7 +71,7 @@
     {
       "operacion": "vacios_a_nulo",
       "criterio": "cadenas vacias convertidas a nulo",
-      "momento": "2026-09-11T04:59:15",
+      "momento": "2026-09-11T05:28:20",
       "filas_antes": 193,
       "filas_despues": 193,
       "filas_afectadas": 8,
@@ -85,7 +85,7 @@
     {
       "operacion": "normalizar_filtro",
       "criterio": "valores 'No aplica' (sin distinguir mayusculas) a nulo; columna tiene_filtro",
-      "momento": "2026-09-11T04:59:15",
+      "momento": "2026-09-11T05:28:20",
       "filas_antes": 193,
       "filas_despues": 193,
       "filas_afectadas": 114,
@@ -99,7 +99,7 @@
     {
       "operacion": "normalizar_entidad",
       "criterio": "entidad_normalizada unifica grafias que solo difieren en mayusculas; entity conserva el literal que espera la API",
-      "momento": "2026-09-11T04:59:15",
+      "momento": "2026-09-11T05:28:20",
       "filas_antes": 193,
       "filas_despues": 193,
       "filas_afectadas": 2,
@@ -117,7 +117,7 @@
     {
       "operacion": "corregir_url",
       "criterio": "URL sustituidas solo cuando hay una correccion verificada contra el servidor (CORRECCIONES_URL)",
-      "momento": "2026-09-11T04:59:15",
+      "momento": "2026-09-11T05:28:20",
       "filas_antes": 193,
       "filas_despues": 193,
       "filas_afectadas": 7,
@@ -134,7 +134,7 @@
     {
       "operacion": "derivar_granularidad",
       "criterio": "granularidad = traduccion de type; url_coherente = la URL apunta al endpoint de esa granularidad",
-      "momento": "2026-09-11T04:59:15",
+      "momento": "2026-09-11T05:28:20",
       "filas_antes": 193,
       "filas_despues": 193,
       "filas_afectadas": 0,
@@ -152,7 +152,7 @@
     {
       "operacion": "validar",
       "criterio": "(metric_id, entity) unico; max_days entero positivo",
-      "momento": "2026-09-11T04:59:15",
+      "momento": "2026-09-11T05:28:20",
       "filas_antes": 193,
       "filas_despues": 193,
       "filas_afectadas": 0,

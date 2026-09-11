@@ -159,20 +159,25 @@ comercial del SIN, y la demanda comercial por CIIU (un `.csv.gz` por año). Qué
 es cada archivo, sus columnas y sus trampas: [`datasets/README.md`](datasets/README.md).
 
 `notebooks/` trae cuadernos que **reutilizan el paquete**, no lo reimplementan,
-y se publican ya ejecutados. Los de limpieza van uno por dataset y con su nombre:
+y se publican ya ejecutados. Los de limpieza van **en una carpeta por dataset**,
+con la fuente como prefijo para no confundir la demanda real de XM con la de SIMEM:
 
-| notebook | qué hace |
-|---|---|
-| `00_configuracion` | comprueba entorno, paquete y datasets |
-| `01_carga_y_exploracion` | columnas, perfiles horario y semanal, la trampa de las versiones de SIMEM |
-| `02_diagnostico_calidad` | huecos, días incompletos, atípicos por dos criterios |
-| `03_limpieza_demanda_real` | limpieza de `DemaReal`/Sistema, la serie objetivo |
-| `04_limpieza_catalogo_metricas` | normaliza el catálogo de 193 métricas y corrige la URL `/list` → `/lists` |
-| `05_limpieza_demanda_comercial` | limpieza de `DemaCome`/Sistema y coherencia con la real |
-| `06_limpieza_ciiu` | limpieza de la demanda por CIIU, sector por sector |
+```
+notebooks/
+  00_configuracion.ipynb          comprueba entorno, paquete y datasets
+  01_carga_y_exploracion.ipynb    columnas, perfiles, la trampa de las versiones de SIMEM
+  02_diagnostico_calidad.ipynb    huecos, días incompletos, atípicos por dos criterios
+  limpieza/
+    xm_demanda_real/        DemaReal/Sistema, la serie objetivo
+    xm_demanda_comercial/   DemaCome/Sistema y coherencia con la real
+    xm_catalogo_metricas/   catálogo de 193 métricas; corrige la URL /list -> /lists
+    xm_ciiu/                demanda por CIIU, sector por sector
+    simem_nacional/         serie nacional de SIMEM y diferencia con XM
+    simem_desagregado/      detalle por empresa: colapso de versiones + limpieza por grupos
+```
 
 Las salidas limpias y sus registros van a `datasets/limpios/`. Para regenerar
-solo algunos notebooks: `python scripts/generar_notebooks.py 06_limpieza_ciiu`.
+solo algunos notebooks: `python scripts/generar_notebooks.py xm_ciiu simem_nacional`.
 
 > La métrica de CIIU (`DemaComeNoReg`/Entity=CIIU) trae `Activity` y
 > `Subactivity` **dentro de `Values`**, no en el `Id` de la entidad. El cliente
@@ -454,5 +459,6 @@ tests/
 descargar.py          CLI de la capa cruda
 datasets/             CSV de trabajo (fuera de git salvo README, manifiesto y registros)
   limpios/            salidas de los notebooks de limpieza
-notebooks/            00–02 exploración y diagnóstico · 03–06 limpieza, uno por dataset
+notebooks/            00–02 exploración y diagnóstico
+  limpieza/           una carpeta por dataset: xm_* y simem_*
 ```

@@ -1,6 +1,6 @@
 {
   "version_formato": 1,
-  "momento": "2026-09-11T04:58:03",
+  "momento": "2026-09-11T05:28:16",
   "filas_iniciales": 49824,
   "filas_finales": 49824,
   "columna_tiempo": "fecha_hora",
@@ -9,7 +9,7 @@
     {
       "operacion": "normalizar_esquema",
       "criterio": "nombres a snake_case; marca de tiempo localizada en UTC-5; valor a float64",
-      "momento": "2026-09-11T04:58:02",
+      "momento": "2026-09-11T05:28:16",
       "filas_antes": 49824,
       "filas_despues": 49824,
       "filas_afectadas": 0,
@@ -31,7 +31,7 @@
     {
       "operacion": "deduplicar",
       "criterio": "una fila por fecha_hora, conservando la ultima segun el orden de llegada",
-      "momento": "2026-09-11T04:58:02",
+      "momento": "2026-09-11T05:28:16",
       "filas_antes": 49824,
       "filas_despues": 49824,
       "filas_afectadas": 0,
@@ -45,7 +45,7 @@
     {
       "operacion": "completar_rejilla",
       "criterio": "rejilla horaria completa; imputacion 'temporal' solo para huecos de hasta 3 h; sin extrapolar en los extremos",
-      "momento": "2026-09-11T04:58:02",
+      "momento": "2026-09-11T05:28:16",
       "filas_antes": 49824,
       "filas_despues": 49824,
       "filas_afectadas": 0,
@@ -71,7 +71,7 @@
     {
       "operacion": "marcar_atipicos",
       "criterio": "atipico = |z modificada CAUSAL frente a (dia de semana, hora)| > 3.5, calculada solo con observaciones anteriores; atipico_iqr = fuera de 1.5 rangos intercuartilicos, tambien causal. Marcado, sin eliminar ni corregir.",
-      "momento": "2026-09-11T04:58:03",
+      "momento": "2026-09-11T05:28:16",
       "filas_antes": 49824,
       "filas_despues": 49824,
       "filas_afectadas": 321,
@@ -98,7 +98,7 @@
     {
       "operacion": "marcar_periodo_atipico",
       "criterio": "periodo_atipico = fecha entre 2020-03-01 y 2020-12-31 (pandemia_2020)",
-      "momento": "2026-09-11T04:58:03",
+      "momento": "2026-09-11T05:28:16",
       "filas_antes": 49824,
       "filas_despues": 49824,
       "filas_afectadas": 0,
