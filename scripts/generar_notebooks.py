@@ -17,7 +17,9 @@ DIR = Path(__file__).resolve().parents[1] / "notebooks"
 ARRANQUE = '''import sys, warnings
 from pathlib import Path
 
-RAIZ = Path.cwd().parent if Path.cwd().name == "notebooks" else Path.cwd()
+# Sube desde la carpeta del notebook hasta la raiz del proyecto, la que contiene
+# src/ingesta: funciona igual en notebooks/ que en notebooks/limpieza/<dataset>/.
+RAIZ = next(p for p in (Path.cwd(), *Path.cwd().parents) if (p / "src" / "ingesta").is_dir())
 sys.path.insert(0, str(RAIZ / "src"))
 
 import pandas as pd
@@ -234,7 +236,7 @@ print(parciales.round(1).to_string())'''),
 
 
 NB03 = cuaderno([
-    ("md", """# 03 · Limpieza · demanda real del SIN (XM)
+    ("md", """# Limpieza · demanda real del SIN (XM)
 
 Toda transformación queda registrada: `limpieza.limpiar.limpiar()` devuelve el
 DataFrame y un registro de qué hizo, con qué criterio y a cuántas filas afectó.
@@ -310,7 +312,7 @@ no altera filas— se construye con `python scripts/construir_panel.py`."""),
 
 
 NB04 = cuaderno([
-    ("md", """# 04 · Limpieza · catálogo de métricas (XM)
+    ("md", """# Limpieza · catálogo de métricas (XM)
 
 El catálogo es la lista de las 193 métricas que publica la API de XM. No es una
 serie temporal, así que no tiene huecos ni atípicos: sus problemas son de texto
@@ -389,7 +391,7 @@ print(f"{len(limpio)} filas -> {SALIDA / 'catalogo_metricas.csv'}")'''),
 
 
 NB05 = cuaderno([
-    ("md", """# 05 · Limpieza · demanda comercial del SIN (XM)
+    ("md", """# Limpieza · demanda comercial del SIN (XM)
 
 `DemaCome` es la demanda **comercial**: la que se liquida en el mercado, que
 incluye las pérdidas de la red. Por eso debería quedar siempre algo por encima
@@ -470,7 +472,7 @@ print(f"{len(limpio):,} filas -> {SALIDA / 'demanda_comercial.parquet'}")'''),
 
 
 NB06 = cuaderno([
-    ("md", """# 06 · Limpieza · demanda comercial por CIIU (XM)
+    ("md", """# Limpieza · demanda comercial por CIIU (XM)
 
 La demanda comercial no regulada, desagregada por actividad económica (CIIU):
 **17,5 millones de filas**, una por hora y por subactividad, con 367
@@ -627,14 +629,294 @@ educacion.head()'''),
 ])
 
 
+NB07 = cuaderno([
+    ("md", """# Limpieza · demanda real nacional de SIMEM (`14fabb`)
+
+La serie horaria nacional que resulta de sumar el detalle por empresa de SIMEM,
+**con una sola versión de liquidación por hora** —sumar todas multiplicaría la
+demanda hasta ×5—. Es la contraparte de SIMEM de la demanda real de XM.
+
+Lo que se encontró al diagnosticarla:
+
+- serie completa: 49 776 horas, sin huecos, duplicados ni ceros;
+- 146 atípicos estacionales;
+- la versión de liquidación cambia con el tiempo: el histórico está en versiones
+  ya cerradas, agosto de 2026 en `TXR` y septiembre de 2026 en `TX2`, que es
+  preliminar y todavía puede revisarse;
+- XM queda en promedio un 1,44 % por encima (alcance distinto de las dos
+  series), sin ninguna hora que difiera más de un 10 %.
+
+Se verificó además que en **todas** las horas la versión elegida trae todas las
+combinaciones de empresa y mercado, así que el colapso de versiones no deja a
+ninguna empresa fuera del total.
+
+La versión preliminar no se trata como un error: la columna `version` se
+conserva para que el modelado decida qué hacer con las horas aún revisables."""),
+    ("code", ARRANQUE),
+    ("code", '''simem = pd.read_csv(DATASETS / "simem" / "simem_14fabb_nacional.csv", parse_dates=["fecha_hora"])
+print(f"{len(simem):,} filas · {simem.fecha_hora.min()} .. {simem.fecha_hora.max()}")
+simem.head()'''),
+    ("md", "## Diagnóstico"),
+    ("code", '''from calidad.diagnostico import diagnosticar, resumen
+informe = diagnosticar(simem)
+print(resumen(informe))'''),
+    ("md", "### Versión de liquidación a lo largo del tiempo"),
+    ("code", '''print("horas por año y versión:")
+print(pd.crosstab(simem.fecha_hora.dt.year, simem.version).to_string())
+print()
+print("últimos meses:")
+por_mes = simem.groupby(simem.fecha_hora.dt.strftime("%Y-%m")).version.agg(lambda s: dict(s.value_counts()))
+print(por_mes.tail(6).to_string())'''),
+    ("md", "## Limpieza"),
+    ("code", '''from limpieza.limpiar import limpiar, resumen as resumen_limpieza
+limpio, registro = limpiar(simem)
+print(resumen_limpieza(registro))'''),
+    ("md", """## Comparación con la demanda real de XM
+
+Las dos series vienen de la misma fuente primaria pero no miden exactamente lo
+mismo (XM excluye el alumbrado público, por ejemplo), así que no se espera que
+coincidan. Se guarda la diferencia hora a hora en `diferencia_vs_xm_pct`, como
+dato, sin umbral ni marca: sirve para ver cuándo se separan."""),
+    ("code", '''from ingesta.normalizar import xm_cliente_a_esquema_comun
+xm = xm_cliente_a_esquema_comun(pd.read_csv(DATASETS / "xm" / "xm_demareal_sistema.csv", parse_dates=["timestamp"]))
+
+par = limpio.merge(
+    xm[["fecha_hora", "valor_kwh"]].rename(columns={"valor_kwh": "xm_kwh"}),
+    on="fecha_hora", how="left", validate="one_to_one",
+)
+assert len(par) == len(limpio), "el merge cambió el número de filas"
+
+limpio["diferencia_vs_xm_pct"] = ((par.xm_kwh - par.valor_kwh) / par.valor_kwh * 100).to_numpy()
+diferencia = limpio.diferencia_vs_xm_pct
+
+registro["operaciones"].append({
+    "operacion": "anadir_diferencia_vs_xm",
+    "criterio": "diferencia_vs_xm_pct = (XM DemaReal - SIMEM) / SIMEM * 100, hora a hora; dato, sin marca",
+    "filas_afectadas": 0,
+    "detalle": {
+        "media": round(float(diferencia.mean()), 4),
+        "p1": round(float(diferencia.quantile(.01)), 4),
+        "p99": round(float(diferencia.quantile(.99)), 4),
+        "horas_sin_xm": int(diferencia.isna().sum()),
+    },
+})
+
+print(diferencia.describe(percentiles=[.01, .5, .99]).round(3).to_string())
+print()
+print("diferencia media por año (%):")
+print(diferencia.groupby(limpio.fecha_hora.dt.year).mean().round(3).to_string())'''),
+    ("md", "## Guardar"),
+    ("code", '''import json
+SALIDA = DATASETS / "limpios"
+SALIDA.mkdir(parents=True, exist_ok=True)
+limpio.to_parquet(SALIDA / "simem_nacional.parquet", index=False)
+with open(SALIDA / "registro_simem_nacional.json", "w", encoding="utf-8") as f:
+    json.dump(registro, f, ensure_ascii=False, indent=2, default=str)
+print(f"{len(limpio):,} filas -> {SALIDA / 'simem_nacional.parquet'}")'''),
+])
+
+
+NB08 = cuaderno([
+    ("md", """# Limpieza · demanda real por empresa de SIMEM (`14fabb` desagregado)
+
+El detalle de SIMEM: **7,4 millones de filas**, una por hora × empresa (77
+agentes) × tipo de mercado × **versión de liquidación**. Son 113 combinaciones
+`(CodigoSICAgente, TipoMercado)`.
+
+Lo que se encontró al mirarlo:
+
+- varias versiones de liquidación por hora (hasta 5 en enero de 2026): cada
+  empresa aparece repetida una vez por versión;
+- **101 567 ceros** una vez colapsadas las versiones (167 102 contando cada
+  versión por separado), en 36 grupos; alguna empresa está en cero más del 80 %
+  de las horas. En el total nacional un cero sería imposible, pero en una
+  empresa concreta una hora sin consumo es plausible, así que se conservan;
+- ni negativos ni nulos.
+
+La limpieza tiene dos pasos:
+
+1. **Colapsar versiones**: una sola por hora, la más definitiva, con
+   `ingesta.normalizar.simem_colapsar_versiones()` —la misma que usa el total
+   nacional—. Se comprueba año a año que no se pierde ninguna empresa.
+2. **Limpiar por grupos**: cada `(empresa, mercado)` como una serie propia, con
+   `limpieza.grupos.limpiar_por_grupos()`, igual que CIIU."""),
+    ("code", ARRANQUE + '''
+
+import json, time
+import pyarrow as pa
+import pyarrow.parquet as pq'''),
+    ("md", """## Carga y colapso de versiones, año a año
+
+Se procesa un año cada vez: colapsar sobre el año o sobre todo el histórico da
+lo mismo, porque la versión se elige hora a hora. Para cada año se comprueba
+que el número de combinaciones empresa-mercado de cada hora es el mismo antes y
+después de colapsar."""),
+    ("code", '''from pandas.api.types import union_categoricals
+from ingesta.normalizar import simem_colapsar_versiones
+
+GRUPO = ["CodigoSICAgente", "TipoMercado"]
+t0 = time.time()
+partes, control = [], []
+for ruta in sorted(DATASETS.glob("simem/simem_14fabb_20*.csv")):
+    d = pd.read_csv(
+        ruta, usecols=["timestamp", *GRUPO, "Version", "Valor"],
+        dtype={"CodigoSICAgente": "category", "TipoMercado": "category"},
+    )
+    d["timestamp"] = pd.to_datetime(d["timestamp"], format="ISO8601")
+    d["FechaHora"] = d["timestamp"]   # la columna que usa el colapso
+
+    antes = d.drop_duplicates(["FechaHora", *GRUPO]).groupby("FechaHora").size()
+    colapsado = simem_colapsar_versiones(d, GRUPO)
+    despues = colapsado.groupby("FechaHora").size()
+    perdidas = int((antes - despues.reindex(antes.index, fill_value=0)).sum())
+    if perdidas:
+        raise RuntimeError(f"{ruta.name}: el colapso dejó fuera {perdidas} combinaciones empresa-hora")
+
+    control.append({
+        "archivo": ruta.name, "filas_con_versiones": len(d), "filas_colapsadas": len(colapsado),
+        "versiones": sorted(d.Version.unique()), "combinaciones_perdidas": perdidas,
+    })
+    partes.append(colapsado.drop(columns="FechaHora"))
+    del d, colapsado
+
+simem = pd.DataFrame({
+    "timestamp": pd.concat([p.timestamp for p in partes], ignore_index=True),
+    "CodigoSICAgente": union_categoricals([p.CodigoSICAgente for p in partes]),
+    "TipoMercado": union_categoricals([p.TipoMercado for p in partes]),
+    "Version": pd.concat([p.Version for p in partes], ignore_index=True),
+    "Valor": pd.concat([p.Valor for p in partes], ignore_index=True),
+})
+del partes
+print(f"{len(simem):,} filas tras colapsar, en {time.time() - t0:.0f} s")
+pd.DataFrame(control)'''),
+    ("md", "## Diagnóstico"),
+    ("code", '''g = simem.groupby(GRUPO, observed=True)
+filas = g.size()
+vida = g.timestamp.agg(["min", "max"])
+esperadas = ((vida["max"] - vida["min"]) / pd.Timedelta(hours=1) + 1).astype(int)
+ceros = g.Valor.apply(lambda s: int((s == 0).sum()))
+
+print(f"empresas                       : {simem.CodigoSICAgente.nunique()}")
+print(f"grupos (empresa, mercado)      : {len(filas)}")
+print(f"filas por grupo                : min {filas.min():,} · mediana {int(filas.median()):,} · máx {filas.max():,}")
+print(f"grupos con horas sin fila      : {int((esperadas > filas).sum())} ({int((esperadas - filas).sum()):,} horas)")
+print(f"ceros                          : {int((simem.Valor == 0).sum()):,} en {int((ceros > 0).sum())} grupos")
+print(f"negativos / nulos              : {int((simem.Valor < 0).sum())} / {int(simem.Valor.isna().sum())}")
+por_hora = simem.groupby("timestamp").size()
+print(f"combinaciones por hora         : {por_hora.min()} .. {por_hora.max()}")'''),
+    ("code", '''print("Grupos con más ceros (en proporción):")
+(ceros / filas).rename("pct_ceros").mul(100).round(1).sort_values(ascending=False).head(8).to_frame()'''),
+    ("md", """## Limpieza por grupos
+
+Cada `(empresa, mercado)` se limpia como una serie propia y se escribe en
+cuanto está lista. La columna `version` no es constante dentro de un grupo —cambia
+con los años—, así que en las horas creadas para completar la rejilla queda
+vacía: no se sabe qué versión habría tenido una hora que no llegó."""),
+    ("code", '''from limpieza.grupos import limpiar_por_grupos, fila_de_resumen, resumir
+
+SALIDA = DATASETS / "limpios"
+SALIDA.mkdir(parents=True, exist_ok=True)
+destino = SALIDA / "simem_desagregado.parquet"
+temporal = destino.with_name(destino.name + ".tmp")
+
+ESQUEMA = pa.schema([
+    ("timestamp", pa.timestamp("ns", tz="America/Bogota")),
+    ("codigo_sic_agente", pa.string()), ("tipo_mercado", pa.string()),
+    ("version", pa.string()), ("valor", pa.float64()), ("origen_valor", pa.string()),
+    ("imputado", pa.bool_()), ("hueco_horas", pa.int64()),
+    ("z_estacional", pa.float64()), ("atipico", pa.bool_()),
+    ("atipico_evaluable", pa.bool_()), ("atipico_iqr", pa.bool_()),
+    ("atipico_global", pa.bool_()), ("atipico_iqr_global", pa.bool_()),
+    ("periodo_atipico", pa.bool_()),
+])
+
+filas_resumen = []
+t0 = time.time()
+with pq.ParquetWriter(temporal, ESQUEMA, compression="zstd") as escritor:
+    for n, (etiqueta, limpio, registro) in enumerate(limpiar_por_grupos(simem, GRUPO), 1):
+        assert not limpio.timestamp.duplicated().any(), f"horas repetidas en {etiqueta}"
+        tabla = limpio[ESQUEMA.names].astype({"hueco_horas": "int64"})
+        escritor.write_table(pa.Table.from_pandas(tabla, schema=ESQUEMA, preserve_index=False))
+        filas_resumen.append(fila_de_resumen(etiqueta, limpio, registro))
+        if n % 30 == 0:
+            print(f"  {n:>3} grupos · {time.time() - t0:.0f} s")
+temporal.replace(destino)
+
+total = resumir(filas_resumen)
+print(f"{total['n_grupos']} grupos limpiados en {time.time() - t0:.0f} s")
+total'''),
+    ("md", "## Resultado"),
+    ("code", '''grupos = pd.DataFrame(filas_resumen)
+print(f"observados  : {total['observados']:>11,}  ({total['pct_observado']} %)")
+print(f"interpolados: {total['interpolados']:>11,}  en {total['grupos_con_interpolados']} grupos (huecos de hasta 3 h)")
+print(f"faltantes   : {total['faltantes']:>11,}  en {total['grupos_con_faltantes']} grupos (huecos largos, se quedan NaN)")
+print(f"atípicos    : {total['atipicos']:>11,}  (causales, dentro de cada grupo)")
+print(f"horas creadas para completar la rejilla de cada grupo: {total['horas_creadas']:,}")
+print()
+print("Grupos con más horas sin valor:")
+grupos.sort_values("faltantes", ascending=False).head(8)[
+    ["CodigoSICAgente", "TipoMercado", "desde", "hasta", "faltantes", "tramos_no_imputados", "interpolados"]
+]'''),
+    ("md", """## Comprobaciones
+
+La más fuerte: sumando por hora los valores **observados** del detalle limpio
+tiene que salir exactamente la serie nacional de SIMEM, que se construyó desde
+el mismo detalle. Si la limpieza hubiera perdido, duplicado o movido una sola
+fila, no cuadraría."""),
+    ("code", '''meta = pq.ParquetFile(destino).metadata
+assert meta.num_rows == total["filas_finales"], "el Parquet no tiene las filas esperadas"
+assert total["filas_iniciales"] == len(simem), "no se procesaron todas las filas"
+assert total["observados"] + total["interpolados"] + total["faltantes"] == total["filas_finales"]
+assert total["filas_finales"] - total["filas_iniciales"] == total["horas_creadas"]
+
+detalle = pq.read_table(destino, columns=["timestamp", "valor", "origen_valor"],
+                        read_dictionary=["origen_valor"]).to_pandas()
+reconstruida = detalle[detalle.origen_valor == "observado"].groupby("timestamp").valor.sum()
+del detalle
+
+nacional = pd.read_csv(DATASETS / "simem" / "simem_14fabb_nacional.csv", parse_dates=["fecha_hora"])
+nacional = nacional.set_index(nacional.fecha_hora.dt.tz_convert("America/Bogota")).valor_kwh
+comparacion = pd.concat([reconstruida.rename("desde_detalle"), nacional.rename("nacional")], axis=1)
+diferencia = (comparacion.desde_detalle - comparacion.nacional).abs()
+
+assert comparacion.notna().all().all(), "hay horas en una serie y no en la otra"
+assert diferencia.max() < 1.0, f"el detalle no reconstruye la serie nacional: {diferencia.max():,.3f} kWh"
+print(f"OK: {len(simem):,} filas de entrada -> {meta.num_rows:,} en el Parquet")
+print(f"OK: la suma del detalle reproduce las {len(comparacion):,} horas de la serie nacional")
+print(f"    diferencia máxima: {diferencia.max():.6f} kWh")'''),
+    ("md", "## Registro"),
+    ("code", '''registro_simem = {
+    "version_formato": 1,
+    "conjunto": "simem_14fabb_desagregado",
+    "momento": pd.Timestamp.now().isoformat(timespec="seconds"),
+    "archivo": destino.name,
+    "politica": ("una version de liquidacion por hora (la mas definitiva), comprobando que no se "
+                 "pierde ninguna combinacion; limpieza por (CodigoSICAgente, TipoMercado); rejilla "
+                 "de cada grupo entre su primera y su ultima hora; interpolacion solo en huecos de "
+                 "hasta 3 h; atipicos causales dentro de cada grupo; los ceros se conservan"),
+    "colapso_de_versiones": control,
+    "resumen": total,
+    "grupos": filas_resumen,
+}
+with open(SALIDA / "registro_simem_desagregado.json", "w", encoding="utf-8") as f:
+    json.dump(registro_simem, f, ensure_ascii=False, indent=2, default=str)
+print("registro ->", SALIDA / "registro_simem_desagregado.json")'''),
+])
+
+
+# Clave -> (ruta dentro de notebooks/ sin extension, notebook). Los de limpieza
+# van en una carpeta por dataset, con la fuente como prefijo para no confundir
+# la demanda real de XM con la de SIMEM.
 NOTEBOOKS = {
-    "00_configuracion": NB00,
-    "01_carga_y_exploracion": NB01,
-    "02_diagnostico_calidad": NB02,
-    "03_limpieza_demanda_real": NB03,
-    "04_limpieza_catalogo_metricas": NB04,
-    "05_limpieza_demanda_comercial": NB05,
-    "06_limpieza_ciiu": NB06,
+    "00_configuracion": ("00_configuracion", NB00),
+    "01_carga_y_exploracion": ("01_carga_y_exploracion", NB01),
+    "02_diagnostico_calidad": ("02_diagnostico_calidad", NB02),
+    "xm_demanda_real": ("limpieza/xm_demanda_real/limpieza_xm_demanda_real", NB03),
+    "xm_catalogo_metricas": ("limpieza/xm_catalogo_metricas/limpieza_xm_catalogo_metricas", NB04),
+    "xm_demanda_comercial": ("limpieza/xm_demanda_comercial/limpieza_xm_demanda_comercial", NB05),
+    "xm_ciiu": ("limpieza/xm_ciiu/limpieza_xm_ciiu", NB06),
+    "simem_nacional": ("limpieza/simem_nacional/limpieza_simem_nacional", NB07),
+    "simem_desagregado": ("limpieza/simem_desagregado/limpieza_simem_desagregado", NB08),
 }
 
 
@@ -652,11 +934,12 @@ def main(argv: list[str] | None = None) -> None:
     if desconocidos:
         raise SystemExit(f"Notebooks desconocidos: {sorted(desconocidos)}. Validos: {list(NOTEBOOKS)}")
 
-    DIR.mkdir(exist_ok=True)
-    for nombre in args.nombres or NOTEBOOKS:
-        ruta = DIR / f"{nombre}.ipynb"
-        nbf.write(NOTEBOOKS[nombre], ruta)
-        print("escrito", ruta.name)
+    for clave in args.nombres or NOTEBOOKS:
+        ruta_relativa, libro = NOTEBOOKS[clave]
+        ruta = DIR / f"{ruta_relativa}.ipynb"
+        ruta.parent.mkdir(parents=True, exist_ok=True)
+        nbf.write(libro, ruta)
+        print("escrito", ruta.relative_to(DIR).as_posix())
 
 
 if __name__ == "__main__":

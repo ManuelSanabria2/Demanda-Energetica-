@@ -135,16 +135,18 @@ tramo de 31 días podría rebasar el timeout de 180 s del cliente.
 
 ## `limpios/` — salidas de los notebooks de limpieza
 
-Un notebook por dataset (`notebooks/03`–`06`). Cada salida va con su
-`registro_*.json`, que dice qué operación se aplicó, con qué criterio y a cuántas
-filas; esos registros sí están en git.
+Un notebook por dataset, cada uno en su carpeta de `notebooks/limpieza/`. Cada
+salida va con su `registro_*.json`, que dice qué operación se aplicó, con qué
+criterio y a cuántas filas; esos registros sí están en git.
 
-| archivo | notebook | filas | qué se hizo |
+| archivo | notebook (`notebooks/limpieza/…`) | filas | qué se hizo |
 |---|---|---|---|
-| `demanda_real.parquet` | `03_limpieza_demanda_real` | 49 824 | limpieza completa; 100 % observados |
-| `catalogo_metricas.csv` | `04_limpieza_catalogo_metricas` | 193 | texto normalizado, `/list` → `/lists`, `granularidad`, `entidad_normalizada` |
-| `demanda_comercial.parquet` | `05_limpieza_demanda_comercial` | 49 824 | limpieza completa + `menor_que_real` (4 horas) |
-| `ciiu_limpio.parquet` | `06_limpieza_ciiu` | 17 631 984 | limpieza sector por sector (367 grupos) |
+| `demanda_real.parquet` | `xm_demanda_real/` | 49 824 | limpieza completa; 100 % observados |
+| `catalogo_metricas.csv` | `xm_catalogo_metricas/` | 193 | texto normalizado, `/list` → `/lists`, `granularidad`, `entidad_normalizada` |
+| `demanda_comercial.parquet` | `xm_demanda_comercial/` | 49 824 | limpieza completa + `menor_que_real` (4 horas) |
+| `ciiu_limpio.parquet` | `xm_ciiu/` | 17 631 984 | limpieza sector por sector (367 grupos) |
+| `simem_nacional.parquet` | `simem_nacional/` | 49 776 | limpieza completa + `diferencia_vs_xm_pct` |
+| `simem_desagregado.parquet` | `simem_desagregado/` | 4 442 160 | una versión por hora + limpieza por empresa y mercado (113 grupos) |
 
 Las series llevan la procedencia de cada valor: `origen_valor` (`observado`,
 `interpolado`, `faltante`), `imputado`, `hueco_horas` y las marcas de atípicos.
@@ -175,7 +177,32 @@ que vivió unos meses no se le inventan horas fuera de ellos.
 > cada sector, mientras acumula el histórico mínimo, y los sectores de vida
 > corta. Antes de usar `atipico` en CIIU conviene revisar el umbral por sector.
 
-Leerlo sin cargar las 17,6 M de filas:
+**SIMEM nacional.** Completa y sin ceros. Se añade `diferencia_vs_xm_pct`, la
+diferencia hora a hora con la demanda real de XM, como dato y sin marca: XM queda
+siempre por encima (entre +0,1 % y +7,7 %, media +1,44 %) porque las dos series
+no tienen exactamente el mismo alcance. La columna `version` se conserva: las
+horas de agosto de 2026 están en `TXR` y las de septiembre en `TX2`, preliminar,
+así que todavía pueden revisarse.
+
+**SIMEM desagregado.** Primero se deja una sola versión de liquidación por hora
+—7 403 184 filas pasan a 4 432 560—, comprobando año a año que no se pierde
+ninguna combinación empresa-mercado. Después se limpia cada `(empresa,
+mercado)` por separado. Solo un grupo tiene horas sin fila (ENDC Regulado,
+9 600 horas en 2 tramos), que quedan como NaN y marcadas; no hay nada que
+interpolar. Los **101 567 ceros** se conservan: en una empresa concreta una hora
+sin consumo es plausible, a diferencia del total nacional.
+
+La comprobación más fuerte: **sumando por hora los valores observados del
+detalle limpio sale exactamente la serie nacional**, en sus 49 776 horas y con
+una diferencia máxima de 0,000000 kWh. Si la limpieza hubiera perdido, duplicado
+o movido una sola fila, no cuadraría.
+
+> ⚠️ Igual que en CIIU, en el desagregado la marca de atípicos salta mucho más:
+> 309 704 horas (7,0 %). Las empresas que pasan buena parte del tiempo en cero
+> hacen que cualquier consumo parezca extremo. Conviene revisar el umbral antes
+> de usar `atipico` a este nivel de detalle.
+
+Leer los desagregados sin cargarlos enteros:
 
 ```python
 import pyarrow.parquet as pq
