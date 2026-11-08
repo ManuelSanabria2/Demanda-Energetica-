@@ -1,0 +1,742 @@
+{
+  "version_formato": 1,
+  "momento": "2026-11-08T15:33:47",
+  "panel": {
+    "ruta": "data/procesado/panel_modelado.parquet",
+    "filas": 49824,
+    "columnas": 25,
+    "momento_panel": "2026-11-08T15:25:47",
+    "imputacion": "solo huecos de hasta 3 h, metodo 'causal', sin extrapolar en los extremos",
+    "rango": [
+      "2021-01-01 00:00:00-05:00",
+      "2026-09-07 23:00:00-05:00"
+    ]
+  },
+  "versiones": {
+    "r24": {
+      "version_formato": 1,
+      "momento": "2026-11-08T15:33:47",
+      "rezago_minimo_h": 24,
+      "horizonte_h": 24,
+      "archivo": "tabla_modelado_r24.parquet",
+      "filas_panel": 49824,
+      "filas_finales": 49513,
+      "n_columnas": 18,
+      "balance_filas": {
+        "panel": 49824,
+        "arranque_sin_historico": 191,
+        "publicacion_parcial": 120,
+        "final": 49513
+      },
+      "rango": [
+        "2021-01-08 23:00:00-05:00",
+        "2026-09-02 23:00:00-05:00"
+      ],
+      "objetivo": {
+        "columna": "demanda_mwh",
+        "unidad": "MWh por hora"
+      },
+      "variables": [
+        "lag_24",
+        "lag_168",
+        "ma_168",
+        "std_168",
+        "temperatura_c",
+        "hora_sin",
+        "hora_cos",
+        "dia_semana_sin",
+        "dia_semana_cos",
+        "mes_sin",
+        "mes_cos",
+        "es_festivo",
+        "es_vispera_festivo",
+        "es_puente",
+        "es_semana_santa",
+        "es_ultima_semana_diciembre"
+      ],
+      "rezagos_omitidos": [],
+      "columnas_excluidas": {
+        "fuente": "texto de procedencia de la demanda",
+        "metrica": "texto de procedencia de la demanda",
+        "entidad": "texto de procedencia de la demanda",
+        "valor_kwh": "sustituida por demanda_mwh = valor_kwh / 1000; ninguna variable la necesita en kWh",
+        "version": "version de liquidacion: solo existe en SIMEM, nula en XM",
+        "origen_valor": "procedencia del objetivo (texto: observado / interpolado / faltante)",
+        "imputado": "procedencia del objetivo: si el valor de t fue imputado",
+        "hueco_horas": "procedencia del objetivo: longitud del hueco al que pertenecia t",
+        "z_estacional": "fuga del objetivo: (demanda de t - mediana pasada) / MAD; contiene el valor que se quiere predecir",
+        "atipico": "fuga del objetivo: |z_estacional| > umbral, calculada con la demanda de la propia hora t",
+        "atipico_evaluable": "procedencia de la marca de atipicos: dice si el grupo tenia historico suficiente, no describe la demanda",
+        "atipico_iqr": "fuga del objetivo: compara la demanda de la propia hora t con limites IQR causales",
+        "atipico_global": "fuga temporal: criterio estacional calculado con la serie entera, futuro incluido",
+        "atipico_iqr_global": "fuga temporal: limites IQR calculados con la serie entera, futuro incluido",
+        "periodo_atipico": "marca de limpieza del periodo de pandemia (2020-03..2020-12), no una bandera del calendario",
+        "etiqueta_periodo": "texto: etiqueta del periodo atipico",
+        "ciudades_disponibles": "procedencia del clima: cuantas ciudades entraron en la media ponderada de temperatura_c",
+        "nombre_festivo": "texto: nombre del festivo; la variable es es_festivo"
+      },
+      "operaciones": [
+        {
+          "operacion": "verificar_rejilla",
+          "criterio": "rejilla horaria completa, sin marcas repetidas ni fuera de la hora en punto",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "rango": [
+              "2021-01-01 00:00:00-05:00",
+              "2026-09-07 23:00:00-05:00"
+            ],
+            "n_horas": 49824,
+            "zona_horaria": "America/Bogota",
+            "estaba_ordenada": true
+          }
+        },
+        {
+          "operacion": "crear_objetivo",
+          "criterio": "demanda_mwh = valor_kwh / 1000",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "columna": "demanda_mwh",
+            "unidad": "MWh por hora (equivale a la potencia media en MW durante la hora)",
+            "columna_origen": "valor_kwh",
+            "unidad_origen": "kWh por hora",
+            "n_nan": 0
+          }
+        },
+        {
+          "operacion": "crear_rezagos",
+          "criterio": "rezagos [24, 168] h solo si >= rezago_minimo_h=24; media y desviacion moviles de 168 h sobre la serie desplazada 24 h; todo por marca de tiempo",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "rezago_minimo_h": 24,
+            "horizonte_h": 24,
+            "columnas_generadas": [
+              "lag_24",
+              "lag_168",
+              "ma_168",
+              "std_168"
+            ],
+            "rezagos_omitidos": [],
+            "definiciones": {
+              "lag_24": "demanda_mwh en la marca de tiempo t - 24 h",
+              "lag_168": "demanda_mwh en la marca de tiempo t - 168 h",
+              "ma_168": "media de las 168 horas demanda_mwh(t - 191 h) .. demanda_mwh(t - 24 h)",
+              "std_168": "desviacion estandar (ddof=1) de las 168 horas demanda_mwh(t - 191 h) .. demanda_mwh(t - 24 h)"
+            },
+            "ventana_h": 168,
+            "min_periods": 168,
+            "ddof": 1,
+            "calculo": "por marca de tiempo (shift con freq + reindex; ventana movil de tiempo)",
+            "nan_por_columna": {
+              "lag_24": 24,
+              "lag_168": 168,
+              "ma_168": 191,
+              "std_168": 191
+            }
+          }
+        },
+        {
+          "operacion": "codificar_ciclicas",
+          "criterio": "seno y coseno de hora (24), dia de la semana (7) y mes (12), en hora local",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "columnas_generadas": [
+              "hora_sin",
+              "hora_cos",
+              "dia_semana_sin",
+              "dia_semana_cos",
+              "mes_sin",
+              "mes_cos"
+            ],
+            "definiciones": {
+              "hora": "sin y cos de 2*pi*hora/24",
+              "dia_semana": "sin y cos de 2*pi*dia_semana/7",
+              "mes": "sin y cos de 2*pi*mes/12"
+            },
+            "origen": {
+              "hora": "0..23",
+              "dia_semana": "lunes=0 .. domingo=6",
+              "mes": "enero=0 .. diciembre=11"
+            },
+            "zona_horaria": "America/Bogota"
+          }
+        },
+        {
+          "operacion": "banderas_a_enteros",
+          "criterio": "banderas booleanas del calendario a int8 0/1, sin cambiar su definicion",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "convertidas": [
+              "es_festivo",
+              "es_vispera_festivo",
+              "es_puente",
+              "es_semana_santa",
+              "es_ultima_semana_diciembre"
+            ],
+            "ausentes": [],
+            "unos_por_bandera": {
+              "es_festivo": 2472,
+              "es_vispera_festivo": 2448,
+              "es_puente": 4536,
+              "es_semana_santa": 1008,
+              "es_ultima_semana_diciembre": 840
+            },
+            "definiciones": "ingesta.complementarias.DEFINICIONES_CALENDARIO (sin cambios)"
+          }
+        },
+        {
+          "operacion": "seleccionar_columnas",
+          "criterio": "marca de tiempo + objetivo + variables; el resto se excluye con su motivo",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "columnas_conservadas": [
+              "fecha_hora",
+              "demanda_mwh",
+              "lag_24",
+              "lag_168",
+              "ma_168",
+              "std_168",
+              "temperatura_c",
+              "hora_sin",
+              "hora_cos",
+              "dia_semana_sin",
+              "dia_semana_cos",
+              "mes_sin",
+              "mes_cos",
+              "es_festivo",
+              "es_vispera_festivo",
+              "es_puente",
+              "es_semana_santa",
+              "es_ultima_semana_diciembre"
+            ],
+            "columnas_excluidas": {
+              "fuente": {
+                "motivo": "texto de procedencia de la demanda",
+                "valores_distintos": 1
+              },
+              "metrica": {
+                "motivo": "texto de procedencia de la demanda",
+                "valores_distintos": 1
+              },
+              "entidad": {
+                "motivo": "texto de procedencia de la demanda",
+                "valores_distintos": 1
+              },
+              "valor_kwh": {
+                "motivo": "sustituida por demanda_mwh = valor_kwh / 1000; ninguna variable la necesita en kWh",
+                "valores_distintos": 49821
+              },
+              "version": {
+                "motivo": "version de liquidacion: solo existe en SIMEM, nula en XM",
+                "valores_distintos": 1
+              },
+              "origen_valor": {
+                "motivo": "procedencia del objetivo (texto: observado / interpolado / faltante)",
+                "valores_distintos": 1
+              },
+              "imputado": {
+                "motivo": "procedencia del objetivo: si el valor de t fue imputado",
+                "valores_distintos": 1
+              },
+              "hueco_horas": {
+                "motivo": "procedencia del objetivo: longitud del hueco al que pertenecia t",
+                "valores_distintos": 1
+              },
+              "z_estacional": {
+                "motivo": "fuga del objetivo: (demanda de t - mediana pasada) / MAD; contiene el valor que se quiere predecir",
+                "valores_distintos": 46465
+              },
+              "atipico": {
+                "motivo": "fuga del objetivo: |z_estacional| > umbral, calculada con la demanda de la propia hora t",
+                "valores_distintos": 2
+              },
+              "atipico_evaluable": {
+                "motivo": "procedencia de la marca de atipicos: dice si el grupo tenia historico suficiente, no describe la demanda",
+                "valores_distintos": 2
+              },
+              "atipico_iqr": {
+                "motivo": "fuga del objetivo: compara la demanda de la propia hora t con limites IQR causales",
+                "valores_distintos": 2
+              },
+              "atipico_global": {
+                "motivo": "fuga temporal: criterio estacional calculado con la serie entera, futuro incluido",
+                "valores_distintos": 2
+              },
+              "atipico_iqr_global": {
+                "motivo": "fuga temporal: limites IQR calculados con la serie entera, futuro incluido",
+                "valores_distintos": 2
+              },
+              "periodo_atipico": {
+                "motivo": "marca de limpieza del periodo de pandemia (2020-03..2020-12), no una bandera del calendario",
+                "valores_distintos": 1
+              },
+              "etiqueta_periodo": {
+                "motivo": "texto: etiqueta del periodo atipico",
+                "valores_distintos": 1
+              },
+              "ciudades_disponibles": {
+                "motivo": "procedencia del clima: cuantas ciudades entraron en la media ponderada de temperatura_c",
+                "valores_distintos": 1
+              },
+              "nombre_festivo": {
+                "motivo": "texto: nombre del festivo; la variable es es_festivo",
+                "valores_distintos": 26
+              }
+            },
+            "procedencia_del_objetivo": {
+              "objetivo_imputado": 0,
+              "origen_valor": {
+                "observado": 49824
+              }
+            }
+          }
+        },
+        {
+          "operacion": "eliminar_arranque",
+          "criterio": "se eliminan las filas iniciales hasta la primera con ['lag_24', 'lag_168', 'ma_168', 'std_168'] completas",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49633,
+          "filas_afectadas": 191,
+          "detalle": {
+            "rango_eliminado": [
+              "2021-01-01 00:00:00-05:00",
+              "2021-01-08 22:00:00-05:00"
+            ],
+            "primera_fila_conservada": "2021-01-08 23:00:00-05:00",
+            "nan_fuera_del_arranque": {},
+            "nota": "Solo se elimina el bloque inicial. Los NaN posteriores, si los hay, se conservan y se reportan aqui."
+          }
+        },
+        {
+          "operacion": "descartar_publicacion_parcial",
+          "criterio": "se eliminan los ultimos 5 dias de calendario por publicacion parcial",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49633,
+          "filas_despues": 49513,
+          "filas_afectadas": 120,
+          "detalle": {
+            "dias": 5,
+            "rango_eliminado": [
+              "2026-09-03 00:00:00-05:00",
+              "2026-09-07 23:00:00-05:00"
+            ],
+            "dias_eliminados": {
+              "2026-09-03": {
+                "total_mwh": 261857.4,
+                "pct_frente_mediana_28d": 103.6
+              },
+              "2026-09-04": {
+                "total_mwh": 265151.8,
+                "pct_frente_mediana_28d": 104.9
+              },
+              "2026-09-05": {
+                "total_mwh": 249896.7,
+                "pct_frente_mediana_28d": 98.8
+              },
+              "2026-09-06": {
+                "total_mwh": 53176.9,
+                "pct_frente_mediana_28d": 21.0
+              },
+              "2026-09-07": {
+                "total_mwh": 54337.2,
+                "pct_frente_mediana_28d": 21.5
+              }
+            },
+            "motivo": "Los ultimos dias publicados llegan parciales (~24 % de lo normal) aunque esten completos en horas; el rezago util es de ~5 dias. Ver notas/hallazgos_calidad.md, seccion 1."
+          }
+        }
+      ],
+      "politica": {
+        "fuga_temporal": "toda variable historica de la fila t usa demanda de t - 24 h o antes; las marcas de atipicos se excluyen porque usan la demanda de la propia hora t (o la serie entera)",
+        "escalado": "ninguno: normalizar, escalar e imputar se hace en el modelado, despues de la particion temporal",
+        "nan": "solo se elimina el arranque; un NaN posterior se conserva y se reporta",
+        "temperatura": "temperatura_c es la observada en la propia hora t (Open-Meteo archive). En backtesting equivale a suponer un pronostico meteorologico perfecto; para operar habria que sustituirla por un pronostico emitido antes del momento de prediccion."
+      },
+      "sha256": "6bb6260ce166b2dbeb72167fd3a4daad4c13755673873eecd7817f5fae3b847f"
+    },
+    "r120": {
+      "version_formato": 1,
+      "momento": "2026-11-08T15:33:47",
+      "rezago_minimo_h": 120,
+      "horizonte_h": 24,
+      "archivo": "tabla_modelado_r120.parquet",
+      "filas_panel": 49824,
+      "filas_finales": 49417,
+      "n_columnas": 17,
+      "balance_filas": {
+        "panel": 49824,
+        "arranque_sin_historico": 287,
+        "publicacion_parcial": 120,
+        "final": 49417
+      },
+      "rango": [
+        "2021-01-12 23:00:00-05:00",
+        "2026-09-02 23:00:00-05:00"
+      ],
+      "objetivo": {
+        "columna": "demanda_mwh",
+        "unidad": "MWh por hora"
+      },
+      "variables": [
+        "lag_168",
+        "ma_168",
+        "std_168",
+        "temperatura_c",
+        "hora_sin",
+        "hora_cos",
+        "dia_semana_sin",
+        "dia_semana_cos",
+        "mes_sin",
+        "mes_cos",
+        "es_festivo",
+        "es_vispera_festivo",
+        "es_puente",
+        "es_semana_santa",
+        "es_ultima_semana_diciembre"
+      ],
+      "rezagos_omitidos": [
+        {
+          "columna": "lag_24",
+          "rezago_h": 24,
+          "motivo": "24 h < rezago_minimo_h=120 h: al predecir t la demanda de t-24 h aun no esta disponible"
+        }
+      ],
+      "columnas_excluidas": {
+        "fuente": "texto de procedencia de la demanda",
+        "metrica": "texto de procedencia de la demanda",
+        "entidad": "texto de procedencia de la demanda",
+        "valor_kwh": "sustituida por demanda_mwh = valor_kwh / 1000; ninguna variable la necesita en kWh",
+        "version": "version de liquidacion: solo existe en SIMEM, nula en XM",
+        "origen_valor": "procedencia del objetivo (texto: observado / interpolado / faltante)",
+        "imputado": "procedencia del objetivo: si el valor de t fue imputado",
+        "hueco_horas": "procedencia del objetivo: longitud del hueco al que pertenecia t",
+        "z_estacional": "fuga del objetivo: (demanda de t - mediana pasada) / MAD; contiene el valor que se quiere predecir",
+        "atipico": "fuga del objetivo: |z_estacional| > umbral, calculada con la demanda de la propia hora t",
+        "atipico_evaluable": "procedencia de la marca de atipicos: dice si el grupo tenia historico suficiente, no describe la demanda",
+        "atipico_iqr": "fuga del objetivo: compara la demanda de la propia hora t con limites IQR causales",
+        "atipico_global": "fuga temporal: criterio estacional calculado con la serie entera, futuro incluido",
+        "atipico_iqr_global": "fuga temporal: limites IQR calculados con la serie entera, futuro incluido",
+        "periodo_atipico": "marca de limpieza del periodo de pandemia (2020-03..2020-12), no una bandera del calendario",
+        "etiqueta_periodo": "texto: etiqueta del periodo atipico",
+        "ciudades_disponibles": "procedencia del clima: cuantas ciudades entraron en la media ponderada de temperatura_c",
+        "nombre_festivo": "texto: nombre del festivo; la variable es es_festivo"
+      },
+      "operaciones": [
+        {
+          "operacion": "verificar_rejilla",
+          "criterio": "rejilla horaria completa, sin marcas repetidas ni fuera de la hora en punto",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "rango": [
+              "2021-01-01 00:00:00-05:00",
+              "2026-09-07 23:00:00-05:00"
+            ],
+            "n_horas": 49824,
+            "zona_horaria": "America/Bogota",
+            "estaba_ordenada": true
+          }
+        },
+        {
+          "operacion": "crear_objetivo",
+          "criterio": "demanda_mwh = valor_kwh / 1000",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "columna": "demanda_mwh",
+            "unidad": "MWh por hora (equivale a la potencia media en MW durante la hora)",
+            "columna_origen": "valor_kwh",
+            "unidad_origen": "kWh por hora",
+            "n_nan": 0
+          }
+        },
+        {
+          "operacion": "crear_rezagos",
+          "criterio": "rezagos [24, 168] h solo si >= rezago_minimo_h=120; media y desviacion moviles de 168 h sobre la serie desplazada 120 h; todo por marca de tiempo",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "rezago_minimo_h": 120,
+            "horizonte_h": 24,
+            "columnas_generadas": [
+              "lag_168",
+              "ma_168",
+              "std_168"
+            ],
+            "rezagos_omitidos": [
+              {
+                "columna": "lag_24",
+                "rezago_h": 24,
+                "motivo": "24 h < rezago_minimo_h=120 h: al predecir t la demanda de t-24 h aun no esta disponible"
+              }
+            ],
+            "definiciones": {
+              "lag_168": "demanda_mwh en la marca de tiempo t - 168 h",
+              "ma_168": "media de las 168 horas demanda_mwh(t - 287 h) .. demanda_mwh(t - 120 h)",
+              "std_168": "desviacion estandar (ddof=1) de las 168 horas demanda_mwh(t - 287 h) .. demanda_mwh(t - 120 h)"
+            },
+            "ventana_h": 168,
+            "min_periods": 168,
+            "ddof": 1,
+            "calculo": "por marca de tiempo (shift con freq + reindex; ventana movil de tiempo)",
+            "nan_por_columna": {
+              "lag_168": 168,
+              "ma_168": 287,
+              "std_168": 287
+            }
+          }
+        },
+        {
+          "operacion": "codificar_ciclicas",
+          "criterio": "seno y coseno de hora (24), dia de la semana (7) y mes (12), en hora local",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "columnas_generadas": [
+              "hora_sin",
+              "hora_cos",
+              "dia_semana_sin",
+              "dia_semana_cos",
+              "mes_sin",
+              "mes_cos"
+            ],
+            "definiciones": {
+              "hora": "sin y cos de 2*pi*hora/24",
+              "dia_semana": "sin y cos de 2*pi*dia_semana/7",
+              "mes": "sin y cos de 2*pi*mes/12"
+            },
+            "origen": {
+              "hora": "0..23",
+              "dia_semana": "lunes=0 .. domingo=6",
+              "mes": "enero=0 .. diciembre=11"
+            },
+            "zona_horaria": "America/Bogota"
+          }
+        },
+        {
+          "operacion": "banderas_a_enteros",
+          "criterio": "banderas booleanas del calendario a int8 0/1, sin cambiar su definicion",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "convertidas": [
+              "es_festivo",
+              "es_vispera_festivo",
+              "es_puente",
+              "es_semana_santa",
+              "es_ultima_semana_diciembre"
+            ],
+            "ausentes": [],
+            "unos_por_bandera": {
+              "es_festivo": 2472,
+              "es_vispera_festivo": 2448,
+              "es_puente": 4536,
+              "es_semana_santa": 1008,
+              "es_ultima_semana_diciembre": 840
+            },
+            "definiciones": "ingesta.complementarias.DEFINICIONES_CALENDARIO (sin cambios)"
+          }
+        },
+        {
+          "operacion": "seleccionar_columnas",
+          "criterio": "marca de tiempo + objetivo + variables; el resto se excluye con su motivo",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49824,
+          "filas_afectadas": 0,
+          "detalle": {
+            "columnas_conservadas": [
+              "fecha_hora",
+              "demanda_mwh",
+              "lag_168",
+              "ma_168",
+              "std_168",
+              "temperatura_c",
+              "hora_sin",
+              "hora_cos",
+              "dia_semana_sin",
+              "dia_semana_cos",
+              "mes_sin",
+              "mes_cos",
+              "es_festivo",
+              "es_vispera_festivo",
+              "es_puente",
+              "es_semana_santa",
+              "es_ultima_semana_diciembre"
+            ],
+            "columnas_excluidas": {
+              "fuente": {
+                "motivo": "texto de procedencia de la demanda",
+                "valores_distintos": 1
+              },
+              "metrica": {
+                "motivo": "texto de procedencia de la demanda",
+                "valores_distintos": 1
+              },
+              "entidad": {
+                "motivo": "texto de procedencia de la demanda",
+                "valores_distintos": 1
+              },
+              "valor_kwh": {
+                "motivo": "sustituida por demanda_mwh = valor_kwh / 1000; ninguna variable la necesita en kWh",
+                "valores_distintos": 49821
+              },
+              "version": {
+                "motivo": "version de liquidacion: solo existe en SIMEM, nula en XM",
+                "valores_distintos": 1
+              },
+              "origen_valor": {
+                "motivo": "procedencia del objetivo (texto: observado / interpolado / faltante)",
+                "valores_distintos": 1
+              },
+              "imputado": {
+                "motivo": "procedencia del objetivo: si el valor de t fue imputado",
+                "valores_distintos": 1
+              },
+              "hueco_horas": {
+                "motivo": "procedencia del objetivo: longitud del hueco al que pertenecia t",
+                "valores_distintos": 1
+              },
+              "z_estacional": {
+                "motivo": "fuga del objetivo: (demanda de t - mediana pasada) / MAD; contiene el valor que se quiere predecir",
+                "valores_distintos": 46465
+              },
+              "atipico": {
+                "motivo": "fuga del objetivo: |z_estacional| > umbral, calculada con la demanda de la propia hora t",
+                "valores_distintos": 2
+              },
+              "atipico_evaluable": {
+                "motivo": "procedencia de la marca de atipicos: dice si el grupo tenia historico suficiente, no describe la demanda",
+                "valores_distintos": 2
+              },
+              "atipico_iqr": {
+                "motivo": "fuga del objetivo: compara la demanda de la propia hora t con limites IQR causales",
+                "valores_distintos": 2
+              },
+              "atipico_global": {
+                "motivo": "fuga temporal: criterio estacional calculado con la serie entera, futuro incluido",
+                "valores_distintos": 2
+              },
+              "atipico_iqr_global": {
+                "motivo": "fuga temporal: limites IQR calculados con la serie entera, futuro incluido",
+                "valores_distintos": 2
+              },
+              "periodo_atipico": {
+                "motivo": "marca de limpieza del periodo de pandemia (2020-03..2020-12), no una bandera del calendario",
+                "valores_distintos": 1
+              },
+              "etiqueta_periodo": {
+                "motivo": "texto: etiqueta del periodo atipico",
+                "valores_distintos": 1
+              },
+              "ciudades_disponibles": {
+                "motivo": "procedencia del clima: cuantas ciudades entraron en la media ponderada de temperatura_c",
+                "valores_distintos": 1
+              },
+              "nombre_festivo": {
+                "motivo": "texto: nombre del festivo; la variable es es_festivo",
+                "valores_distintos": 26
+              }
+            },
+            "procedencia_del_objetivo": {
+              "objetivo_imputado": 0,
+              "origen_valor": {
+                "observado": 49824
+              }
+            }
+          }
+        },
+        {
+          "operacion": "eliminar_arranque",
+          "criterio": "se eliminan las filas iniciales hasta la primera con ['lag_168', 'ma_168', 'std_168'] completas",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49824,
+          "filas_despues": 49537,
+          "filas_afectadas": 287,
+          "detalle": {
+            "rango_eliminado": [
+              "2021-01-01 00:00:00-05:00",
+              "2021-01-12 22:00:00-05:00"
+            ],
+            "primera_fila_conservada": "2021-01-12 23:00:00-05:00",
+            "nan_fuera_del_arranque": {},
+            "nota": "Solo se elimina el bloque inicial. Los NaN posteriores, si los hay, se conservan y se reportan aqui."
+          }
+        },
+        {
+          "operacion": "descartar_publicacion_parcial",
+          "criterio": "se eliminan los ultimos 5 dias de calendario por publicacion parcial",
+          "momento": "2026-11-08T15:33:47",
+          "filas_antes": 49537,
+          "filas_despues": 49417,
+          "filas_afectadas": 120,
+          "detalle": {
+            "dias": 5,
+            "rango_eliminado": [
+              "2026-09-03 00:00:00-05:00",
+              "2026-09-07 23:00:00-05:00"
+            ],
+            "dias_eliminados": {
+              "2026-09-03": {
+                "total_mwh": 261857.4,
+                "pct_frente_mediana_28d": 103.6
+              },
+              "2026-09-04": {
+                "total_mwh": 265151.8,
+                "pct_frente_mediana_28d": 104.9
+              },
+              "2026-09-05": {
+                "total_mwh": 249896.7,
+                "pct_frente_mediana_28d": 98.8
+              },
+              "2026-09-06": {
+                "total_mwh": 53176.9,
+                "pct_frente_mediana_28d": 21.0
+              },
+              "2026-09-07": {
+                "total_mwh": 54337.2,
+                "pct_frente_mediana_28d": 21.5
+              }
+            },
+            "motivo": "Los ultimos dias publicados llegan parciales (~24 % de lo normal) aunque esten completos en horas; el rezago util es de ~5 dias. Ver notas/hallazgos_calidad.md, seccion 1."
+          }
+        }
+      ],
+      "politica": {
+        "fuga_temporal": "toda variable historica de la fila t usa demanda de t - 120 h o antes; las marcas de atipicos se excluyen porque usan la demanda de la propia hora t (o la serie entera)",
+        "escalado": "ninguno: normalizar, escalar e imputar se hace en el modelado, despues de la particion temporal",
+        "nan": "solo se elimina el arranque; un NaN posterior se conserva y se reporta",
+        "temperatura": "temperatura_c es la observada en la propia hora t (Open-Meteo archive). En backtesting equivale a suponer un pronostico meteorologico perfecto; para operar habria que sustituirla por un pronostico emitido antes del momento de prediccion."
+      },
+      "sha256": "9f7273d62c56838387a2106cbc99acf045a8b4dba57daf5ceb387ba5b061e6b0"
+    }
+  }
+}

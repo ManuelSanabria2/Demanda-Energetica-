@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[1]
-PAQUETES_PROPIOS = {"ingesta", "calidad", "limpieza", "conftest"}
+PAQUETES_PROPIOS = {"ingesta", "calidad", "limpieza", "variables", "conftest"}
 
 
 def _requisitos() -> dict[str, str]:

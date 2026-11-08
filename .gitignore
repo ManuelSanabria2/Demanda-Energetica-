@@ -11,11 +11,12 @@ data/processed/*
 # datos habia en cada momento, que es justo para lo que existe.
 !data/raw/manifiesto.json
 
-# Misma razon para el registro de limpieza: es lo que permite responder
-# despues de donde salio cada valor.
+# Misma razon para el registro de limpieza y el de variables: son los que
+# permiten responder despues de donde salio cada valor y cada columna.
 !data/procesado/
 data/procesado/*
 !data/procesado/registro_limpieza.json
+!data/procesado/registro_variables.json
 
 # datasets/: cientos de MB de CSV regenerables con scripts/descargar_datasets.py.
 # Se versionan solo el README y el manifiesto, que dice que se genero, cuando y
