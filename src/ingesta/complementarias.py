@@ -422,18 +422,15 @@ def calendario(desde: dt.date, hasta: dt.date) -> tuple[pd.DataFrame, dict[str, 
         lambda d: (d + dt.timedelta(days=1)) in festivos
     )
 
-    # Puente: fin de semana largo por lunes festivo. Se mira, para cada fecha,
-    # el lunes de su propia semana.
+    # Puente: fin de semana largo por lunes festivo. El sabado y el domingo del
+    # puente son los ANTERIORES al lunes: mirar el lunes de su propia semana
+    # marcaba tambien el fin de semana siguiente, que no es puente.
     dia_semana = tabla["fecha"].dt.dayofweek
-    lunes_de_la_semana = tabla["fecha"] - pd.to_timedelta(dia_semana, unit="D")
-    lunes_festivo = lunes_de_la_semana.dt.date.map(lambda d: d in festivos)
-    tabla["es_puente"] = lunes_festivo & dia_semana.isin([0, 5, 6])
-    # El sabado y el domingo del puente pertenecen a la semana anterior.
     lunes_siguiente = tabla["fecha"] + pd.to_timedelta(7 - dia_semana, unit="D")
     puente_fin_de_semana = dia_semana.isin([5, 6]) & lunes_siguiente.dt.date.map(
         lambda d: d in festivos
     )
-    tabla["es_puente"] = tabla["es_puente"] | puente_fin_de_semana
+    tabla["es_puente"] = (tabla["es_festivo"] & (dia_semana == 0)) | puente_fin_de_semana
 
     tabla["es_semana_santa"] = _marcar_semana_santa(tabla["fecha"], festivos)
 

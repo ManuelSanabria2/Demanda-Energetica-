@@ -37,7 +37,7 @@ FechaHora, CodigoSICAgente, TipoMercado, Version, Valor, UnidadMedida,
 CodigoDuracion`. Una fila por hora × agente × tipo de mercado × **versión de
 liquidación**.
 
-> ⚠️ **No sumes `Valor` por hora sin más.** Sobre una misma `FechaHora`
+> **No sumes `Valor` por hora sin más.** Sobre una misma `FechaHora`
 > conviven varias versiones de liquidación (`TX2`, `TX3`, `TXR`, `TXF`…), y la
 > suma ingenua multiplica la demanda por el número de versiones — hasta ×5 en
 > enero de 2026, y el factor cambia de un mes a otro. Es la razón de que 2025 y 2026
@@ -67,7 +67,7 @@ Columnas de las dos series: `timestamp, fuente, identificador, entidad, valor`.
 Comprobación rápida: `xm_demareal_sistema.csv` vale `7306335.34` el
 `2025-01-01 00:00:00-05:00`, el valor verificado contra el servidor.
 
-> ⚠️ **Los dos últimos días publicados llegan parciales** (~24 % de lo normal)
+> **Los dos últimos días publicados llegan parciales** (~24 % de lo normal)
 > aunque tengan las 24 horas y ningún nulo. El rezago útil es de ~5 días, no de
 > 3: descarta los últimos 5 días de cualquier partición de entrenamiento o
 > validación. Ver `notas/hallazgos_calidad.md`.
@@ -95,7 +95,7 @@ Columnas: `timestamp, fuente, identificador, entidad, valor, Activity,
 Subactivity`. Una fila por hora × subactividad económica (349–355 por hora, en 20–21
 actividades).
 
-> ⚠️ **La dimensión está en `Activity` y `Subactivity`, no en `entidad`**, que
+> **La dimensión está en `Activity` y `Subactivity`, no en `entidad`**, que
 > vale siempre `"CIIU"`. En esta métrica la API mete esas dos claves dentro de
 > `Values`; el cliente del proyecto las descartaba en silencio y dejaba miles
 > de filas con la misma marca de tiempo. La clave de una fila es
@@ -170,7 +170,7 @@ hasta 3 h, en 102 sectores) y 177 095 faltantes (huecos largos, en 90 sectores).
 La rejilla de cada sector va de *su* primera a *su* última hora: a un sector
 que vivió unos meses no se le inventan horas fuera de ellos.
 
-> ⚠️ **En CIIU la marca de atípicos sirve bastante menos.** Marca 901 528 horas
+> **En CIIU la marca de atípicos sirve bastante menos.** Marca 901 528 horas
 > (5,1 %), frente al 0,3–0,6 % de las series nacionales: los sectores pequeños
 > son mucho más ruidosos y el umbral pensado para la demanda agregada salta con
 > frecuencia. Además, 1 401 758 filas no se pueden evaluar: son el arranque de
@@ -197,7 +197,7 @@ detalle limpio sale exactamente la serie nacional**, en sus 49 776 horas y con
 una diferencia máxima de 0,000000 kWh. Si la limpieza hubiera perdido, duplicado
 o movido una sola fila, no cuadraría.
 
-> ⚠️ Igual que en CIIU, en el desagregado la marca de atípicos salta mucho más:
+> Igual que en CIIU, en el desagregado la marca de atípicos salta mucho más:
 > 309 704 horas (7,0 %). Las empresas que pasan buena parte del tiempo en cero
 > hacen que cualquier consumo parezca extremo. Conviene revisar el umbral antes
 > de usar `atipico` a este nivel de detalle.

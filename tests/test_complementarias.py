@@ -129,7 +129,7 @@ def test_marca_visperas_de_festivo():
 
 
 def test_el_puente_cubre_sabado_domingo_y_lunes():
-    cal, _ = C.calendario(dt.date(2025, 10, 9), dt.date(2025, 10, 15))
+    cal, _ = C.calendario(dt.date(2025, 10, 9), dt.date(2025, 10, 20))
     porfecha = cal.set_index(cal["fecha"].dt.date)["es_puente"]
 
     assert not porfecha[dt.date(2025, 10, 10)]  # viernes
@@ -137,6 +137,9 @@ def test_el_puente_cubre_sabado_domingo_y_lunes():
     assert porfecha[dt.date(2025, 10, 12)]  # domingo
     assert porfecha[dt.date(2025, 10, 13)]  # lunes festivo
     assert not porfecha[dt.date(2025, 10, 14)]  # martes
+    # El fin de semana DESPUES del lunes festivo no es puente: el 20 no es festivo.
+    assert not porfecha[dt.date(2025, 10, 18)]  # sabado
+    assert not porfecha[dt.date(2025, 10, 19)]  # domingo
 
 
 def test_semana_santa_es_la_semana_del_viernes_santo():

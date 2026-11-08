@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import importlib.util
 import json
 import sys
 from pathlib import Path
@@ -139,7 +140,7 @@ def test_un_valor_revisado_sustituye_al_anterior():
     descarga.escribir(revisado, "prueba", "X1")
 
     marco = descarga.leer("prueba", "X1")
-    fila = marco[marco["timestamp"] == pd.Timestamp("2024-03-01 00:00:00")]
+    fila = marco[marco["timestamp"] == pd.Timestamp("2024-03-01 00:00:00", tz="America/Bogota")]
     assert len(fila) == 1
     assert fila["valor"].iloc[0] == 999.0
     assert len(marco) == 24
@@ -162,6 +163,44 @@ def test_la_version_forma_parte_de_la_identidad():
     marco = descarga.leer("prueba", "S1")
     assert len(marco) == 2
     assert sorted(marco["Version"]) == ["TX2", "TXR"]
+
+
+def test_las_particiones_antiguas_sin_zona_se_migran_al_escribir():
+    """Las particiones escritas antes de unificar la zona guardan la hora sin ella.
+
+    Fusionarlas con lo que hoy devuelve el cliente rompia con un TypeError, y un
+    conjunto que mezcle archivos con y sin zona se lee desplazado 5 horas.
+    """
+    for mes in (1, 2):
+        destino = descarga.ruta_particion("prueba", "X1", 2024, mes)
+        destino.mkdir(parents=True)
+        pd.DataFrame(
+            {
+                "timestamp": pd.date_range(f"2024-{mes:02d}-01", periods=24, freq="h"),
+                "fuente": "prueba",
+                "identificador": "X1",
+                "entidad": "Sistema",
+                "valor": 1.0,
+            }
+        ).to_parquet(destino / descarga.NOMBRE_ARCHIVO, index=False)
+
+    # Solo se reescribe febrero; enero, sin tocar, tambien tiene que migrarse.
+    revisado = pd.DataFrame(
+        {
+            "timestamp": pd.date_range("2024-02-01", periods=24, freq="h", tz="America/Bogota"),
+            "fuente": "prueba",
+            "identificador": "X1",
+            "entidad": "Sistema",
+            "valor": 2.0,
+        }
+    )
+    descarga.escribir(revisado, "prueba", "X1")
+
+    marco = descarga.leer("prueba", "X1").sort_values("timestamp")
+    assert str(marco["timestamp"].dt.tz) == "America/Bogota"
+    assert len(marco) == 48
+    assert marco["timestamp"].iloc[0] == pd.Timestamp("2024-01-01 00:00", tz="America/Bogota")
+    assert (marco.loc[marco["timestamp"].dt.month == 2, "valor"] == 2.0).all()
 
 
 # --- descarga incremental -------------------------------------------------
@@ -214,6 +253,23 @@ def test_desde_explicito_manda_sobre_el_incremental():
 
 def test_ultima_fecha_almacenada_sin_datos_es_none():
     assert descarga.ultima_fecha_almacenada("prueba", "inexistente") is None
+
+
+def test_la_capa_cruda_no_acepta_otra_entidad():
+    """La ruta no distingue entidades: una segunda se mezclaria con la primera, y
+    su descarga incremental arrancaria desde la ultima fecha de aquella."""
+    with pytest.raises(TypeError):
+        _descargar(desde=dt.date(2024, 3, 1), hasta=dt.date(2024, 3, 1), entidad="Agente")
+
+
+def test_el_cli_de_la_capa_cruda_no_ofrece_entidad():
+    raiz = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location("descargar_cli", raiz / "descargar.py")
+    modulo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modulo)
+
+    with pytest.raises(SystemExit):
+        modulo.main(["--fuente", "xm", "--id", "DemaReal", "--entidad", "Agente"])
 
 
 # --- manifiesto -----------------------------------------------------------

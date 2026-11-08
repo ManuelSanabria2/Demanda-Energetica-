@@ -1,5 +1,11 @@
 pandas==2.3.3
 requests==2.33.0
 pyarrow==14.0.2
+# pyarrow 14 esta compilado contra numpy 1: con numpy 2 `import pyarrow` falla.
+# Sin fijarlo, pip instala numpy 2 y ningun Parquet se puede leer ni escribir.
+numpy==1.26.4
 holidays==0.104
 pytest>=8.0
+# scripts/generar_notebooks.py y las graficas de los notebooks.
+nbformat==5.11.1
+matplotlib==3.10.8

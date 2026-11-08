@@ -7,6 +7,7 @@ llego a borrar los 26 restantes de marzo de 2025 porque
 
 from __future__ import annotations
 
+import datetime as dt
 import sys
 from pathlib import Path
 
@@ -128,3 +129,38 @@ def test_series_distintas_conviven_en_la_misma_particion():
     resultado = leer()
     assert len(resultado) == 48
     assert set(resultado["entidad"]) == {"Sistema", "Agente"}
+
+
+# --- clima ----------------------------------------------------------------
+
+
+def test_la_fuente_clima_refresca_el_clima_del_panel(monkeypatch: pytest.MonkeyPatch):
+    """Antes ningun comando escribia clima_nacional: el panel usaba la ultima
+    descarga hecha a mano y dejaba NaN en las horas posteriores."""
+    horas = pd.date_range("2025-03-01", periods=48, freq="h", tz="America/Bogota")
+    tabla = pd.DataFrame({"fecha_hora": horas, "temperatura_c": 20.0, "ciudades_disponibles": 4})
+    pedidos = []
+
+    def descargar_falso(desde, hasta):
+        pedidos.append((desde, hasta))
+        return tabla, {"horas_sin_ninguna_ciudad": 0}
+
+    monkeypatch.setattr(cli, "descargar_clima", descargar_falso)
+
+    cli.main(["--fuente", "clima", "--desde", "2025-03-01", "--hasta", "2025-03-02"])
+
+    assert pedidos == [(dt.date(2025, 3, 1), dt.date(2025, 3, 2))]
+    assert len(leer("clima_nacional")) == 48
+
+
+def test_todas_tambien_refresca_el_clima(monkeypatch: pytest.MonkeyPatch):
+    """`todas` es el comando por defecto y el del README: si no incluye el clima,
+    el panel vuelve a quedarse con el de la ultima descarga a mano."""
+    llamadas = []
+    monkeypatch.setattr(cli, "ingestar_xm", lambda *a, **k: llamadas.append("xm"))
+    monkeypatch.setattr(cli, "ingestar_simem", lambda *a, **k: llamadas.append("simem"))
+    monkeypatch.setattr(cli, "ingestar_clima", lambda desde, hasta: llamadas.append("clima"))
+
+    cli.main(["--desde", "2025-03-01", "--hasta", "2025-03-02"])
+
+    assert llamadas == ["xm", "simem", "clima"]

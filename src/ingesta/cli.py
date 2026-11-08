@@ -2,11 +2,15 @@
 
     python -m ingesta.cli --fuente todas --desde 2021-01-01
     python -m ingesta.cli --fuente xm --desde 2025-01-01 --hasta 2025-01-02
+    python -m ingesta.cli --fuente clima --desde 2021-01-01
 
 La descarga la hace la capa de clientes (`clientes.py`), que se encarga de
 fragmentar el rango, reintentar y cachear. Aqui solo queda la orquestacion:
 normalizar al esquema comun, medir cobertura, escribir Parquet y registrar el
 manifiesto.
+
+`todas` incluye el clima: el panel de modelado lo necesita sobre las mismas
+horas que la demanda, asi que se refrescan juntos.
 """
 
 from __future__ import annotations
@@ -20,6 +24,7 @@ import pyarrow as pa
 
 from . import config, manifiesto, normalizar, particiones
 from .clientes import ClienteSIMEM, ClienteXM
+from .complementarias import descargar_clima, guardar_clima
 
 log = logging.getLogger("ingesta")
 
@@ -117,6 +122,22 @@ def ingestar_simem(
     return tabla
 
 
+def ingestar_clima(desde: dt.date, hasta: dt.date) -> pd.DataFrame:
+    """Descarga la temperatura nacional ponderada y la guarda para el panel.
+
+    Antes ningun comando la refrescaba: el panel se construia con la ultima
+    descarga hecha a mano y dejaba la temperatura en NaN en las horas nuevas.
+    """
+    tabla, registro = descargar_clima(desde, hasta)
+    guardar_clima(tabla, registro)
+
+    print("\n=== Clima nacional (Open-Meteo) ===")
+    print(f"  horas                : {len(tabla)}")
+    print(f"  rango                : {tabla['fecha_hora'].min()} .. {tabla['fecha_hora'].max()}")
+    print(f"  horas sin ciudades   : {registro.get('horas_sin_ninguna_ciudad')}")
+    return tabla
+
+
 def _ultima_fecha(tabla: pd.DataFrame) -> dt.date | None:
     """Ultima fecha con dato de una tabla en el esquema comun."""
     if tabla.empty:
@@ -149,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
     """Orquesta la ingesta segun los argumentos de linea de comandos."""
     analizador = argparse.ArgumentParser(description="Ingesta de demanda horaria del SIN")
     analizador.add_argument(
-        "--fuente", choices=("xm", "simem", "todas"), default="todas"
+        "--fuente", choices=("xm", "simem", "clima", "todas"), default="todas"
     )
     analizador.add_argument("--desde", type=_fecha, default=config.FECHA_INICIO_DEFECTO)
     analizador.add_argument("--hasta", type=_fecha, default=dt.date.today())
@@ -172,6 +193,8 @@ def main(argv: list[str] | None = None) -> int:
         ingestar_xm(args.desde, args.hasta, usar_cache=usar_cache)
     if args.fuente in ("simem", "todas"):
         ingestar_simem(args.desde, args.hasta, usar_cache=usar_cache)
+    if args.fuente in ("clima", "todas"):
+        ingestar_clima(args.desde, args.hasta)
 
     print(f"\nManifiesto: {config.RUTA_MANIFIESTO}")
     return 0
