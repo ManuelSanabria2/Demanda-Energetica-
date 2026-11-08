@@ -11,7 +11,7 @@ print(resumen(diagnosticar(pd.read_parquet("data/processed/xm_demanda_real_siste
 
 ---
 
-## 1. ⚠️ Los últimos días publicados traen valores parciales
+## 1. Los últimos días publicados traen valores parciales
 
 **El hallazgo más importante, y el que ninguna comprobación anterior detectó.**
 
@@ -65,7 +65,7 @@ el ciclo de liquidación) o si queda así de forma permanente.
 
 ---
 
-## 2. ✅ RESUELTO — Faltaba marzo de 2025 en la capa procesada, por un bug propio
+## 2. RESUELTO — Faltaba marzo de 2025 en la capa procesada, por un bug propio
 
 > **Estado: corregido el 2026-09-10.** El `delete_matching` de `cli.py` ya no
 > destruye datos, y marzo de 2025 está reingestado en ambas fuentes. Lo que

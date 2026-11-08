@@ -27,8 +27,11 @@ pip install -r requirements.txt
 ## Uso
 
 ```bash
-# Histórico completo de ambas fuentes
+# Histórico completo de XM, SIMEM y el clima del panel
 PYTHONPATH=src python -m ingesta.cli --fuente todas --desde 2021-01-01
+
+# Solo el clima (Open-Meteo), por ejemplo tras refrescar la demanda
+PYTHONPATH=src python -m ingesta.cli --fuente clima --desde 2021-01-01
 
 # Solo XM: ~73 s la primera vez, ~2 s con la caché ya poblada
 PYTHONPATH=src python -m ingesta.cli --fuente xm --desde 2021-01-01 --hasta hoy
@@ -45,7 +48,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 223 pruebas, ninguna toca la red
+python -m pytest tests -q          # 235 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -198,7 +201,12 @@ Sale en `data/procesado/panel_modelado.parquet` con su informe al lado. Lleva
 la procedencia de cada valor **y** las exógenas; antes había dos tablas finales
 que no se hablaban y ninguna servía.
 
-⚠️ `atipico_global` y `atipico_iqr_global` se calculan sobre la serie entera:
+**Falla si el clima no cubre todas las horas de la demanda**, o si no hay clima:
+antes se construía igual y dejaba la temperatura en `NaN` en las horas nuevas.
+El mensaje dice qué ejecutar (`--fuente clima`); `--sin-clima` lo omite a
+propósito.
+
+`atipico_global` y `atipico_iqr_global` se calculan sobre la serie entera:
 **no las uses como variables**, son fuga temporal. Para eso están `atipico` y
 `atipico_iqr`, que son causales.
 
@@ -268,7 +276,7 @@ un parámetro**, se validan y se anotan en `data/processed/registro_clima.json`
 en cada descarga, así que siempre consta con qué ponderación se construyó cada
 serie.
 
-> ⚠️ `PESOS_DEFECTO` es un **proxy provisional** por tamaño de área
+> `PESOS_DEFECTO` es un **proxy provisional** por tamaño de área
 > metropolitana, no una medición de la demanda por zona. La base correcta sería
 > la participación de cada zona, calculable con los conjuntos de SIMEM
 > `d91840` (demanda por área operativa) o `38FF5B` (por STR), pero el mapeo de

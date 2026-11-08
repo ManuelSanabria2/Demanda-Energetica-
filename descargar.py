@@ -67,11 +67,6 @@ def _construir_analizador() -> argparse.ArgumentParser:
         help="ignora el estado almacenado y la cache, y vuelve a pedirlo todo a la API",
     )
     analizador.add_argument(
-        "--entidad",
-        default=config.ENTIDAD_OBJETIVO_XM,
-        help="Entity de XM (Sistema, Agente...); se ignora para SIMEM",
-    )
-    analizador.add_argument(
         "--historial", action="store_true", help="muestra la bitacora y termina"
     )
     analizador.add_argument(
@@ -155,17 +150,12 @@ def main(argv: list[str] | None = None) -> int:
     if args.estado:
         return mostrar_estado(args.fuente, args.identificador)
 
-    # `entidad` solo tiene sentido para XM; pasarselo a SIMEM cambiaria la
-    # clave de cache sin cambiar los datos.
-    extra = {"entidad": args.entidad} if args.fuente == "xm" else {}
-
     entrada = descarga.descargar(
         fuente=args.fuente,
         identificador=args.identificador,
         desde=args.desde,
         hasta=args.hasta,
         forzar=args.forzar,
-        **extra,
     )
     resumir(entrada)
     print(f"\nManifiesto: {config.RUTA_MANIFIESTO_CRUDO}")

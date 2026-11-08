@@ -132,7 +132,7 @@ cat[cat.MetricName.str.contains("Demanda", case=False, na=False)][
 ].head(15)'''),
     ("md", """## SIMEM desagregado
 
-⚠️ **La trampa del proyecto.** Sobre una misma `FechaHora` conviven varias
+**La trampa del proyecto.** Sobre una misma `FechaHora` conviven varias
 versiones de liquidación. Sumar sin filtrarlas multiplica la demanda por el
 número de versiones, y el resultado sigue pareciendo una curva plausible.
 
@@ -268,7 +268,7 @@ for momento in muestras:
     print(f"   valor {valor} · origen {d['origen_valor']} · atípico {d['atipico']} (z={d['z_estacional']})")
     print(f"   {d['explicacion']}")
     print()'''),
-    ("md", """## ⚠️ Qué columnas NO usar como variables
+    ("md", """## Qué columnas NO usar como variables
 
 `atipico_global` y `atipico_iqr_global` se calculan mirando **la serie entera**,
 futuro incluido. Meterlas en un modelo es fuga temporal: el pasado quedaría

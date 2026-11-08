@@ -27,7 +27,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from ingesta import config  # noqa: E402
-from ingesta.complementarias import calendario_horario, unir  # noqa: E402
+from ingesta.complementarias import ErrorUnion, calendario_horario, unir  # noqa: E402
 from limpieza.limpiar import DIR_SALIDA, guardar, limpiar  # noqa: E402
 
 log = logging.getLogger("panel")
@@ -67,18 +67,30 @@ def construir(
     clima = None
     if incluir_clima:
         ruta_clima = config.DIR_PROCESADO / "clima_nacional"
-        if ruta_clima.exists():
-            clima = pd.read_parquet(ruta_clima)
-            clima = clima.drop(columns=[c for c in ("anio", "mes") if c in clima.columns])
-        else:
-            log.warning("No hay clima en %s; el panel ira sin temperatura", ruta_clima)
+        # Un directorio vacio cuenta como ausente: unir() se salta las tablas
+        # vacias, y el panel saldria sin temperatura y sin error.
+        clima = pd.read_parquet(ruta_clima) if ruta_clima.exists() else pd.DataFrame()
+        if clima.empty:
+            raise FileNotFoundError(
+                f"No hay clima en {ruta_clima}. Ejecuta antes: python -m ingesta.cli "
+                "--fuente clima, o construye el panel con --sin-clima."
+            )
+        clima = clima.drop(columns=[c for c in ("anio", "mes") if c in clima.columns])
 
     calendario = None
     registro_calendario = {}
     if incluir_calendario:
         calendario, registro_calendario = calendario_horario(inicio, fin)
 
-    panel, informe_union = unir(limpio, clima, calendario)
+    # Cobertura exigida: un clima mas antiguo que la demanda dejaba la
+    # temperatura en NaN en todas las horas nuevas, con solo un aviso en el log.
+    try:
+        panel, informe_union = unir(limpio, clima, calendario, exigir_cobertura_total=True)
+    except ErrorUnion as exc:
+        raise ErrorUnion(
+            f"{exc}. Si lo que falta es clima: python -m ingesta.cli --fuente clima "
+            f"--desde {inicio} --hasta {fin}"
+        ) from exc
 
     informe = {
         "momento": registro_limpieza["momento"],

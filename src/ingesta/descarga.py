@@ -214,6 +214,24 @@ def _escribir_particion(
     return len(combinado), hash_marco(combinado)
 
 
+def _migrar_particiones_sin_zona(fuente: str, identificador: str) -> None:
+    """Pasa a UTC-5 explicito las particiones escritas antes de unificar la zona.
+
+    No basta con normalizar la particion que se va a tocar: un conjunto que
+    mezcla archivos con y sin zona se lee mal sin avisar, porque pyarrow
+    interpreta la hora sin zona como UTC y la desplaza 5 horas.
+    """
+    for archivo in ruta_dataset(fuente, identificador).rglob(NOMBRE_ARCHIVO):
+        if pq.read_schema(archivo).field("timestamp").type.tz is not None:
+            continue
+        antiguo = pd.read_parquet(archivo)
+        antiguo["timestamp"] = config.a_zona_colombia(antiguo["timestamp"])
+        temporal = archivo.with_name(f".{NOMBRE_ARCHIVO}.tmp")
+        antiguo.to_parquet(temporal, index=False)
+        temporal.replace(archivo)
+        log.info("%s: particion antigua migrada a %s", archivo.parent, config.ZONA_COLOMBIA)
+
+
 def escribir(
     marco: pd.DataFrame, fuente: str, identificador: str
 ) -> dict[str, dict[str, Any]]:
@@ -229,9 +247,10 @@ def escribir(
     # La validacion va antes de tocar nada, para que un marco con las columnas
     # equivocadas de un mensaje util en vez de un KeyError.
     claves = clave_dedup(marco)
+    _migrar_particiones_sin_zona(fuente, identificador)
 
     datos = marco.copy()
-    datos["timestamp"] = pd.to_datetime(datos["timestamp"])
+    datos["timestamp"] = config.a_zona_colombia(datos["timestamp"])
 
     anios = datos["timestamp"].dt.year
     meses = datos["timestamp"].dt.month
@@ -345,9 +364,14 @@ def descargar(
     desde: dt.date | None = None,
     hasta: dt.date | None = None,
     forzar: bool = False,
-    **kwargs: Any,
 ) -> dict[str, Any]:
-    """Descarga, persiste y anota en el manifiesto. Devuelve la entrada anotada."""
+    """Descarga, persiste y anota en el manifiesto. Devuelve la entrada anotada.
+
+    No admite parametros que cambien la serie, como la entidad de XM: la ruta en
+    disco solo distingue fuente e identificador, asi que dos entidades acabarian
+    en la misma carpeta, y la descarga incremental de la segunda arrancaria desde
+    la ultima fecha de la primera, saltandose su historico.
+    """
     if fuente not in CLIENTES:
         raise ErrorDescarga(
             f"Fuente desconocida: {fuente!r}. Conocidas: {sorted(CLIENTES)}"
@@ -362,7 +386,7 @@ def descargar(
             "%s/%s: no hay nada pendiente (%s > %s)", fuente, identificador, inicio, hasta
         )
         entrada = _entrada_manifiesto(
-            fuente, identificador, kwargs, (inicio, hasta), None, 0, {}, modo, comienzo
+            fuente, identificador, (inicio, hasta), None, 0, {}, modo, comienzo
         )
         anotar_manifiesto(entrada)
         return entrada
@@ -370,7 +394,7 @@ def descargar(
     # Con --forzar se ignora tambien la cache del cliente: la intencion es
     # volver a preguntarle a la API, no releer lo mismo desde disco.
     cliente = CLIENTES[fuente](usar_cache=not forzar)
-    datos = cliente.consultar(identificador, inicio, hasta, **kwargs)
+    datos = cliente.consultar(identificador, inicio, hasta)
 
     if datos.empty:
         log.warning(
@@ -386,7 +410,6 @@ def descargar(
     entrada = _entrada_manifiesto(
         fuente,
         identificador,
-        kwargs,
         (inicio, hasta),
         obtenido,
         len(datos),
@@ -402,7 +425,6 @@ def descargar(
 def _entrada_manifiesto(
     fuente: str,
     identificador: str,
-    parametros: dict[str, Any],
     solicitado: tuple[dt.date, dt.date],
     obtenido: tuple[dt.date, dt.date] | None,
     n_registros: int,
@@ -417,7 +439,6 @@ def _entrada_manifiesto(
         "duracion_segundos": round((dt.datetime.now() - comienzo).total_seconds(), 2),
         "fuente": fuente,
         "identificador": identificador,
-        "parametros": {k: str(v) for k, v in parametros.items()},
         "modo": modo,
         "rango_solicitado": [solicitado[0].isoformat(), solicitado[1].isoformat()],
         "rango_obtenido": (

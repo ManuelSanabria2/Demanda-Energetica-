@@ -81,7 +81,7 @@ el dataset. Para `14fabb`:
 | Paginación | No hay. La respuesta llega completa: ~27 MB por mes de `14fabb`, ~24 MB por **2 días** de `c1b851`. Hay que volcar a disco en streaming. |
 | Marcas de tiempo | `FechaHora` de `00:00:00` a `23:00:00`. Colombia no aplica DST, así que no hay días de 23 ni de 25 horas. |
 
-### ⚠️ Trampa crítica: versiones de liquidación coexistentes
+### Trampa crítica: versiones de liquidación coexistentes
 
 El número de versiones simultáneas **cambia con la antigüedad del dato**:
 
