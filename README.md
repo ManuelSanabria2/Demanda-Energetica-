@@ -48,7 +48,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 235 pruebas, ninguna toca la red
+python -m pytest tests -q          # 270 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -189,7 +189,8 @@ solo algunos notebooks: `python scripts/generar_notebooks.py xm_ciiu simem_nacio
 
 ## Panel de modelado
 
-**Esta es la tabla para modelar.** Se construye siempre en el mismo orden:
+**Esta es la base para modelar**: de ella sale la
+[tabla de modelado](#tabla-de-modelado). Se construye siempre en el mismo orden:
 demanda cruda → limpieza (procedencia y marcas) → unión con clima y calendario.
 
 ```bash
@@ -207,8 +208,75 @@ El mensaje dice qué ejecutar (`--fuente clima`); `--sin-clima` lo omite a
 propósito.
 
 `atipico_global` y `atipico_iqr_global` se calculan sobre la serie entera:
-**no las uses como variables**, son fuga temporal. Para eso están `atipico` y
-`atipico_iqr`, que son causales.
+**no las uses como variables**, son fuga temporal. `atipico` y `atipico_iqr`
+son causales respecto al pasado, pero se calculan con la demanda de la propia
+hora: sirven para filtrar filas, no como variables de esa hora (ver
+[Tabla de modelado](#tabla-de-modelado)).
+
+## Tabla de modelado
+
+**Esta es la entrada del modelo**: el panel con las variables construidas, en
+dos versiones según cuánta demanda se conoce al predecir.
+
+```bash
+python scripts/construir_panel.py --imputacion causal   # antes, si no hay panel
+python scripts/construir_variables.py                   # r24 y r120
+```
+
+Sale en `data/procesado/tabla_modelado_r24.parquet` y
+`tabla_modelado_r120.parquet`, con `registro_variables.json` al lado (en git):
+cada operación con su criterio y sus filas, cada columna excluida con su motivo
+y el SHA-256 de cada tabla. Qué es cada columna, de dónde sale y desde cuándo se
+conoce: **[`docs/diccionario_variables.md`](docs/diccionario_variables.md)**.
+
+| | `r24` | `r120` |
+|---|---|---|
+| supuesto | demanda conocida hasta `t − 24 h` | hasta `t − 120 h` |
+| uso | backtesting académico | disponibilidad real |
+| filas × columnas | 49 513 × 18 | 49 417 × 17 |
+| rango | 2021-01-08 23:00 → 2026-09-02 23:00 | 2021-01-12 23:00 → 2026-09-02 23:00 |
+| rezagos | `lag_24`, `lag_168` | `lag_168` |
+| ventana de `ma_168`, `std_168` | acaba en `t − 24 h` | acaba en `t − 120 h` |
+
+**`rezago_minimo_h` es el único parámetro de la fuga temporal**: ninguna
+variable de la fila `t` usa demanda posterior a `t − rezago_minimo_h`. Un rezago
+menor no se genera y queda anotado (`lag_24` en r120); por debajo de 24 h, el
+horizonte, la construcción falla, así que `lag_1` no puede aparecer. Rezagos y
+ventanas se calculan **por marca de tiempo**, después de comprobar que la
+rejilla horaria está completa: con un hueco, «168 filas atrás» dejaría de ser
+«168 horas atrás» sin avisar.
+
+Objetivo: `demanda_mwh = valor_kwh / 1000`. Variables: los rezagos, la media y
+la desviación de 168 h sobre la serie ya desplazada, `temperatura_c`, seno y
+coseno de la hora, el día de la semana y el mes, y las cinco banderas del
+calendario en 0/1, con sus definiciones intactas.
+
+**Fuera de la tabla**, con el motivo en el registro: las dos marcas `_global`
+y también `atipico`, `atipico_iqr` y `z_estacional`, porque se calculan con la
+demanda de la propia hora `t` y como variables de `t` contienen el objetivo. Ni
+texto ni procedencia (`origen_valor`, `nombre_festivo`,
+`ciudades_disponibles`…). Una columna nueva del panel sin clasificar hace
+fallar la construcción en vez de colarse.
+
+Las filas solo cambian por dos eliminaciones, que el registro cuadra:
+
+- **el arranque sin histórico**: 191 h en r24 y 287 h en r120, lo que pide la
+  ventana de 168 h desplazada;
+- **los últimos 5 días** (2026-09-03 → 2026-09-07) por publicación parcial: los
+  dos últimos están al 21 % de la mediana de 28 días.
+
+**No se normaliza, escala ni imputa nada** con estadísticos del conjunto
+completo. Eso va en el modelado, después de la partición temporal.
+
+> `temperatura_c` es la temperatura **observada** en la propia hora. En
+> backtesting equivale a suponer un pronóstico meteorológico perfecto; para
+> operar habría que sustituirla por un pronóstico emitido antes del momento de
+> predicción.
+
+`tests/test_variables.py` lo comprueba para las dos versiones: cada rezago es
+exactamente la demanda de esa marca de tiempo, la media y la desviación
+recalculadas a mano coinciden, y alterar la demanda futura no cambia ninguna
+variable anterior.
 
 ## Ausencia de fuga temporal
 
@@ -428,6 +496,8 @@ a las métricas de pronóstico del CND, que sí se publican por adelantado.
 ## Estructura
 
 ```
+src/variables/
+  construir.py    tabla de modelado: rezagos por marca de tiempo, cíclicas, selección
 src/limpieza/
   limpiar.py      limpieza trazable: cada operación devuelve marco + registro
   grupos.py       limpieza de tablas desagregadas, un grupo cada vez
@@ -447,7 +517,8 @@ src/ingesta/
 scripts/
   descargar_datasets.py  genera datasets/ en CSV, tramo a tramo
   generar_notebooks.py   define y regenera los notebooks
-  construir_panel.py  demanda limpia + clima + calendario -> tabla de modelado
+  construir_panel.py  demanda limpia + clima + calendario -> panel de modelado
+  construir_variables.py  panel -> tablas de modelado r24 y r120 + registro
   explorar_apis.py    vuelca el JSON crudo y describe su estructura
   verificar_apis.py   comprueba los invariantes de los que depende el código
   reconciliar.py      XM vs SIMEM; resuelve empíricamente la convención HourNN
@@ -459,12 +530,15 @@ tests/
   test_cli_escritura.py  regresión: una ingesta parcial no borra el resto del mes
   test_complementarias.py pesos, ponderación, Ley Emiliani, validación del merge
   test_criticos.py    lo que falla en silencio + ausencia de fuga temporal
+  test_variables.py   fuga temporal de la tabla de modelado, en r24 y en r120
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
   test_datasets.py    escritor de CSV: escritura atómica, orden fijo, gzip
   test_limpieza_catalogo.py  limpieza del catálogo de métricas
   test_limpieza_grupos.py    limpieza por grupos y etiqueta en filas creadas
 descargar.py          CLI de la capa cruda
+docs/
+  diccionario_variables.md  una fila por columna de la tabla de modelado
 datasets/             CSV de trabajo (fuera de git salvo README, manifiesto y registros)
   limpios/            salidas de los notebooks de limpieza
 notebooks/            00–02 exploración y diagnóstico

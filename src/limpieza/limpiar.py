@@ -458,8 +458,8 @@ def marcar_atipicos(
 
     Columnas resultantes:
 
-        atipico            criterio estacional CAUSAL -- apta como variable
-        atipico_iqr        criterio IQR CAUSAL         -- apta como variable
+        atipico            criterio estacional CAUSAL -- para filtrar filas
+        atipico_iqr        criterio IQR CAUSAL         -- para filtrar filas
         z_estacional       puntuacion z causal
         atipico_evaluable  False mientras el grupo no tenga historico suficiente
         atipico_global     criterio estacional con TODA la serie -- solo lectura
@@ -468,6 +468,12 @@ def marcar_atipicos(
     Las dos ultimas llevan `_global` en el nombre a proposito: son el mejor
     juicio disponible para inspeccionar la serie, pero meterlas en un modelo es
     fuga temporal.
+
+    Las causales no miran al futuro, pero se calculan con el valor de la propia
+    fila: como variables para predecir esa misma hora contendrian el objetivo.
+    Sirven para filtrar o ponderar filas de entrenamiento, o desplazadas al
+    menos el horizonte del modelo. La tabla de modelado (src/variables) no las
+    incluye.
 
     Excluir o no las filas marcadas es decision del modelado, no de la limpieza.
     """
@@ -539,7 +545,9 @@ def marcar_atipicos(
         nota=(
             "La decision de excluirlos corresponde al modelado, no a la limpieza. "
             "Las columnas *_global usan la serie entera y son fuga temporal si "
-            "entran en un modelo: para eso estan atipico y atipico_iqr, causales."
+            "entran en un modelo. atipico y atipico_iqr son causales, pero usan "
+            "el valor de la propia fila: sirven para filtrar filas, no como "
+            "variables para predecir esa misma hora."
         ),
     )
     log.info(

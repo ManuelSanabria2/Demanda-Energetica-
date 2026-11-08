@@ -107,8 +107,10 @@ def construir(
         "columnas_solo_diagnostico": list(COLUMNAS_SOLO_DIAGNOSTICO),
         "aviso": (
             "Las columnas atipico_global y atipico_iqr_global se calculan sobre "
-            "la serie entera: son fuga temporal si entran en un modelo. Usa "
-            "atipico y atipico_iqr, que son causales."
+            "la serie entera: son fuga temporal si entran en un modelo. atipico "
+            "y atipico_iqr son causales respecto al pasado, pero usan la demanda "
+            "de la propia hora: sirven para filtrar filas, no como variables de "
+            "esa hora. La tabla de modelado las excluye todas."
         ),
     }
     return panel, informe
@@ -148,7 +150,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"  zona horaria   : {informe['zona_horaria']}")
     print(f"  observados     : {proc['pct_observado']}%")
     print(f"  interpolados   : {proc['pct_interpolado']}%   faltantes: {proc['pct_faltante']}%")
-    print(f"  atipicos       : {proc['n_atipicos']:,} (causales, aptos como variable)")
+    print(f"  atipicos       : {proc['n_atipicos']:,} (causales; para filtrar filas, no como variables)")
     for union in informe["union"]["uniones"]:
         if union["aplicada"]:
             print(f"  {union['fuente']:<14} : {union['pct_sin_cobertura']}% sin cobertura")
