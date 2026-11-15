@@ -78,12 +78,12 @@ resource "aws_glue_catalog_table" "pronosticos" {
   description   = "Pronostico horario a 24 h, una particion por fecha de emision"
 
   parameters = {
-    "classification"                = "parquet"
-    "projection.enabled"            = "true"
-    "projection.fecha_emision.type" = "date"
-    "projection.fecha_emision.range" = "2026-01-01,NOW"
+    "classification"                  = "parquet"
+    "projection.enabled"              = "true"
+    "projection.fecha_emision.type"   = "date"
+    "projection.fecha_emision.range"  = "2026-01-01,NOW"
     "projection.fecha_emision.format" = "yyyy-MM-dd"
-    "storage.location.template"     = "s3://${aws_s3_bucket.datalake.bucket}/predictions/fecha_emision=$${fecha_emision}/"
+    "storage.location.template"       = "s3://${aws_s3_bucket.datalake.bucket}/predictions/fecha_emision=$${fecha_emision}/"
   }
 
   partition_keys {

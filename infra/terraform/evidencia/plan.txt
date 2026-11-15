@@ -1,0 +1,1849 @@
+# terraform plan -out plan.tfplan (rama avance-mineria-cloud, 2026-11-15).
+# Antes de publicar se reemplazaron el ID de la cuenta de AWS por <ID_CUENTA> y el correo
+# de alertas por <CORREO_ALERTAS>; la salida completa queda solo en local.
+
+data.aws_region.actual: Reading...
+data.aws_iam_policy_document.metricas: Reading...
+data.aws_caller_identity.actual: Reading...
+data.aws_region.actual: Read complete after 0s [id=us-east-1]
+data.aws_iam_policy_document.metricas: Read complete after 0s [id=2717771101]
+data.aws_vpc.defecto: Reading...
+data.aws_caller_identity.actual: Read complete after 0s [id=<ID_CUENTA>]
+data.aws_iam_policy_document.confianza["scheduler"]: Reading...
+data.aws_iam_policy_document.confianza["ecs"]: Reading...
+data.aws_iam_policy_document.confianza["lambda"]: Reading...
+data.aws_iam_policy_document.confianza["states"]: Reading...
+data.aws_iam_policy_document.confianza["scheduler"]: Read complete after 0s [id=3481537980]
+data.aws_iam_policy_document.confianza["ecs"]: Read complete after 0s [id=4244109079]
+data.aws_iam_policy_document.confianza["lambda"]: Read complete after 0s [id=3886417481]
+data.aws_iam_policy_document.confianza["states"]: Read complete after 0s [id=2085730321]
+data.aws_vpc.defecto: Read complete after 1s [id=vpc-0a6fc749697aee7ad]
+data.aws_subnets.defecto: Reading...
+data.aws_subnets.defecto: Read complete after 1s [id=us-east-1]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+ <= read (data resources)
+
+Terraform will perform the following actions:
+
+  # data.aws_iam_policy_document.lambda_logs will be read during apply
+  # (config refers to values not yet known)
+ <= data "aws_iam_policy_document" "lambda_logs" {
+      + id            = (known after apply)
+      + json          = (known after apply)
+      + minified_json = (known after apply)
+
+      + statement {
+          + actions   = [
+              + "logs:CreateLogStream",
+              + "logs:PutLogEvents",
+            ]
+          + resources = [
+              + (known after apply),
+            ]
+        }
+    }
+
+  # data.aws_iam_policy_document.s3_prefijos["ingesta"] will be read during apply
+  # (config refers to values not yet known)
+ <= data "aws_iam_policy_document" "s3_prefijos" {
+      + id            = (known after apply)
+      + json          = (known after apply)
+      + minified_json = (known after apply)
+
+      + statement {
+          + actions   = [
+              + "s3:ListBucket",
+            ]
+          + resources = [
+              + (known after apply),
+            ]
+          + sid       = "Listar"
+
+          + condition {
+              + test     = "StringLike"
+              + values   = [
+                  + "raw/*",
+                  + "staging/*",
+                ]
+              + variable = "s3:prefix"
+            }
+        }
+      + statement {
+          + actions   = [
+              + "s3:GetObject",
+            ]
+          + resources = [
+              + (known after apply),
+              + (known after apply),
+            ]
+          + sid       = "Leer"
+        }
+      + statement {
+          + actions   = [
+              + "s3:PutObject",
+            ]
+          + resources = [
+              + (known after apply),
+              + (known after apply),
+            ]
+          + sid       = "Escribir"
+        }
+    }
+
+  # data.aws_iam_policy_document.s3_prefijos["tareas"] will be read during apply
+  # (config refers to values not yet known)
+ <= data "aws_iam_policy_document" "s3_prefijos" {
+      + id            = (known after apply)
+      + json          = (known after apply)
+      + minified_json = (known after apply)
+
+      + statement {
+          + actions   = [
+              + "s3:ListBucket",
+            ]
+          + resources = [
+              + (known after apply),
+            ]
+          + sid       = "Listar"
+
+          + condition {
+              + test     = "StringLike"
+              + values   = [
+                  + "staging/*",
+                  + "processed/*",
+                  + "models/*",
+                  + "predictions/*",
+                ]
+              + variable = "s3:prefix"
+            }
+        }
+      + statement {
+          + actions   = [
+              + "s3:GetObject",
+            ]
+          + resources = [
+              + (known after apply),
+              + (known after apply),
+              + (known after apply),
+            ]
+          + sid       = "Leer"
+        }
+      + statement {
+          + actions   = [
+              + "s3:PutObject",
+            ]
+          + resources = [
+              + (known after apply),
+              + (known after apply),
+              + (known after apply),
+            ]
+          + sid       = "Escribir"
+        }
+    }
+
+  # data.aws_iam_policy_document.scheduler will be read during apply
+  # (config refers to values not yet known)
+ <= data "aws_iam_policy_document" "scheduler" {
+      + id            = (known after apply)
+      + json          = (known after apply)
+      + minified_json = (known after apply)
+
+      + statement {
+          + actions   = [
+              + "states:StartExecution",
+            ]
+          + resources = [
+              + (known after apply),
+              + (known after apply),
+            ]
+        }
+    }
+
+  # data.aws_iam_policy_document.solo_tls will be read during apply
+  # (config refers to values not yet known)
+ <= data "aws_iam_policy_document" "solo_tls" {
+      + id            = (known after apply)
+      + json          = (known after apply)
+      + minified_json = (known after apply)
+
+      + statement {
+          + actions   = [
+              + "s3:*",
+            ]
+          + effect    = "Deny"
+          + resources = [
+              + (known after apply),
+              + (known after apply),
+            ]
+          + sid       = "DenegarSinTLS"
+
+          + condition {
+              + test     = "Bool"
+              + values   = [
+                  + "false",
+                ]
+              + variable = "aws:SecureTransport"
+            }
+
+          + principals {
+              + identifiers = [
+                  + "*",
+                ]
+              + type        = "*"
+            }
+        }
+    }
+
+  # data.aws_iam_policy_document.step_functions will be read during apply
+  # (config refers to values not yet known)
+ <= data "aws_iam_policy_document" "step_functions" {
+      + id            = (known after apply)
+      + json          = (known after apply)
+      + minified_json = (known after apply)
+
+      + statement {
+          + actions   = [
+              + "lambda:InvokeFunction",
+            ]
+          + resources = [
+              + (known after apply),
+              + (known after apply),
+            ]
+          + sid       = "InvocarIngesta"
+        }
+      + statement {
+          + actions   = [
+              + "ecs:RunTask",
+            ]
+          + resources = [
+              + (known after apply),
+              + (known after apply),
+              + (known after apply),
+            ]
+          + sid       = "EjecutarTareas"
+
+          + condition {
+              + test     = "ArnEquals"
+              + values   = [
+                  + (known after apply),
+                ]
+              + variable = "ecs:cluster"
+            }
+        }
+      + statement {
+          + actions   = [
+              + "ecs:DescribeTasks",
+              + "ecs:StopTask",
+            ]
+          + resources = [
+              + "*",
+            ]
+          + sid       = "SeguirTareas"
+
+          + condition {
+              + test     = "ArnEquals"
+              + values   = [
+                  + (known after apply),
+                ]
+              + variable = "ecs:cluster"
+            }
+        }
+      + statement {
+          + actions   = [
+              + "iam:PassRole",
+            ]
+          + resources = [
+              + (known after apply),
+              + (known after apply),
+            ]
+          + sid       = "PasarRoles"
+        }
+      + statement {
+          + actions   = [
+              + "events:DescribeRule",
+              + "events:PutRule",
+              + "events:PutTargets",
+            ]
+          + resources = [
+              + "arn:aws:events:us-east-1:<ID_CUENTA>:rule/StepFunctionsGetEventsForECSTaskRule",
+            ]
+          + sid       = "IntegracionSync"
+        }
+      + statement {
+          + actions   = [
+              + "sns:Publish",
+            ]
+          + resources = [
+              + (known after apply),
+            ]
+          + sid       = "Avisar"
+        }
+      + statement {
+          + actions   = [
+              + "logs:CreateLogDelivery",
+              + "logs:DeleteLogDelivery",
+              + "logs:DescribeLogGroups",
+              + "logs:DescribeResourcePolicies",
+              + "logs:GetLogDelivery",
+              + "logs:ListLogDeliveries",
+              + "logs:PutResourcePolicy",
+              + "logs:UpdateLogDelivery",
+            ]
+          + resources = [
+              + "*",
+            ]
+          + sid       = "Logs"
+        }
+    }
+
+  # aws_athena_named_query.pico_diario will be created
+  + resource "aws_athena_named_query" "pico_diario" {
+      + database  = "demanda_energetica_dev_db"
+      + id        = (known after apply)
+      + name      = "pico-diario-pronosticado-vs-real"
+      + query     = <<-EOT
+            -- Error sobre el maximo diario: la variable que usa un planificador de capacidad.
+            WITH real AS (
+              SELECT date(fecha_hora) AS dia, max(valor_kwh) / 1000 AS pico_real_mwh
+              FROM demanda_real_sistema
+              WHERE anio = year(current_date)
+              GROUP BY 1
+            ), pron AS (
+              SELECT date(fecha_hora) AS dia, max(demanda_pronosticada_mwh) AS pico_pron_mwh
+              FROM pronosticos_24h
+              WHERE fecha_emision >= current_date - INTERVAL '60' DAY
+              GROUP BY 1
+            )
+            SELECT dia, pico_real_mwh, pico_pron_mwh,
+                   100 * (pico_pron_mwh - pico_real_mwh) / pico_real_mwh AS error_pico_pct
+            FROM real JOIN pron USING (dia)
+            ORDER BY dia DESC
+        EOT
+      + workgroup = (known after apply)
+    }
+
+  # aws_athena_workgroup.demanda will be created
+  + resource "aws_athena_workgroup" "demanda" {
+      + arn           = (known after apply)
+      + force_destroy = true
+      + id            = (known after apply)
+      + name          = "demanda-energetica-dev-analitica"
+      + state         = "ENABLED"
+      + tags_all      = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+
+      + configuration {
+          + bytes_scanned_cutoff_per_query     = 1073741824
+          + enforce_workgroup_configuration    = true
+          + publish_cloudwatch_metrics_enabled = true
+          + requester_pays_enabled             = false
+
+          + result_configuration {
+              + output_location = "s3://demanda-energetica-dev-datalake-<ID_CUENTA>/athena-results/"
+
+              + encryption_configuration {
+                  + encryption_option = "SSE_S3"
+                }
+            }
+        }
+    }
+
+  # aws_budgets_budget.mensual will be created
+  + resource "aws_budgets_budget" "mensual" {
+      + account_id        = (known after apply)
+      + arn               = (known after apply)
+      + budget_type       = "COST"
+      + id                = (known after apply)
+      + limit_amount      = "10"
+      + limit_unit        = "USD"
+      + name              = "demanda-energetica-dev-mensual"
+      + name_prefix       = (known after apply)
+      + tags_all          = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + time_period_end   = "2087-06-15_00:00"
+      + time_period_start = (known after apply)
+      + time_unit         = "MONTHLY"
+
+      + cost_filter {
+          + name   = "TagKeyValue"
+          + values = [
+              + "user:Proyecto$demanda-energetica",
+            ]
+        }
+
+      + cost_types (known after apply)
+
+      + notification {
+          + comparison_operator        = "GREATER_THAN"
+          + notification_type          = "ACTUAL"
+          + subscriber_email_addresses = [
+              + "<CORREO_ALERTAS>",
+            ]
+          + subscriber_sns_topic_arns  = []
+          + threshold                  = 80
+          + threshold_type             = "PERCENTAGE"
+        }
+      + notification {
+          + comparison_operator        = "GREATER_THAN"
+          + notification_type          = "FORECASTED"
+          + subscriber_email_addresses = [
+              + "<CORREO_ALERTAS>",
+            ]
+          + subscriber_sns_topic_arns  = []
+          + threshold                  = 100
+          + threshold_type             = "PERCENTAGE"
+        }
+    }
+
+  # aws_cloudwatch_log_group.ingesta will be created
+  + resource "aws_cloudwatch_log_group" "ingesta" {
+      + arn               = (known after apply)
+      + id                = (known after apply)
+      + log_group_class   = (known after apply)
+      + name              = "/aws/lambda/demanda-energetica-dev-ingesta"
+      + name_prefix       = (known after apply)
+      + retention_in_days = 30
+      + skip_destroy      = false
+      + tags_all          = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+    }
+
+  # aws_cloudwatch_log_group.step_functions will be created
+  + resource "aws_cloudwatch_log_group" "step_functions" {
+      + arn               = (known after apply)
+      + id                = (known after apply)
+      + log_group_class   = (known after apply)
+      + name              = "/aws/vendedlogs/states/demanda-energetica-dev"
+      + name_prefix       = (known after apply)
+      + retention_in_days = 30
+      + skip_destroy      = false
+      + tags_all          = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+    }
+
+  # aws_cloudwatch_log_group.tareas will be created
+  + resource "aws_cloudwatch_log_group" "tareas" {
+      + arn               = (known after apply)
+      + id                = (known after apply)
+      + log_group_class   = (known after apply)
+      + name              = "/ecs/demanda-energetica-dev"
+      + name_prefix       = (known after apply)
+      + retention_in_days = 30
+      + skip_destroy      = false
+      + tags_all          = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+    }
+
+  # aws_cloudwatch_metric_alarm.ingesta_errores will be created
+  + resource "aws_cloudwatch_metric_alarm" "ingesta_errores" {
+      + actions_enabled                       = true
+      + alarm_actions                         = (known after apply)
+      + alarm_description                     = "La Lambda de ingesta fallo: el panel no tendra los datos del dia."
+      + alarm_name                            = "demanda-energetica-dev-ingesta-errores"
+      + arn                                   = (known after apply)
+      + comparison_operator                   = "GreaterThanThreshold"
+      + dimensions                            = {
+          + "FunctionName" = "demanda-energetica-dev-ingesta"
+        }
+      + evaluate_low_sample_count_percentiles = (known after apply)
+      + evaluation_periods                    = 1
+      + id                                    = (known after apply)
+      + metric_name                           = "Errors"
+      + namespace                             = "AWS/Lambda"
+      + period                                = 86400
+      + statistic                             = "Sum"
+      + tags_all                              = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + threshold                             = 0
+      + treat_missing_data                    = "notBreaching"
+    }
+
+  # aws_cloudwatch_metric_alarm.mape_degradado["MAPE_pico_semanal"] will be created
+  + resource "aws_cloudwatch_metric_alarm" "mape_degradado" {
+      + actions_enabled                       = true
+      + alarm_actions                         = (known after apply)
+      + alarm_description                     = "MAPE (horas pico) por encima de 5 %: posible degradacion del modelo."
+      + alarm_name                            = "demanda-energetica-dev-mape_pico_semanal"
+      + arn                                   = (known after apply)
+      + comparison_operator                   = "GreaterThanThreshold"
+      + evaluate_low_sample_count_percentiles = (known after apply)
+      + evaluation_periods                    = 1
+      + id                                    = (known after apply)
+      + metric_name                           = "MAPE_pico_semanal"
+      + namespace                             = "DemandaEnergetica/dev"
+      + period                                = 604800
+      + statistic                             = "Maximum"
+      + tags_all                              = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + threshold                             = 5
+      + treat_missing_data                    = "missing"
+    }
+
+  # aws_cloudwatch_metric_alarm.mape_degradado["MAPE_semanal"] will be created
+  + resource "aws_cloudwatch_metric_alarm" "mape_degradado" {
+      + actions_enabled                       = true
+      + alarm_actions                         = (known after apply)
+      + alarm_description                     = "MAPE (global) por encima de 5 %: posible degradacion del modelo."
+      + alarm_name                            = "demanda-energetica-dev-mape_semanal"
+      + arn                                   = (known after apply)
+      + comparison_operator                   = "GreaterThanThreshold"
+      + evaluate_low_sample_count_percentiles = (known after apply)
+      + evaluation_periods                    = 1
+      + id                                    = (known after apply)
+      + metric_name                           = "MAPE_semanal"
+      + namespace                             = "DemandaEnergetica/dev"
+      + period                                = 604800
+      + statistic                             = "Maximum"
+      + tags_all                              = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + threshold                             = 5
+      + treat_missing_data                    = "missing"
+    }
+
+  # aws_cloudwatch_metric_alarm.pipeline_fallido["diario"] will be created
+  + resource "aws_cloudwatch_metric_alarm" "pipeline_fallido" {
+      + actions_enabled                       = true
+      + alarm_actions                         = (known after apply)
+      + alarm_description                     = "Una ejecucion de Step Functions (diario) termino en fallo."
+      + alarm_name                            = "demanda-energetica-dev-diario-fallido"
+      + arn                                   = (known after apply)
+      + comparison_operator                   = "GreaterThanThreshold"
+      + dimensions                            = (known after apply)
+      + evaluate_low_sample_count_percentiles = (known after apply)
+      + evaluation_periods                    = 1
+      + id                                    = (known after apply)
+      + metric_name                           = "ExecutionsFailed"
+      + namespace                             = "AWS/States"
+      + period                                = 86400
+      + statistic                             = "Sum"
+      + tags_all                              = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + threshold                             = 0
+      + treat_missing_data                    = "notBreaching"
+    }
+
+  # aws_cloudwatch_metric_alarm.pipeline_fallido["reentrenamiento"] will be created
+  + resource "aws_cloudwatch_metric_alarm" "pipeline_fallido" {
+      + actions_enabled                       = true
+      + alarm_actions                         = (known after apply)
+      + alarm_description                     = "Una ejecucion de Step Functions (reentrenamiento) termino en fallo."
+      + alarm_name                            = "demanda-energetica-dev-reentrenamiento-fallido"
+      + arn                                   = (known after apply)
+      + comparison_operator                   = "GreaterThanThreshold"
+      + dimensions                            = (known after apply)
+      + evaluate_low_sample_count_percentiles = (known after apply)
+      + evaluation_periods                    = 1
+      + id                                    = (known after apply)
+      + metric_name                           = "ExecutionsFailed"
+      + namespace                             = "AWS/States"
+      + period                                = 86400
+      + statistic                             = "Sum"
+      + tags_all                              = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + threshold                             = 0
+      + treat_missing_data                    = "notBreaching"
+    }
+
+  # aws_cloudwatch_metric_alarm.sin_pronostico will be created
+  + resource "aws_cloudwatch_metric_alarm" "sin_pronostico" {
+      + actions_enabled                       = true
+      + alarm_actions                         = (known after apply)
+      + alarm_description                     = "No se emitio pronostico en las ultimas 48 h."
+      + alarm_name                            = "demanda-energetica-dev-sin-pronostico"
+      + arn                                   = (known after apply)
+      + comparison_operator                   = "LessThanThreshold"
+      + evaluate_low_sample_count_percentiles = (known after apply)
+      + evaluation_periods                    = 2
+      + id                                    = (known after apply)
+      + metric_name                           = "PronosticosEmitidos"
+      + namespace                             = "DemandaEnergetica/dev"
+      + period                                = 86400
+      + statistic                             = "Sum"
+      + tags_all                              = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + threshold                             = 1
+      + treat_missing_data                    = "breaching"
+    }
+
+  # aws_ecr_lifecycle_policy.pipeline will be created
+  + resource "aws_ecr_lifecycle_policy" "pipeline" {
+      + id          = (known after apply)
+      + policy      = jsonencode(
+            {
+              + rules = [
+                  + {
+                      + action       = {
+                          + type = "expire"
+                        }
+                      + description  = "Conservar las 10 imagenes mas recientes"
+                      + rulePriority = 1
+                      + selection    = {
+                          + countNumber = 10
+                          + countType   = "imageCountMoreThan"
+                          + tagStatus   = "any"
+                        }
+                    },
+                ]
+            }
+        )
+      + registry_id = (known after apply)
+      + repository  = "demanda-energetica-dev-pipeline"
+    }
+
+  # aws_ecr_repository.pipeline will be created
+  + resource "aws_ecr_repository" "pipeline" {
+      + arn                  = (known after apply)
+      + force_delete         = true
+      + id                   = (known after apply)
+      + image_tag_mutability = "IMMUTABLE"
+      + name                 = "demanda-energetica-dev-pipeline"
+      + registry_id          = (known after apply)
+      + repository_url       = (known after apply)
+      + tags_all             = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+
+      + encryption_configuration {
+          + encryption_type = "AES256"
+          + kms_key         = (known after apply)
+        }
+
+      + image_scanning_configuration {
+          + scan_on_push = true
+        }
+    }
+
+  # aws_ecs_cluster.pipeline will be created
+  + resource "aws_ecs_cluster" "pipeline" {
+      + arn      = (known after apply)
+      + id       = (known after apply)
+      + name     = "demanda-energetica-dev-pipeline"
+      + tags_all = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+
+      + setting {
+          + name  = "containerInsights"
+          + value = "disabled"
+        }
+    }
+
+  # aws_ecs_cluster_capacity_providers.pipeline will be created
+  + resource "aws_ecs_cluster_capacity_providers" "pipeline" {
+      + capacity_providers = [
+          + "FARGATE",
+          + "FARGATE_SPOT",
+        ]
+      + cluster_name       = "demanda-energetica-dev-pipeline"
+      + id                 = (known after apply)
+
+      + default_capacity_provider_strategy {
+          + base              = 0
+          + capacity_provider = "FARGATE_SPOT"
+          + weight            = 1
+        }
+    }
+
+  # aws_ecs_task_definition.tarea["entrenar"] will be created
+  + resource "aws_ecs_task_definition" "tarea" {
+      + arn                      = (known after apply)
+      + arn_without_revision     = (known after apply)
+      + container_definitions    = (known after apply)
+      + cpu                      = "2048"
+      + enable_fault_injection   = (known after apply)
+      + execution_role_arn       = (known after apply)
+      + family                   = "demanda-energetica-dev-entrenar"
+      + id                       = (known after apply)
+      + memory                   = "8192"
+      + network_mode             = "awsvpc"
+      + requires_compatibilities = [
+          + "FARGATE",
+        ]
+      + revision                 = (known after apply)
+      + skip_destroy             = false
+      + tags_all                 = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + task_role_arn            = (known after apply)
+      + track_latest             = false
+
+      + runtime_platform {
+          + cpu_architecture        = "X86_64"
+          + operating_system_family = "LINUX"
+        }
+    }
+
+  # aws_ecs_task_definition.tarea["predecir"] will be created
+  + resource "aws_ecs_task_definition" "tarea" {
+      + arn                      = (known after apply)
+      + arn_without_revision     = (known after apply)
+      + container_definitions    = (known after apply)
+      + cpu                      = "512"
+      + enable_fault_injection   = (known after apply)
+      + execution_role_arn       = (known after apply)
+      + family                   = "demanda-energetica-dev-predecir"
+      + id                       = (known after apply)
+      + memory                   = "2048"
+      + network_mode             = "awsvpc"
+      + requires_compatibilities = [
+          + "FARGATE",
+        ]
+      + revision                 = (known after apply)
+      + skip_destroy             = false
+      + tags_all                 = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + task_role_arn            = (known after apply)
+      + track_latest             = false
+
+      + runtime_platform {
+          + cpu_architecture        = "X86_64"
+          + operating_system_family = "LINUX"
+        }
+    }
+
+  # aws_ecs_task_definition.tarea["procesar"] will be created
+  + resource "aws_ecs_task_definition" "tarea" {
+      + arn                      = (known after apply)
+      + arn_without_revision     = (known after apply)
+      + container_definitions    = (known after apply)
+      + cpu                      = "1024"
+      + enable_fault_injection   = (known after apply)
+      + execution_role_arn       = (known after apply)
+      + family                   = "demanda-energetica-dev-procesar"
+      + id                       = (known after apply)
+      + memory                   = "4096"
+      + network_mode             = "awsvpc"
+      + requires_compatibilities = [
+          + "FARGATE",
+        ]
+      + revision                 = (known after apply)
+      + skip_destroy             = false
+      + tags_all                 = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + task_role_arn            = (known after apply)
+      + track_latest             = false
+
+      + runtime_platform {
+          + cpu_architecture        = "X86_64"
+          + operating_system_family = "LINUX"
+        }
+    }
+
+  # aws_glue_catalog_database.demanda will be created
+  + resource "aws_glue_catalog_database" "demanda" {
+      + arn          = (known after apply)
+      + catalog_id   = (known after apply)
+      + description  = "Demanda horaria del SIN (XM) y pronosticos a 24 h - proyecto integrador ODS 9"
+      + id           = (known after apply)
+      + location_uri = (known after apply)
+      + name         = "demanda_energetica_dev_db"
+      + tags_all     = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+
+      + create_table_default_permission (known after apply)
+    }
+
+  # aws_glue_catalog_table.demanda_real will be created
+  + resource "aws_glue_catalog_table" "demanda_real" {
+      + arn           = (known after apply)
+      + catalog_id    = (known after apply)
+      + database_name = "demanda_energetica_dev_db"
+      + description   = "XM DemaReal/Sistema normalizada (ingesta.cli): una fila por hora, kWh"
+      + id            = (known after apply)
+      + name          = "demanda_real_sistema"
+      + parameters    = {
+          + "classification"            = "parquet"
+          + "projection.anio.range"     = "2021,2035"
+          + "projection.anio.type"      = "integer"
+          + "projection.enabled"        = "true"
+          + "projection.mes.range"      = "1,12"
+          + "projection.mes.type"       = "integer"
+          + "storage.location.template" = "s3://demanda-energetica-dev-datalake-<ID_CUENTA>/staging/xm_demanda_real_sistema/anio=${anio}/mes=${mes}/"
+        }
+      + table_type    = "EXTERNAL_TABLE"
+
+      + partition_index (known after apply)
+
+      + partition_keys {
+          + name = "anio"
+          + type = "int"
+        }
+      + partition_keys {
+          + name = "mes"
+          + type = "int"
+        }
+
+      + storage_descriptor {
+          + input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+          + location      = "s3://demanda-energetica-dev-datalake-<ID_CUENTA>/staging/xm_demanda_real_sistema/"
+          + output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+          + columns {
+              + name = "fecha_hora"
+              + type = "timestamp"
+            }
+          + columns {
+              + name = "fuente"
+              + type = "string"
+            }
+          + columns {
+              + name = "metrica"
+              + type = "string"
+            }
+          + columns {
+              + name = "entidad"
+              + type = "string"
+            }
+          + columns {
+              + name = "valor_kwh"
+              + type = "double"
+            }
+          + columns {
+              + name = "version"
+              + type = "string"
+            }
+
+          + ser_de_info {
+              + serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+            }
+        }
+    }
+
+  # aws_glue_catalog_table.pronosticos will be created
+  + resource "aws_glue_catalog_table" "pronosticos" {
+      + arn           = (known after apply)
+      + catalog_id    = (known after apply)
+      + database_name = "demanda_energetica_dev_db"
+      + description   = "Pronostico horario a 24 h, una particion por fecha de emision"
+      + id            = (known after apply)
+      + name          = "pronosticos_24h"
+      + parameters    = {
+          + "classification"                  = "parquet"
+          + "projection.enabled"              = "true"
+          + "projection.fecha_emision.format" = "yyyy-MM-dd"
+          + "projection.fecha_emision.range"  = "2026-01-01,NOW"
+          + "projection.fecha_emision.type"   = "date"
+          + "storage.location.template"       = "s3://demanda-energetica-dev-datalake-<ID_CUENTA>/predictions/fecha_emision=${fecha_emision}/"
+        }
+      + table_type    = "EXTERNAL_TABLE"
+
+      + partition_index (known after apply)
+
+      + partition_keys {
+          + name = "fecha_emision"
+          + type = "date"
+        }
+
+      + storage_descriptor {
+          + input_format  = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetInputFormat"
+          + location      = "s3://demanda-energetica-dev-datalake-<ID_CUENTA>/predictions/"
+          + output_format = "org.apache.hadoop.hive.ql.io.parquet.MapredParquetOutputFormat"
+
+          + columns {
+              + name = "fecha_hora"
+              + type = "timestamp"
+            }
+          + columns {
+              + name = "demanda_pronosticada_mwh"
+              + type = "double"
+            }
+          + columns {
+              + comment = "intervalo de prediccion (cuantil 10)"
+              + name    = "limite_inferior_mwh"
+              + type    = "double"
+            }
+          + columns {
+              + comment = "intervalo de prediccion (cuantil 90)"
+              + name    = "limite_superior_mwh"
+              + type    = "double"
+            }
+          + columns {
+              + name = "modelo"
+              + type = "string"
+            }
+          + columns {
+              + name = "version_modelo"
+              + type = "string"
+            }
+
+          + ser_de_info {
+              + serialization_library = "org.apache.hadoop.hive.ql.io.parquet.serde.ParquetHiveSerDe"
+            }
+        }
+    }
+
+  # aws_iam_role.ecs_ejecucion will be created
+  + resource "aws_iam_role" "ecs_ejecucion" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Condition = {
+                          + StringEquals = {
+                              + "aws:SourceAccount" = "<ID_CUENTA>"
+                            }
+                        }
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ecs-tasks.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "demanda-energetica-dev-ecs-ejecucion"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.ecs_tarea will be created
+  + resource "aws_iam_role" "ecs_tarea" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Condition = {
+                          + StringEquals = {
+                              + "aws:SourceAccount" = "<ID_CUENTA>"
+                            }
+                        }
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "ecs-tasks.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "demanda-energetica-dev-ecs-tarea"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.lambda_ingesta will be created
+  + resource "aws_iam_role" "lambda_ingesta" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Condition = {
+                          + StringEquals = {
+                              + "aws:SourceAccount" = "<ID_CUENTA>"
+                            }
+                        }
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "lambda.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "demanda-energetica-dev-lambda-ingesta"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.scheduler will be created
+  + resource "aws_iam_role" "scheduler" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Condition = {
+                          + StringEquals = {
+                              + "aws:SourceAccount" = "<ID_CUENTA>"
+                            }
+                        }
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "scheduler.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "demanda-energetica-dev-scheduler"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role.step_functions will be created
+  + resource "aws_iam_role" "step_functions" {
+      + arn                   = (known after apply)
+      + assume_role_policy    = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "sts:AssumeRole"
+                      + Condition = {
+                          + StringEquals = {
+                              + "aws:SourceAccount" = "<ID_CUENTA>"
+                            }
+                        }
+                      + Effect    = "Allow"
+                      + Principal = {
+                          + Service = "states.amazonaws.com"
+                        }
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + create_date           = (known after apply)
+      + force_detach_policies = false
+      + id                    = (known after apply)
+      + managed_policy_arns   = (known after apply)
+      + max_session_duration  = 3600
+      + name                  = "demanda-energetica-dev-step-functions"
+      + name_prefix           = (known after apply)
+      + path                  = "/"
+      + tags_all              = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + unique_id             = (known after apply)
+
+      + inline_policy (known after apply)
+    }
+
+  # aws_iam_role_policy.ecs_tarea_metricas will be created
+  + resource "aws_iam_role_policy" "ecs_tarea_metricas" {
+      + id          = (known after apply)
+      + name        = (known after apply)
+      + name_prefix = (known after apply)
+      + policy      = jsonencode(
+            {
+              + Statement = [
+                  + {
+                      + Action    = "cloudwatch:PutMetricData"
+                      + Condition = {
+                          + StringEquals = {
+                              + "cloudwatch:namespace" = "DemandaEnergetica/dev"
+                            }
+                        }
+                      + Effect    = "Allow"
+                      + Resource  = "*"
+                    },
+                ]
+              + Version   = "2012-10-17"
+            }
+        )
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.ecs_tarea_s3 will be created
+  + resource "aws_iam_role_policy" "ecs_tarea_s3" {
+      + id          = (known after apply)
+      + name        = (known after apply)
+      + name_prefix = (known after apply)
+      + policy      = (known after apply)
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.lambda_ingesta_logs will be created
+  + resource "aws_iam_role_policy" "lambda_ingesta_logs" {
+      + id          = (known after apply)
+      + name        = (known after apply)
+      + name_prefix = (known after apply)
+      + policy      = (known after apply)
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.lambda_ingesta_s3 will be created
+  + resource "aws_iam_role_policy" "lambda_ingesta_s3" {
+      + id          = (known after apply)
+      + name        = (known after apply)
+      + name_prefix = (known after apply)
+      + policy      = (known after apply)
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.scheduler will be created
+  + resource "aws_iam_role_policy" "scheduler" {
+      + id          = (known after apply)
+      + name        = (known after apply)
+      + name_prefix = (known after apply)
+      + policy      = (known after apply)
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy.step_functions will be created
+  + resource "aws_iam_role_policy" "step_functions" {
+      + id          = (known after apply)
+      + name        = (known after apply)
+      + name_prefix = (known after apply)
+      + policy      = (known after apply)
+      + role        = (known after apply)
+    }
+
+  # aws_iam_role_policy_attachment.ecs_ejecucion will be created
+  + resource "aws_iam_role_policy_attachment" "ecs_ejecucion" {
+      + id         = (known after apply)
+      + policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
+      + role       = "demanda-energetica-dev-ecs-ejecucion"
+    }
+
+  # aws_lambda_function.ingesta will be created
+  + resource "aws_lambda_function" "ingesta" {
+      + architectures                  = [
+          + "x86_64",
+        ]
+      + arn                            = (known after apply)
+      + code_sha256                    = (known after apply)
+      + function_name                  = "demanda-energetica-dev-ingesta"
+      + id                             = (known after apply)
+      + image_uri                      = (known after apply)
+      + invoke_arn                     = (known after apply)
+      + last_modified                  = (known after apply)
+      + memory_size                    = 1024
+      + package_type                   = "Image"
+      + publish                        = false
+      + qualified_arn                  = (known after apply)
+      + qualified_invoke_arn           = (known after apply)
+      + reserved_concurrent_executions = 1
+      + role                           = (known after apply)
+      + signing_job_arn                = (known after apply)
+      + signing_profile_version_arn    = (known after apply)
+      + skip_destroy                   = false
+      + source_code_hash               = (known after apply)
+      + source_code_size               = (known after apply)
+      + tags_all                       = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + timeout                        = 900
+      + version                        = (known after apply)
+
+      + environment {
+          + variables = {
+              + "BUCKET_DATOS"    = "demanda-energetica-dev-datalake-<ID_CUENTA>"
+              + "DIAS_REFRESCO"   = "45"
+              + "PREFIJO_CRUDO"   = "raw/"
+              + "PREFIJO_STAGING" = "staging/"
+              + "ZONA_HORARIA"    = "America/Bogota"
+            }
+        }
+
+      + ephemeral_storage (known after apply)
+
+      + image_config {
+          + command = [
+              + "lambda_ingesta.handler",
+            ]
+        }
+
+      + logging_config (known after apply)
+
+      + tracing_config {
+          + mode = "Active"
+        }
+    }
+
+  # aws_s3_bucket.datalake will be created
+  + resource "aws_s3_bucket" "datalake" {
+      + acceleration_status         = (known after apply)
+      + acl                         = (known after apply)
+      + arn                         = (known after apply)
+      + bucket                      = "demanda-energetica-dev-datalake-<ID_CUENTA>"
+      + bucket_domain_name          = (known after apply)
+      + bucket_prefix               = (known after apply)
+      + bucket_regional_domain_name = (known after apply)
+      + force_destroy               = true
+      + hosted_zone_id              = (known after apply)
+      + id                          = (known after apply)
+      + object_lock_enabled         = (known after apply)
+      + policy                      = (known after apply)
+      + region                      = (known after apply)
+      + request_payer               = (known after apply)
+      + tags_all                    = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + website_domain              = (known after apply)
+      + website_endpoint            = (known after apply)
+
+      + cors_rule (known after apply)
+
+      + grant (known after apply)
+
+      + lifecycle_rule (known after apply)
+
+      + logging (known after apply)
+
+      + object_lock_configuration (known after apply)
+
+      + replication_configuration (known after apply)
+
+      + server_side_encryption_configuration (known after apply)
+
+      + versioning (known after apply)
+
+      + website (known after apply)
+    }
+
+  # aws_s3_bucket_lifecycle_configuration.datalake will be created
+  + resource "aws_s3_bucket_lifecycle_configuration" "datalake" {
+      + bucket                                 = (known after apply)
+      + expected_bucket_owner                  = (known after apply)
+      + id                                     = (known after apply)
+      + transition_default_minimum_object_size = "all_storage_classes_128K"
+
+      + rule {
+          + id     = "versiones-antiguas"
+          + status = "Enabled"
+            # (1 unchanged attribute hidden)
+
+          + abort_incomplete_multipart_upload {
+              + days_after_initiation = 1
+            }
+
+          + filter {
+                # (1 unchanged attribute hidden)
+            }
+
+          + noncurrent_version_expiration {
+              + noncurrent_days = 30
+            }
+        }
+      + rule {
+          + id     = "resultados-athena"
+          + status = "Enabled"
+            # (1 unchanged attribute hidden)
+
+          + expiration {
+              + days                         = 7
+              + expired_object_delete_marker = false
+            }
+
+          + filter {
+              + prefix = "athena-results/"
+            }
+        }
+      + rule {
+          + id     = "pronosticos-historicos"
+          + status = "Enabled"
+            # (1 unchanged attribute hidden)
+
+          + filter {
+              + prefix = "predictions/"
+            }
+
+          + transition {
+              + days          = 90
+              + storage_class = "STANDARD_IA"
+            }
+        }
+    }
+
+  # aws_s3_bucket_ownership_controls.datalake will be created
+  + resource "aws_s3_bucket_ownership_controls" "datalake" {
+      + bucket = (known after apply)
+      + id     = (known after apply)
+
+      + rule {
+          + object_ownership = "BucketOwnerEnforced"
+        }
+    }
+
+  # aws_s3_bucket_policy.datalake will be created
+  + resource "aws_s3_bucket_policy" "datalake" {
+      + bucket = (known after apply)
+      + id     = (known after apply)
+      + policy = (known after apply)
+    }
+
+  # aws_s3_bucket_public_access_block.datalake will be created
+  + resource "aws_s3_bucket_public_access_block" "datalake" {
+      + block_public_acls       = true
+      + block_public_policy     = true
+      + bucket                  = (known after apply)
+      + id                      = (known after apply)
+      + ignore_public_acls      = true
+      + restrict_public_buckets = true
+    }
+
+  # aws_s3_bucket_server_side_encryption_configuration.datalake will be created
+  + resource "aws_s3_bucket_server_side_encryption_configuration" "datalake" {
+      + bucket = (known after apply)
+      + id     = (known after apply)
+
+      + rule {
+          + bucket_key_enabled = true
+
+          + apply_server_side_encryption_by_default {
+              + sse_algorithm     = "AES256"
+                # (1 unchanged attribute hidden)
+            }
+        }
+    }
+
+  # aws_s3_bucket_versioning.datalake will be created
+  + resource "aws_s3_bucket_versioning" "datalake" {
+      + bucket = (known after apply)
+      + id     = (known after apply)
+
+      + versioning_configuration {
+          + mfa_delete = (known after apply)
+          + status     = "Enabled"
+        }
+    }
+
+  # aws_s3_object.prefijos["athena-results/"] will be created
+  + resource "aws_s3_object" "prefijos" {
+      + acl                    = (known after apply)
+      + arn                    = (known after apply)
+      + bucket                 = (known after apply)
+      + bucket_key_enabled     = (known after apply)
+      + checksum_crc32         = (known after apply)
+      + checksum_crc32c        = (known after apply)
+      + checksum_crc64nvme     = (known after apply)
+      + checksum_sha1          = (known after apply)
+      + checksum_sha256        = (known after apply)
+      + content_type           = (known after apply)
+      + etag                   = (known after apply)
+      + force_destroy          = false
+      + id                     = (known after apply)
+      + key                    = "athena-results/"
+      + kms_key_id             = (known after apply)
+      + server_side_encryption = (known after apply)
+      + storage_class          = (known after apply)
+      + tags_all               = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + version_id             = (known after apply)
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_s3_object.prefijos["models/"] will be created
+  + resource "aws_s3_object" "prefijos" {
+      + acl                    = (known after apply)
+      + arn                    = (known after apply)
+      + bucket                 = (known after apply)
+      + bucket_key_enabled     = (known after apply)
+      + checksum_crc32         = (known after apply)
+      + checksum_crc32c        = (known after apply)
+      + checksum_crc64nvme     = (known after apply)
+      + checksum_sha1          = (known after apply)
+      + checksum_sha256        = (known after apply)
+      + content_type           = (known after apply)
+      + etag                   = (known after apply)
+      + force_destroy          = false
+      + id                     = (known after apply)
+      + key                    = "models/"
+      + kms_key_id             = (known after apply)
+      + server_side_encryption = (known after apply)
+      + storage_class          = (known after apply)
+      + tags_all               = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + version_id             = (known after apply)
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_s3_object.prefijos["predictions/"] will be created
+  + resource "aws_s3_object" "prefijos" {
+      + acl                    = (known after apply)
+      + arn                    = (known after apply)
+      + bucket                 = (known after apply)
+      + bucket_key_enabled     = (known after apply)
+      + checksum_crc32         = (known after apply)
+      + checksum_crc32c        = (known after apply)
+      + checksum_crc64nvme     = (known after apply)
+      + checksum_sha1          = (known after apply)
+      + checksum_sha256        = (known after apply)
+      + content_type           = (known after apply)
+      + etag                   = (known after apply)
+      + force_destroy          = false
+      + id                     = (known after apply)
+      + key                    = "predictions/"
+      + kms_key_id             = (known after apply)
+      + server_side_encryption = (known after apply)
+      + storage_class          = (known after apply)
+      + tags_all               = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + version_id             = (known after apply)
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_s3_object.prefijos["processed/"] will be created
+  + resource "aws_s3_object" "prefijos" {
+      + acl                    = (known after apply)
+      + arn                    = (known after apply)
+      + bucket                 = (known after apply)
+      + bucket_key_enabled     = (known after apply)
+      + checksum_crc32         = (known after apply)
+      + checksum_crc32c        = (known after apply)
+      + checksum_crc64nvme     = (known after apply)
+      + checksum_sha1          = (known after apply)
+      + checksum_sha256        = (known after apply)
+      + content_type           = (known after apply)
+      + etag                   = (known after apply)
+      + force_destroy          = false
+      + id                     = (known after apply)
+      + key                    = "processed/"
+      + kms_key_id             = (known after apply)
+      + server_side_encryption = (known after apply)
+      + storage_class          = (known after apply)
+      + tags_all               = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + version_id             = (known after apply)
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_s3_object.prefijos["raw/"] will be created
+  + resource "aws_s3_object" "prefijos" {
+      + acl                    = (known after apply)
+      + arn                    = (known after apply)
+      + bucket                 = (known after apply)
+      + bucket_key_enabled     = (known after apply)
+      + checksum_crc32         = (known after apply)
+      + checksum_crc32c        = (known after apply)
+      + checksum_crc64nvme     = (known after apply)
+      + checksum_sha1          = (known after apply)
+      + checksum_sha256        = (known after apply)
+      + content_type           = (known after apply)
+      + etag                   = (known after apply)
+      + force_destroy          = false
+      + id                     = (known after apply)
+      + key                    = "raw/"
+      + kms_key_id             = (known after apply)
+      + server_side_encryption = (known after apply)
+      + storage_class          = (known after apply)
+      + tags_all               = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + version_id             = (known after apply)
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_s3_object.prefijos["staging/"] will be created
+  + resource "aws_s3_object" "prefijos" {
+      + acl                    = (known after apply)
+      + arn                    = (known after apply)
+      + bucket                 = (known after apply)
+      + bucket_key_enabled     = (known after apply)
+      + checksum_crc32         = (known after apply)
+      + checksum_crc32c        = (known after apply)
+      + checksum_crc64nvme     = (known after apply)
+      + checksum_sha1          = (known after apply)
+      + checksum_sha256        = (known after apply)
+      + content_type           = (known after apply)
+      + etag                   = (known after apply)
+      + force_destroy          = false
+      + id                     = (known after apply)
+      + key                    = "staging/"
+      + kms_key_id             = (known after apply)
+      + server_side_encryption = (known after apply)
+      + storage_class          = (known after apply)
+      + tags_all               = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + version_id             = (known after apply)
+        # (1 unchanged attribute hidden)
+    }
+
+  # aws_scheduler_schedule.diario will be created
+  + resource "aws_scheduler_schedule" "diario" {
+      + arn                          = (known after apply)
+      + group_name                   = (known after apply)
+      + id                           = (known after apply)
+      + name                         = "demanda-energetica-dev-diario"
+      + name_prefix                  = (known after apply)
+      + schedule_expression          = "cron(0 6 * * ? *)"
+      + schedule_expression_timezone = "America/Bogota"
+      + state                        = "ENABLED"
+
+      + flexible_time_window {
+          + maximum_window_in_minutes = 15
+          + mode                      = "FLEXIBLE"
+        }
+
+      + target {
+          + arn      = (known after apply)
+          + role_arn = (known after apply)
+
+          + retry_policy {
+              + maximum_event_age_in_seconds = 86400
+              + maximum_retry_attempts       = 2
+            }
+        }
+    }
+
+  # aws_scheduler_schedule.semanal will be created
+  + resource "aws_scheduler_schedule" "semanal" {
+      + arn                          = (known after apply)
+      + group_name                   = (known after apply)
+      + id                           = (known after apply)
+      + name                         = "demanda-energetica-dev-reentrenamiento"
+      + name_prefix                  = (known after apply)
+      + schedule_expression          = "cron(0 7 ? * MON *)"
+      + schedule_expression_timezone = "America/Bogota"
+      + state                        = "ENABLED"
+
+      + flexible_time_window {
+          + mode = "OFF"
+        }
+
+      + target {
+          + arn      = (known after apply)
+          + role_arn = (known after apply)
+        }
+    }
+
+  # aws_security_group.tareas will be created
+  + resource "aws_security_group" "tareas" {
+      + arn                    = (known after apply)
+      + description            = "Tareas del pipeline: sin entrada, salida HTTPS"
+      + egress                 = [
+          + {
+              + cidr_blocks      = [
+                  + "0.0.0.0/0",
+                ]
+              + description      = "HTTPS hacia APIs de XM/SIMEM/Open-Meteo, S3 y ECR"
+              + from_port        = 443
+              + ipv6_cidr_blocks = []
+              + prefix_list_ids  = []
+              + protocol         = "tcp"
+              + security_groups  = []
+              + self             = false
+              + to_port          = 443
+            },
+        ]
+      + id                     = (known after apply)
+      + ingress                = (known after apply)
+      + name                   = "demanda-energetica-dev-tareas"
+      + name_prefix            = (known after apply)
+      + owner_id               = (known after apply)
+      + revoke_rules_on_delete = false
+      + tags_all               = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + vpc_id                 = "vpc-0a6fc749697aee7ad"
+    }
+
+  # aws_sfn_state_machine.diario will be created
+  + resource "aws_sfn_state_machine" "diario" {
+      + arn                       = (known after apply)
+      + creation_date             = (known after apply)
+      + definition                = (known after apply)
+      + description               = (known after apply)
+      + id                        = (known after apply)
+      + name                      = "demanda-energetica-dev-pipeline-diario"
+      + name_prefix               = (known after apply)
+      + publish                   = false
+      + revision_id               = (known after apply)
+      + role_arn                  = (known after apply)
+      + state_machine_version_arn = (known after apply)
+      + status                    = (known after apply)
+      + tags_all                  = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + type                      = "STANDARD"
+      + version_description       = (known after apply)
+
+      + encryption_configuration (known after apply)
+
+      + logging_configuration {
+          + include_execution_data = true
+          + level                  = "ALL"
+          + log_destination        = (known after apply)
+        }
+
+      + tracing_configuration {
+          + enabled = true
+        }
+    }
+
+  # aws_sfn_state_machine.reentrenamiento will be created
+  + resource "aws_sfn_state_machine" "reentrenamiento" {
+      + arn                       = (known after apply)
+      + creation_date             = (known after apply)
+      + definition                = (known after apply)
+      + description               = (known after apply)
+      + id                        = (known after apply)
+      + name                      = "demanda-energetica-dev-reentrenamiento"
+      + name_prefix               = (known after apply)
+      + publish                   = false
+      + revision_id               = (known after apply)
+      + role_arn                  = (known after apply)
+      + state_machine_version_arn = (known after apply)
+      + status                    = (known after apply)
+      + tags_all                  = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + type                      = "STANDARD"
+      + version_description       = (known after apply)
+
+      + encryption_configuration (known after apply)
+
+      + logging_configuration {
+          + include_execution_data = true
+          + level                  = "ALL"
+          + log_destination        = (known after apply)
+        }
+
+      + tracing_configuration {
+          + enabled = true
+        }
+    }
+
+  # aws_sns_topic.alertas will be created
+  + resource "aws_sns_topic" "alertas" {
+      + arn                         = (known after apply)
+      + beginning_archive_time      = (known after apply)
+      + content_based_deduplication = false
+      + fifo_throughput_scope       = (known after apply)
+      + fifo_topic                  = false
+      + id                          = (known after apply)
+      + kms_master_key_id           = "alias/aws/sns"
+      + name                        = "demanda-energetica-dev-alertas"
+      + name_prefix                 = (known after apply)
+      + owner                       = (known after apply)
+      + policy                      = (known after apply)
+      + signature_version           = (known after apply)
+      + tags_all                    = {
+          + "Entorno"     = "dev"
+          + "Gestionado"  = "terraform"
+          + "ODS"         = "9"
+          + "Proyecto"    = "demanda-energetica"
+          + "Repositorio" = "github.com/ManuelSanabria2/Demanda-Energetica-"
+        }
+      + tracing_config              = (known after apply)
+    }
+
+  # aws_sns_topic_subscription.correo will be created
+  + resource "aws_sns_topic_subscription" "correo" {
+      + arn                             = (known after apply)
+      + confirmation_timeout_in_minutes = 1
+      + confirmation_was_authenticated  = (known after apply)
+      + endpoint                        = "<CORREO_ALERTAS>"
+      + endpoint_auto_confirms          = false
+      + filter_policy_scope             = (known after apply)
+      + id                              = (known after apply)
+      + owner_id                        = (known after apply)
+      + pending_confirmation            = (known after apply)
+      + protocol                        = "email"
+      + raw_message_delivery            = false
+      + topic_arn                       = (known after apply)
+    }
+
+Plan: 55 to add, 0 to change, 0 to destroy.
+
+Changes to Outputs:
+  + athena             = {
+      + base_de_datos = "demanda_energetica_dev_db"
+      + workgroup     = "demanda-energetica-dev-analitica"
+    }
+  + bucket_datalake    = "demanda-energetica-dev-datalake-<ID_CUENTA>"
+  + lambda_ingesta     = "demanda-energetica-dev-ingesta"
+  + maquinas_de_estado = {
+      + diario          = (known after apply)
+      + reentrenamiento = (known after apply)
+    }
+  + repositorio_ecr    = (known after apply)
+  + topico_alertas     = (known after apply)
