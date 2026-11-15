@@ -9,3 +9,12 @@ pytest>=8.0
 # scripts/generar_notebooks.py y las graficas de los notebooks.
 nbformat==5.11.1
 matplotlib==3.10.8
+# Mineria no supervisada y EDA (src/mineria, scripts/eda.py, scripts/mineria_no_supervisada.py).
+# Versiones que aceptan numpy 1.26 (ver la nota de pyarrow arriba).
+scipy==1.13.1
+scikit-learn==1.5.2
+statsmodels==0.14.4
+mlxtend==0.23.4
+# scripts/generar_entrega.py ejecuta los notebooks 03 y 04 para publicarlos con salidas.
+nbclient==0.11.0
+ipykernel==7.4.0
