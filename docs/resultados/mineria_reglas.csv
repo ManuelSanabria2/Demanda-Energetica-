@@ -1,0 +1,74 @@
+antecedente,consecuente,soporte,confianza,lift,n_items
+dia=domingo & puente,vispera_festivo,0.0304,1.0,20.304,3
+dia=domingo & vispera_festivo,puente,0.0304,1.0,10.958,3
+grupo=G2 & vispera_festivo,puente,0.0304,0.8289,9.083,3
+nivel=bajo & vispera_festivo,puente,0.0304,0.759,8.317,3
+puente & vispera_festivo,dia=domingo,0.0304,1.0,7.141,3
+vispera_festivo,puente,0.0304,0.6176,6.768,2
+dia=festivo & nivel=bajo,puente,0.0304,0.6176,6.768,3
+dia=festivo,puente,0.0304,0.6117,6.702,2
+grupo=G1 & puente,dia=sabado,0.0217,0.9375,6.672,3
+dia=festivo & grupo=G2,puente,0.029,0.6,6.575,3
+grupo=G2 & vispera_festivo,dia=domingo,0.0304,0.8289,5.92,3
+nivel=bajo & vispera_festivo,dia=domingo,0.0304,0.759,5.421,3
+grupo=G2 & nivel=bajo,dia=domingo,0.14,0.6776,4.839,3
+grupo=G2 & temp=fria,dia=domingo,0.0488,0.6516,4.653,3
+dia=domingo,grupo=G2,0.14,1.0,4.502,2
+dia=domingo & nivel=bajo,grupo=G2,0.14,1.0,4.502,3
+dia=domingo & temp=fria,grupo=G2,0.0488,1.0,4.502,3
+dia=domingo & temp=calida,grupo=G2,0.0464,1.0,4.502,3
+dia=domingo & puente,grupo=G2,0.0304,1.0,4.502,3
+dia=domingo & vispera_festivo,grupo=G2,0.0304,1.0,4.502,3
+puente & vispera_festivo,grupo=G2,0.0304,1.0,4.502,3
+grupo=G2,dia=domingo,0.14,0.6304,4.502,2
+grupo=G2 & temp=calida,dia=domingo,0.0464,0.6194,4.423,3
+vispera_festivo,dia=domingo,0.0304,0.6176,4.411,2
+dia=festivo,grupo=G2,0.0483,0.9709,4.371,2
+dia=festivo & nivel=bajo,grupo=G2,0.0478,0.9706,4.37,3
+dia=festivo & puente,grupo=G2,0.029,0.9524,4.288,3
+nivel=bajo & vispera_festivo,grupo=G2,0.0362,0.9036,4.068,3
+nivel=bajo & puente,grupo=G2,0.0637,0.7904,3.559,3
+nivel=bajo & temp=calida,grupo=G2,0.0662,0.7697,3.465,3
+puente & temp=calida,grupo=G2,0.0203,0.7636,3.438,3
+puente,grupo=G2,0.0681,0.746,3.359,2
+vispera_festivo,grupo=G2,0.0367,0.7451,3.355,2
+puente & temp=fria,grupo=G2,0.028,0.6824,3.072,3
+dia=domingo,nivel=bajo,0.14,1.0,2.993,2
+dia=domingo & grupo=G2,nivel=bajo,0.14,1.0,2.993,3
+dia=domingo & temp=fria,nivel=bajo,0.0488,1.0,2.993,3
+dia=domingo & temp=calida,nivel=bajo,0.0464,1.0,2.993,3
+dia=domingo & puente,nivel=bajo,0.0304,1.0,2.993,3
+dia=domingo & vispera_festivo,nivel=bajo,0.0304,1.0,2.993,3
+dia=festivo & puente,nivel=bajo,0.0304,1.0,2.993,3
+puente & vispera_festivo,nivel=bajo,0.0304,1.0,2.993,3
+dia=festivo,nivel=bajo,0.0493,0.9903,2.964,2
+dia=festivo & grupo=G2,nivel=bajo,0.0478,0.99,2.963,3
+grupo=G2 & temp=fria,nivel=bajo,0.0739,0.9871,2.954,3
+grupo=G2 & vispera_festivo,nivel=bajo,0.0362,0.9868,2.953,3
+grupo=G2 & puente,nivel=bajo,0.0637,0.9362,2.802,3
+grupo=G2,nivel=bajo,0.2067,0.9304,2.785,2
+nivel=bajo,grupo=G2,0.2067,0.6185,2.785,2
+puente & temp=fria,nivel=bajo,0.0381,0.9294,2.782,3
+grupo=G2 & temp=calida,nivel=bajo,0.0662,0.8839,2.645,3
+puente,nivel=bajo,0.0806,0.8836,2.644,2
+vispera_festivo,nivel=bajo,0.0401,0.8137,2.435,2
+puente & temp=calida,nivel=bajo,0.0203,0.7636,2.285,3
+dia=sabado & temp=fria,nivel=bajo,0.0357,0.7551,2.26,3
+dia=laboral & temp=calida,nivel=alto,0.1545,0.6957,2.082,3
+grupo=G1 & temp=calida,nivel=alto,0.1603,0.6182,1.85,3
+dia=laboral & nivel=bajo,temp=fria,0.0391,0.6045,1.809,3
+nivel=alto & temp=fria,dia=laboral,0.0613,0.9845,1.47,3
+grupo=G1 & nivel=alto,dia=laboral,0.325,0.9754,1.456,3
+nivel=alto,dia=laboral,0.325,0.9725,1.452,2
+nivel=alto & temp=calida,dia=laboral,0.1545,0.961,1.435,3
+dia=laboral & nivel=alto,grupo=G1,0.325,1.0,1.286,3
+nivel=alto & temp=fria,grupo=G1,0.0623,1.0,1.286,3
+dia=laboral & temp=fria,grupo=G1,0.2192,0.9978,1.283,3
+nivel=alto,grupo=G1,0.3332,0.9971,1.282,2
+nivel=alto & temp=calida,grupo=G1,0.1603,0.997,1.282,3
+dia=laboral,grupo=G1,0.6668,0.9957,1.28,2
+grupo=G1,dia=laboral,0.6668,0.8572,1.28,2
+dia=laboral & temp=calida,grupo=G1,0.2197,0.9891,1.272,3
+grupo=G1 & temp=calida,dia=laboral,0.2197,0.8473,1.265,3
+grupo=G1 & temp=fria,dia=laboral,0.2192,0.8454,1.262,3
+dia=laboral & nivel=bajo,grupo=G1,0.0628,0.9701,1.247,3

@@ -1,0 +1,194 @@
+{
+  "fuente": "XM DemaReal/Sistema via panel_modelado.parquet",
+  "dias_parciales_excluidos": 5,
+  "descriptivos_mwh": {
+    "n": 49704,
+    "nulos": 0,
+    "media": 9116.57869194069,
+    "desviacion": 1219.932124677358,
+    "coef_variacion_pct": 13.381468705533273,
+    "minimo": 5349.866150000001,
+    "q1": 8163.879817499999,
+    "mediana": 9160.117865,
+    "q3": 10045.6985625,
+    "maximo": 12644.44657,
+    "asimetria": -0.048425746486610265,
+    "curtosis_exceso": -0.7629188708648118,
+    "rango": [
+      "2021-01-01 00:00:00",
+      "2026-09-02 23:00:00"
+    ]
+  },
+  "perfil_horario": {
+    "hora_pico_mediana": 19,
+    "hora_valle_mediana": 3,
+    "pico_mwh": 10336.45548,
+    "valle_mwh": 7585.50704,
+    "valle_sobre_pico": 0.7338595957460652,
+    "pico_diario_hora_frecuencia": {
+      "19": 1624,
+      "18": 361,
+      "14": 46,
+      "15": 21,
+      "11": 18,
+      "20": 1
+    }
+  },
+  "crecimiento_anual": {
+    "2021": {
+      "energia_mwh": 73335604.90473,
+      "dias": 365,
+      "media_diaria_mwh": 200919.465492411,
+      "completo": true,
+      "variacion_media_diaria_pct": null,
+      "energia_gwh": 73335.60490473
+    },
+    "2022": {
+      "energia_mwh": 75825580.60373,
+      "dias": 365,
+      "media_diaria_mwh": 207741.3167225479,
+      "completo": true,
+      "variacion_media_diaria_pct": 3.3953162345,
+      "energia_gwh": 75825.58060373
+    },
+    "2023": {
+      "energia_mwh": 79934389.55691,
+      "dias": 365,
+      "media_diaria_mwh": 218998.3275531781,
+      "completo": true,
+      "variacion_media_diaria_pct": 5.4187635894,
+      "energia_gwh": 79934.38955691
+    },
+    "2024": {
+      "energia_mwh": 82181110.09739,
+      "dias": 366,
+      "media_diaria_mwh": 224538.5521786612,
+      "completo": true,
+      "variacion_media_diaria_pct": 2.5298022535,
+      "energia_gwh": 82181.11009739
+    },
+    "2025": {
+      "energia_mwh": 83296321.10831,
+      "dias": 365,
+      "media_diaria_mwh": 228209.0989268767,
+      "completo": true,
+      "variacion_media_diaria_pct": 1.6347066963,
+      "energia_gwh": 83296.32110831
+    },
+    "2026": {
+      "energia_mwh": 58557421.03315,
+      "dias": 245,
+      "media_diaria_mwh": 239009.8817679592,
+      "completo": false,
+      "variacion_media_diaria_pct": 4.7328449619,
+      "energia_gwh": 58557.42103315
+    }
+  },
+  "estacionariedad": {
+    "serie": "media diaria (MWh)",
+    "adf_estadistico": -2.073260820622229,
+    "adf_p": 0.2554015739726775,
+    "kpss_estadistico": 6.834872559470557,
+    "kpss_p": 0.01,
+    "adf_diferencia_semanal_estadistico": -12.19416835463612,
+    "adf_diferencia_semanal_p": 1.2656954392221547e-22
+  },
+  "acf": {
+    "1": 0.9640546861241858,
+    "24": 0.8573641703804753,
+    "48": 0.7510281932452283,
+    "168": 0.923761057397622,
+    "336": 0.8966566275294169
+  },
+  "stl": {
+    "fuerza_tendencia": 0.8313664876636847,
+    "fuerza_estacional_semanal": 0.7123117628131028
+  },
+  "calendario": {
+    "variable": "demanda diaria / media del ano",
+    "medianas": {
+      "laboral": 1.0302234126634033,
+      "sabado": 0.9859677550622762,
+      "domingo": 0.8996077190255578,
+      "festivo": 0.9030758329137857
+    },
+    "n": {
+      "laboral": 1387,
+      "sabado": 291,
+      "domingo": 290,
+      "festivo": 103
+    },
+    "kruskal_h": 1138.306832882592,
+    "kruskal_p": 1.77935515670077e-246,
+    "epsilon_cuadrado": 0.5499066825519768,
+    "mannwhitney_festivo_menor_que_laboral_u": 1139.0,
+    "mannwhitney_p": 8.5979309826286e-63,
+    "efecto_r_rank_biserial": 0.9840544305303757,
+    "festivo_vs_laboral_pct": -12.341748225358916
+  },
+  "atipicos_causales_horas": 273,
+  "temperatura": {
+    "spearman_horario": 0.694203786345722,
+    "spearman_horario_p": 0.0,
+    "spearman_por_hora": {
+      "0": 0.527826889683001,
+      "1": 0.5492918937374075,
+      "2": 0.529768308814611,
+      "3": 0.5090281030989386,
+      "4": 0.4638660141293666,
+      "5": 0.39267570725546247,
+      "6": 0.329503713181228,
+      "7": 0.32320886875671784,
+      "8": 0.39287011717080933,
+      "9": 0.41834114897804775,
+      "10": 0.4371024987341348,
+      "11": 0.44466908247732695,
+      "12": 0.4497523102194332,
+      "13": 0.41648859731633764,
+      "14": 0.4059235109246374,
+      "15": 0.4028641984419432,
+      "16": 0.42833947831883146,
+      "17": 0.43046314069494024,
+      "18": 0.5050818283773403,
+      "19": 0.5817124362724663,
+      "20": 0.6171506099576173,
+      "21": 0.6036664591089845,
+      "22": 0.5796793721323417,
+      "23": 0.5536350844062389
+    },
+    "spearman_anomalia_diaria": 0.26443241151431,
+    "spearman_anomalia_diaria_p": 1.7824979435546464e-34,
+    "temperatura_media": 18.718263781586998,
+    "temperatura_min": 10.879,
+    "temperatura_max": 28.767
+  },
+  "correlacion_con_objetivo_r24": {
+    "lag_168": 0.9321,
+    "lag_24": 0.8503,
+    "temperatura_c": 0.6953,
+    "hora_sin": -0.5495,
+    "hora_cos": -0.471,
+    "ma_168": 0.4241,
+    "std_168": 0.2298,
+    "dia_semana_sin": 0.2132,
+    "es_puente": -0.1729,
+    "es_festivo": -0.1621,
+    "es_vispera_festivo": -0.1314,
+    "dia_semana_cos": -0.1052,
+    "es_semana_santa": -0.0663,
+    "mes_sin": -0.0562,
+    "mes_cos": -0.0521,
+    "es_ultima_semana_diciembre": -0.0485
+  },
+  "figuras": [
+    "docs/figuras/eda/01_serie_diaria.png",
+    "docs/figuras/eda/02_heatmap_hora_dia.png",
+    "docs/figuras/eda/03_cajas_hora_mes.png",
+    "docs/figuras/eda/04_distribucion.png",
+    "docs/figuras/eda/05_acf_pacf.png",
+    "docs/figuras/eda/06_stl.png",
+    "docs/figuras/eda/07_temperatura.png",
+    "docs/figuras/eda/08_tipo_de_dia.png",
+    "docs/figuras/eda/09_correlacion_r24.png"
+  ]
+}

@@ -1,0 +1,3 @@
+grupo,dias,pct_dias,nivel_medio_mwh,hora_pico,hora_valle,pico_sobre_media,valle_sobre_pico,factor_carga,pct_laboral,pct_sabado,pct_domingo,pct_festivo,pct_es_semana_santa,pct_es_ultima_semana_diciembre,pct_es_puente,temperatura_media_c,dia_mas_comun
+G1,1611,77.79,9320.7,19,3,1.136,0.722,0.88,85.7,14.1,0.0,0.2,1.2,1.1,3.0,18.69,martes
+G2,460,22.21,8401.6,19,6,1.154,0.743,0.866,1.3,13.9,63.0,21.7,4.8,3.7,30.7,18.83,domingo
