@@ -1,0 +1,5 @@
+# Herramientas de la capa de nube, aparte del pipeline (no las necesita el modelo).
+boto3>=1.34            # s3sync.py fuera de Lambda (en Lambda ya viene en la imagen base)
+diagrams==0.25.1       # infra/diagrama/arquitectura.py (requiere graphviz instalado)
+checkov>=3.2           # analisis estatico: checkov -d infra/terraform
+python-hcl2>=7         # verificacion de sintaxis HCL sin el binario de Terraform

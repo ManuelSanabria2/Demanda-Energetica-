@@ -1,0 +1,11 @@
+# Estado remoto en S3 con bloqueo nativo (Terraform >= 1.10, use_lockfile).
+# Crear el bucket una sola vez, a mano o con otro stack, antes de `terraform init`.
+terraform {
+  backend "s3" {
+    bucket       = "demanda-energetica-tfstate-<cuenta>"
+    key          = "demanda-energetica/dev/terraform.tfstate"
+    region       = "us-east-1"
+    encrypt      = true
+    use_lockfile = true
+  }
+}
