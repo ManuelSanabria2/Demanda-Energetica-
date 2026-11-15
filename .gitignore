@@ -51,3 +51,5 @@ infra/terraform/*.tfstate.*
 infra/terraform/*.tfplan
 infra/terraform/terraform.tfvars
 infra/terraform/backend.tf
+# Salidas sin redactar (ID de cuenta, correo): la version publicada va redactada.
+infra/terraform/evidencia/*_sin_redactar.txt

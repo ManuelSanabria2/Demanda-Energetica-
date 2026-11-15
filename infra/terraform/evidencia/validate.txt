@@ -1,0 +1,3 @@
+$ terraform validate
+Success! The configuration is valid.
+

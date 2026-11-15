@@ -158,8 +158,8 @@ resource "aws_ecs_task_definition" "tarea" {
   }
 
   container_definitions = jsonencode([{
-    name      = each.key
-    image     = local.imagen
+    name             = each.key
+    image            = local.imagen
     essential        = true
     entryPoint       = ["/bin/sh", "-c"]
     command          = [each.value.comando]
