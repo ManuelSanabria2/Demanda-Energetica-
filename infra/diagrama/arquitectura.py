@@ -27,15 +27,18 @@ SALIDA = RAIZ / "docs" / "figuras" / "cloud" / "arquitectura"
 
 AZUL, NARANJA, VERDE, GRIS = "#2a78d6", "#eb6834", "#1baf7a", "#52514e"
 
+# Disposicion compacta: la figura ocupa el ancho de la pagina del informe, asi que
+# cuanto mas ancho que alto sea el grafo, mas grandes llegan los textos al PDF.
 atributos = {
-    "fontsize": "13",
+    "fontsize": "16",
     "fontname": "DejaVu Sans",
-    "pad": "0.4",
-    "nodesep": "0.55",
-    "ranksep": "1.1",
+    "pad": "0.5",
+    "nodesep": "0.35",
+    "ranksep": "0.9",
     "splines": "spline",
     "bgcolor": "white",
 }
+CLUSTER = {"fontsize": "15"}
 
 SALIDA.parent.mkdir(parents=True, exist_ok=True)
 with Diagram(
@@ -45,46 +48,51 @@ with Diagram(
     show=False,
     direction="LR",
     graph_attr=atributos,
-    node_attr={"fontsize": "11", "fontname": "DejaVu Sans"},
+    node_attr={"fontsize": "14", "fontname": "DejaVu Sans"},
 ):
-    with Cluster("External open data (public APIs)"):
+    with Cluster("External open data (public APIs)", graph_attr=CLUSTER):
         xm = Firewall("XM SINERGOX\nDemaReal (hourly)")
         simem = Firewall("SIMEM\n14fabb")
         clima = Firewall("Open-Meteo\narchive")
 
-    with Cluster("Orchestration"):
+    with Cluster("Orchestration", graph_attr=CLUSTER):
         horario = Eventbridge("EventBridge Scheduler\ndaily 06:00 / weekly Mon\n(America/Bogota)")
         diario = StepFunctions("Step Functions\ndaily pipeline")
         semanal = StepFunctions("Step Functions\nweekly retraining")
 
-    with Cluster("Compute (one container image)"):
+    with Cluster("Compute (one container image)", graph_attr=CLUSTER):
         repo = ECR("ECR\npipeline image")
         ingesta = Lambda("Lambda\nincremental ingestion")
-        with Cluster("ECS Fargate (Spot)"):
+        with Cluster("ECS Fargate (Spot)", graph_attr=CLUSTER):
             procesar = ElasticContainerServiceContainer("procesar\nclean + panel + features")
             predecir = ElasticContainerServiceContainer("predecir\n24 h forecast")
             entrenar = ElasticContainerServiceContainer("entrenar\nmodel ladder,\nwalk-forward")
 
-    with Cluster("S3 data lake (versioned, SSE, TLS-only)"):
+    with Cluster("S3 data lake (versioned, SSE, TLS-only)", graph_attr=CLUSTER):
         raw = S3("raw/ + staging/")
         procesado = S3("processed/\npanel, r24, r120")
         modelos = S3("models/")
         pronosticos = S3("predictions/")
 
-    with Cluster("Consumption"):
+    with Cluster("Consumption", graph_attr=CLUSTER):
         catalogo = Glue("Glue Data Catalog\n(partition projection)")
         athena = Athena("Athena workgroup\n1 GB/query cap")
         usuarios = Users("Planners / analysts")
 
-    with Cluster("Monitoring & governance"):
-        metricas = Cloudwatch("CloudWatch\nlogs + MAPE metrics")
-        alarmas = CloudwatchAlarm("Alarms: failures,\nno forecast, MAPE drift")
+    with Cluster("Monitoring & governance", graph_attr=CLUSTER):
+        # Partidas en tres lineas: en dos invadian la etiqueta vecina.
+        metricas = Cloudwatch("CloudWatch\nlogs + MAPE\nmetrics")
+        alarmas = CloudwatchAlarm("Alarms: failures,\nno forecast,\nMAPE drift")
         aviso = SNS("SNS e-mail\n(also on any\npipeline failure)")
         presupuesto = Budgets("AWS Budgets\n10 USD/month")
         iam = IAMRole("Least-privilege\nIAM roles")
 
     horario >> Edge(color=GRIS) >> [diario, semanal]
-    [xm, simem, clima] >> Edge(color=GRIS, style="dashed") >> ingesta
+    # Fuentes externas en dos columnas (XM y Open-Meteo en la primera, SIMEM en la segunda)
+    # en lugar de una pila de tres sobre la orquestacion.
+    [xm, clima] >> Edge(color=GRIS, style="dashed", minlen="2") >> ingesta
+    simem >> Edge(color=GRIS, style="dashed") >> ingesta
+    xm >> Edge(style="invis") >> simem
     diario >> Edge(color=AZUL, label="1 ingest") >> ingesta
     diario >> Edge(color=AZUL, label="2 process") >> procesar
     diario >> Edge(color=AZUL, label="3 forecast") >> predecir

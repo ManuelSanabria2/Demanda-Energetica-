@@ -99,7 +99,7 @@ Phase & Implementation (repository) & Status \\
 Business understanding & Problem, SDG, baseline and success criterion (this document) & Done \\
 Data understanding & \texttt{src/ingesta}, \texttt{src/calidad}, notebooks 01--02, \texttt{notas/} & Done \\
 Data preparation & \texttt{src/limpieza}, \texttt{src/variables}, panel and tables r24/r120 & Done \\
-EDA and unsupervised mining & \texttt{src/mineria}, \texttt{scripts/eda.py}, \nolinkurl{scripts/mineria_no_supervisada.py} & This report \\
+EDA and unsupervised mining & \texttt{src/mineria}, \texttt{scripts/eda.py}, \texttt{scripts/mineria\_no\_\allowbreak{}supervisada.py} & This report \\
 Modelling & Model ladder with walk-forward validation & Next \\
 Evaluation & Global and peak-hour metrics, residual analysis & Next \\
 Deployment & \texttt{infra/terraform} (architecture as code) & This report \\
@@ -134,7 +134,7 @@ The quality diagnosis (\texttt{src/calidad}) describes without correcting; clean
 Two modelling tables are built from the panel, differing in one parameter: the minimum lag between the hour to forecast and the last demand available. \texttt{r24} (\rVeinticuatroFilas{} rows) assumes demand is known up to $t-24$~h (academic backtesting); \texttt{r120} (\rCientoVeinteFilas{} rows) respects the real availability ($\approx$5 days of publication lag). Features: \texttt{lag\_24}, \texttt{lag\_168}, a 168-h rolling mean and standard deviation that end at $t-r$, weighted temperature, sine/cosine of hour, weekday and month, and five calendar flags (holiday with Emiliani law, eve, long weekend, Holy Week, last week of December). \texttt{lag\_1} cannot be generated: the construction fails below the horizon. Columns computed with the target hour itself (outlier flags, z-scores) are excluded with their reason in the registry. Nothing is scaled or imputed with full-sample statistics.
 
 \subsection{Exploratory data analysis}\label{sec:eda}
-EDA is computed by \texttt{scripts/eda.py} on \edaHoras{} hours (\edaDesde{} to \edaHasta{}). Hourly demand has mean \edaMedia~MWh (s.d. \edaDesv, CV \edaCV\%), median \edaMediana, range \edaMin--\edaMax~MWh, skewness \edaAsimetria{} and excess kurtosis \edaCurtosis. The distribution is bimodal (night valley vs. day plateau), so non-parametric tests are used throughout.
+EDA is computed by \texttt{scripts/eda.py} on \edaHoras{} hours (\edaDesde{} to \edaHasta{}). Hourly demand has mean \edaMedia~MWh (s.d. \edaDesv, CV \edaCV\%), median \edaMediana, range \edaMin--\edaMax~MWh, skewness \edaAsimetria{} and excess kurtosis \edaCurtosis. The distribution is not normal: it is flat and only weakly bimodal, with a shoulder from the night hours and a main mode from the day plateau, so non-parametric tests are used throughout.
 
 \begin{figure*}[!t]
 \centering
@@ -145,31 +145,43 @@ EDA is computed by \texttt{scripts/eda.py} on \edaHoras{} hours (\edaDesde{} to 
 \caption{EDA of the SIN hourly demand. Top: daily energy with 30-day mean and days containing causal outlier hours; median demand by weekday and hour. Bottom: hourly demand relative to its year's mean by hour and month; autocorrelation (2 weeks) and partial autocorrelation (48~h).}\label{fig:eda1}
 \end{figure*}
 
-\textbf{Trend.} Mean daily demand grew at a compound \edaCrecimientoAnual\% per year between \edaAnioIni{} and \edaAnioFin{} (\edaEnergiaUltimo~GWh in \edaAnioFin). ADF on the daily series gives $p=$\edaAdfP{} and KPSS $p=$\edaKpssP{} (stationarity rejected), while ADF on the weekly difference gives $p=$\edaAdfDiffP. A robust STL decomposition~\cite{cleveland1990} (Fig.~\ref{fig:eda2}) yields a trend strength of \edaFuerzaTendencia{} and weekly seasonal strength of \edaFuerzaSemanal. \emph{Implication:} tree ensembles cannot extrapolate a growing level, so the model ladder will predict the weekly difference or combine a linear trend with a tree on the residual.
+\textbf{Trend.} Mean daily demand grew at a compound \edaCrecimientoAnual\% per year between \edaAnioIni{} and \edaAnioFin{} (\edaEnergiaUltimo~GWh in \edaAnioFin). On the daily series ADF does not reject a unit root ($p={}$\edaAdfP) and KPSS rejects stationarity ($p\leq{}$\edaKpssP, the lower bound of its lookup table), so the level is non-stationary; on the weekly difference ADF rejects a unit root ($p={}$\edaAdfDiffP). A robust STL decomposition~\cite{cleveland1990} (Fig.~\ref{fig:stl}) yields a trend strength of \edaFuerzaTendencia{} and weekly seasonal strength of \edaFuerzaSemanal. \emph{Implication:} tree ensembles cannot extrapolate a growing level, and the weekly difference is stationary, so the model ladder will predict the weekly difference or combine a linear trend with a tree on the residual.
 
 \textbf{Daily and weekly seasonality.} The median profile has its valley at \edaHoraValle{}~h and its peak at \edaHoraPico{}~h, with the valley at \edaValleSobrePico\% of the peak (Fig.~\ref{fig:eda1}). The autocorrelation is \edaAcfVeinticuatro{} at 24~h and \edaAcfSemana{} at 168~h, higher than at 24~h: \emph{the same hour of the previous week is more informative than the previous day}, which supports \texttt{lag\_168} and the seasonal-naïve baseline.
 
-\textbf{Calendar.} Daily demand relative to its year's mean differs across day types (Kruskal--Wallis $H=$\edaKruskalH, $p=$\edaKruskalP, $\varepsilon^2=$\edaEpsilon; medians: weekday \edaMedianaLaboral, Saturday \edaMedianaSabado, Sunday \edaMedianaDomingo, holiday \edaMedianaFestivo). Holidays sit \edaFestivoPct\% below weekdays (one-sided Mann--Whitney $p=$\edaMannWhitneyP, rank-biserial $r=$\edaRankBiserial) and behave like Sundays (Fig.~\ref{fig:eda2}), which validates the holiday flags with the Emiliani law.
+\textbf{Calendar.} Daily demand relative to its year's mean differs across day types (Kruskal--Wallis $H={}$\edaKruskalH, $p={}$\edaKruskalP, $\varepsilon^2={}$\edaEpsilon; medians: weekday \edaMedianaLaboral, Saturday \edaMedianaSabado, Sunday \edaMedianaDomingo, holiday \edaMedianaFestivo). Relative to weekdays, holiday demand changes by \edaFestivoPct\% (one-sided Mann--Whitney $p={}$\edaMannWhitneyP, rank-biserial $r={}$\edaRankBiserial), and holidays behave like Sundays: their medians are almost identical (\edaMedianaFestivo{} and \edaMedianaDomingo, Fig.~\ref{fig:eda2}). \emph{Implication:} a model that only knows the weekday would treat a Monday holiday as a working day and overestimate it, which is what the holiday flags with the Emiliani law correct.
 
-\textbf{Temperature.} The hourly Spearman correlation between demand and weighted temperature is \edaRhoHorario, but it is confounded by the daily cycle (both rise during the day). Within each hour the correlation ranges from \edaRhoHoraMin{} to \edaRhoHoraMax, and between daily anomalies (deviation from a 28-day median) it is \edaRhoAnomalia{} ($p=$\edaRhoAnomaliaP). \emph{Implication:} temperature acts through an interaction with the hour, which a tree captures and a linear model does not.
+\textbf{Temperature.} The hourly Spearman correlation between demand and weighted temperature is \edaRhoHorario, but it is confounded by the daily cycle (both rise during the day). Within each hour the correlation ranges from \edaRhoHoraMin{} to \edaRhoHoraMax{} (Fig.~\ref{fig:eda2}), and between daily anomalies (deviation from a 28-day median) it is \edaRhoAnomalia{} ($p={}$\edaRhoAnomaliaP). The correlation is positive at every hour and roughly doubles from the morning ramp to the evening peak. \emph{Implication:} temperature acts through an interaction with the hour, which a tree captures directly and a linear model only with explicit temperature-by-hour terms; since the association between anomalies is weak, temperature should refine the forecast rather than drive it.
 
-\textbf{Feature relevance.} In table \texttt{r24}, the Spearman correlation with the target is \edaCorrLagSemana{} for \texttt{lag\_168}, \edaCorrLagDia{} for \texttt{lag\_24}, \edaCorrTemp{} for temperature and \edaCorrHoraCos{} for the hour cosine (Fig.~\ref{fig:eda2}).
+\textbf{Feature relevance.} In table \texttt{r24}, the Spearman correlation with the target is \edaCorrLagSemana{} for \texttt{lag\_168}, \edaCorrLagDia{} for \texttt{lag\_24}, \edaCorrTemp{} for temperature and \edaCorrHoraCos{} for the hour cosine (Fig.~\ref{fig:corr}). \emph{Implication:} the ranking agrees with the autocorrelation, so \texttt{lag\_168} is the anchor of every model; the correlation of temperature is inflated by the daily cycle shown above, and the calendar flags have small marginal correlations because they affect few days, which does not make them irrelevant given the holiday effect.
 
 \begin{figure*}[!t]
 \centering
-\figura{eda/06_stl.png}{0.49\textwidth}\hfill
-\figura{eda/08_tipo_de_dia.png}{0.49\textwidth}\\[2pt]
-\figura{eda/07_temperatura.png}{0.49\textwidth}\hfill
-\figura{eda/09_correlacion_r24.png}{0.40\textwidth}
-\caption{Top: robust STL decomposition of daily energy; daily demand by type of day. Bottom: demand vs. temperature and per-hour correlation; Spearman correlation matrix of the \texttt{r24} modelling table.}\label{fig:eda2}
+\figura{eda/08_tipo_de_dia.png}{0.49\textwidth}\hfill
+\figura{eda/07_temperatura.png}{0.49\textwidth}
+\caption{Left: daily demand by type of day. Right: demand vs.\ temperature and per-hour correlation.}\label{fig:eda2}
 \end{figure*}
+
+\begin{figure}[!t]
+\centering
+\figura{eda/06_stl.png}{\columnwidth}
+\caption{Robust STL decomposition of daily energy.}\label{fig:stl}
+\end{figure}
+
+\begin{figure}[!t]
+\centering
+\figura{eda/09_correlacion_r24.png}{\columnwidth}
+\caption{Spearman correlation matrix of the \texttt{r24} modelling table.}\label{fig:corr}
+\end{figure}
 
 \subsection{Unsupervised mining I: clustering of daily load shapes}
 \textbf{Design.} Each complete day (24 observed hours, partial-publication days excluded) is a 24-dimensional vector divided by its own mean, so that clusters capture the \emph{shape} of the day and not the year-to-year growth of its level. Calendar and weather do \emph{not} enter the algorithm; they are used afterwards to interpret the clusters. K-means~\cite{macqueen1967} (20 initialisations) is evaluated for $k=2,\dots,10$ with inertia, silhouette~\cite{rousseeuw1987}, Davies--Bouldin and a stability index: the mean adjusted Rand index~\cite{hubert1985} between the reference partition and partitions fitted on 80\% subsamples with other seeds. The chosen $k$ maximises the silhouette among stable partitions (ARI $\geq 0.80$, no cluster below 10 days). Ward's hierarchical clustering is used as an independent check.
 
-\textbf{Results.} On \minDias{} days the procedure selects $k=$\minK{} (silhouette \minSilueta, Davies--Bouldin \minDaviesBouldin, stability ARI \minEstabilidad). Ward's method reproduces the partition with ARI \minAriWard, so the clusters are not an artefact of K-means. The two first principal components explain \minVarPca\% of the variance of the shapes. Cluster membership is strongly associated with the day type (Cram\'er's $V=$\minCramer). Table~\ref{tab:grupos} and Fig.~\ref{fig:mineria} summarise the clusters.
+\textbf{Results.} On \minDias{} days the procedure selects $k={}$\minK{} (silhouette \minSilueta, Davies--Bouldin \minDaviesBouldin, stability ARI \minEstabilidad). Ward's method reproduces the partition with ARI \minAriWard, so the clusters are not an artefact of K-means. The two first principal components explain \minVarPca\% of the variance of the shapes. Cluster membership is strongly associated with the day type (Cram\'er's $V={}$\minCramer). Table~\ref{tab:grupos} and Fig.~\ref{fig:mineria} summarise the clusters.
 
 \input{generado/interpretacion_grupos.tex}
+
+G1 is the working-day shape, with a deep night valley at 3~h and a flat plateau from 11 to 16~h, while G2 is the rest-day shape, with the valley delayed to 6~h, a lower midday plateau and a more pronounced evening peak; G2 also takes about a fifth of the Saturdays. During Holy Week the clusters follow the holidays rather than the week: Holy Thursday and Good Friday fall in G2 every year, the Saturday is split, and Monday to Wednesday almost always stay in G1. The days farthest from their centroid concentrate at the end of the year: New Year's Day (2023, 2025 and 2026), Christmas Day, Christmas Eve and Epiphany, and New Year's Eve falls in G2 even when it is a working day (2021, 2024 and 2025). A few ordinary Saturdays and Mondays, such as 2 and 11 September 2023, are also atypical with no calendar explanation and deserve a check against the outlier flags before modelling.
 
 \begin{table}[!t]
 \caption{Clusters of daily load shape (K-means). Composition by day type, peak hour of the centroid, valley/peak ratio and mean level}\label{tab:grupos}
@@ -200,6 +212,8 @@ To address the scope question---how much of the non-regulated load behaves like 
 
 \input{generado/interpretacion_sectores.tex}
 
+S1 is dominated by continuous processes such as crude oil extraction, nickel mining, steel, plastics and water treatment, which keep a nearly flat week: Sunday load is about three quarters of a weekday and night load is close to 80\% of day load. S2 groups smaller sub-activities such as universities, real estate and retail, whose consumption follows office and shop hours, with high weekday daytime load, a shorter Saturday peak and Sunday load below half of a weekday. Because S2 carries only 4.5\% of the energy, working-hours activity is a small part of the non-regulated load, and most of it behaves like S1. Manufacturing is not a cluster of its own, since it accounts for 42\% of the energy of S1 and 16\% of S2, so the sector label alone does not determine the load shape.
+
 \begin{table}[!t]
 \caption{Clusters of CIIU sub-activities (non-regulated market) by weekly profile. Medians of shape features and share of manufacturing energy}\label{tab:sectores}
 \centering\scriptsize\setlength{\tabcolsep}{3pt}
@@ -221,7 +235,7 @@ Fig.~\ref{fig:arquitectura} shows the proposed AWS architecture (region \texttt{
 
 \begin{figure*}[!t]
 \centering
-\figura{cloud/arquitectura.png}{0.82\textwidth}
+\figura{cloud/arquitectura.png}{\textwidth}
 \caption{Proposed AWS architecture, generated from code (\texttt{infra/diagrama/arquitectura.py}) and matching the Terraform resources one to one.}\label{fig:arquitectura}
 \end{figure*}
 
@@ -252,7 +266,19 @@ The project is also the integrative project of the Economic Evaluation of AI Sol
 % ============================================================================
 \section{Reproducibility}
 % ============================================================================
-Every figure and number in this report is regenerated by scripts; none is typed by hand. From a clean clone: \texttt{pip install -r requirements.txt}; \texttt{python -m ingesta.cli --fuente todas} (download, minutes); \texttt{python scripts/construir\_panel.py --imputacion causal}; \texttt{python scripts/construir\_variables.py}; \texttt{python scripts/eda.py}; \texttt{python scripts/mineria\_no\_supervisada.py}; \texttt{python infra/costos/estimar\_costos.py}; and \texttt{python docs/informe/generar\_valores.py} before compiling this \LaTeX{} source. The test suite (\texttt{python -m pytest tests}, \nPruebas{} tests, network blocked) includes end-to-end runs of the EDA and mining scripts on a synthetic panel built with the production functions, temporal-leakage tests for both modelling tables and tests of the cloud synchronisation code. Data are not versioned (they are regenerable), but the download manifest, the cleaning and feature registries and the SHA-256 of each table are.
+Every figure and number in this report is regenerated by scripts; none is typed by hand. From a clean clone, the commands below are run in order before compiling this \LaTeX{} source (the download takes minutes):\par
+{\footnotesize
+\begin{itemize}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}
+\item \texttt{pip install -r requirements.txt}
+\item \texttt{python -m ingesta.cli -{}-fuente todas}
+\item \texttt{python scripts/construir\_panel.py -{}-imputacion causal}
+\item \texttt{python scripts/construir\_variables.py}
+\item \texttt{python scripts/eda.py}
+\item \texttt{python scripts/mineria\_no\_supervisada.py}
+\item \texttt{python infra/costos/estimar\_costos.py}
+\item \texttt{python docs/informe/generar\_valores.py}
+\end{itemize}}
+\noindent The test suite (\texttt{python -m pytest tests}, \nPruebas{} tests, network blocked) includes end-to-end runs of the EDA and mining scripts on a synthetic panel built with the production functions, temporal-leakage tests for both modelling tables and tests of the cloud synchronisation code. Data are not versioned (they are regenerable), but the download manifest, the cleaning and feature registries and the SHA-256 of each table are.
 
 % ============================================================================
 \section{Progress, Limitations and Next Steps}

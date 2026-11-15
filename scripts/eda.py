@@ -195,7 +195,8 @@ def fig_calendario(diario: pd.Series, tipos: pd.Series) -> Path:
 def fig_correlacion(tabla: pd.DataFrame) -> Path:
     columnas = [c for c in tabla.columns if c != "fecha_hora"]
     matriz = tabla[columnas].astype(float).corr(method="spearman")
-    figura, eje = plt.subplots(figsize=(6.4, 5.2))
+    # Tamano pensado para una columna del informe (~3.5 in): asi las etiquetas llegan legibles al PDF.
+    figura, eje = plt.subplots(figsize=(4.8, 4.4))
     imagen = eje.imshow(matriz.values, cmap=DIVERGENTE, vmin=-1, vmax=1)
     eje.set_xticks(range(len(columnas)), columnas, rotation=60, ha="right", fontsize=7)
     eje.set_yticks(range(len(columnas)), columnas, fontsize=7)
@@ -204,10 +205,10 @@ def fig_correlacion(tabla: pd.DataFrame) -> Path:
         for j in range(len(columnas)):
             valor = matriz.values[i, j]
             if abs(valor) >= 0.3 and i != j:
-                eje.text(j, i, f"{valor:.2f}", ha="center", va="center", fontsize=5.5,
+                eje.text(j, i, f"{valor:.2f}", ha="center", va="center", fontsize=5,
                          color="white" if abs(valor) > 0.75 else "#0b0b0b")
     figura.colorbar(imagen, ax=eje, fraction=0.04, pad=0.02, label="Spearman ρ")
-    eje.set_title("Spearman correlation, modelling table r24 (|ρ| ≥ 0.3 labelled)")
+    eje.set_title("Spearman correlation, table r24 (|ρ| ≥ 0.3 labelled)", fontsize=8.5)
     return guardar(figura, FIGURAS / "09_correlacion_r24.png"), matriz
 
 
