@@ -18,6 +18,8 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[2]
 SALIDA = Path(__file__).resolve().parent / "generado"
 TIPOS_EN = {"laboral": "Weekday", "sabado": "Saturday", "domingo": "Sunday", "festivo": "Holiday"}
+# Plural dentro de una frase: los dias de la semana van con mayuscula en ingles.
+TIPOS_EN_PLURAL = {"laboral": "weekdays", "sabado": "Saturdays", "domingo": "Sundays", "festivo": "holidays"}
 
 
 def _leer(ruta: Path) -> dict:
@@ -32,8 +34,10 @@ def _tex(texto: str) -> str:
 def _num(valor, decimales: int = 0) -> str:
     if valor is None:
         return r"\pendiente"
-    texto = f"{valor:,.{decimales}f}"
-    return texto.replace(",", "{,}")
+    texto = f"{abs(valor):,.{decimales}f}".replace(",", "{,}")
+    # Signo menos tipografico (no guion), valido en texto y en modo matematico, y sin
+    # punto de corte entre el signo y la cifra.
+    return r"\ensuremath{-}" + texto if valor < 0 and float(texto.replace("{,}", "")) != 0 else texto
 
 
 def _p(valor) -> str:
@@ -59,7 +63,7 @@ def _interpretar_grupos(dias: dict) -> str:
     frases = []
     for grupo, g in dias["grupos"].items():
         fila = cont.get(grupo, {})
-        capta = [f"{100 * fila.get(t, 0) / totales[t]:.0f}\\% of {TIPOS_EN[t].lower()}s"
+        capta = [f"{100 * fila.get(t, 0) / totales[t]:.0f}\\% of {TIPOS_EN_PLURAL[t]}"
                  for t in ("laboral", "sabado", "domingo", "festivo") if totales.get(t) and fila.get(t, 0) / totales[t] >= 0.3]
         especiales = []
         if g.get("pct_es_semana_santa", 0) >= 10:
@@ -83,7 +87,8 @@ def _interpretar_sectores(sect: dict) -> str:
         tipo = ("continuous-process" if g["domingo_sobre_laboral"] > 0.9 and g["noche_sobre_dia"] > 0.85
                 else "working-hours" if g["domingo_sobre_laboral"] < 0.75 or g["noche_sobre_dia"] < 0.7 else "intermediate")
         frases.append(
-            f"\\textbf{{{grupo}}} ({g['sectores']} sectors, {g['pct_energia']:.1f}\\% of the energy) has a {tipo} profile "
+            f"\\textbf{{{grupo}}} ({g['sectores']} sectors, {g['pct_energia']:.1f}\\% of the energy) has "
+            f"{'an' if tipo[0] in 'aeiou' else 'a'} {tipo} profile "
             f"(Sunday/weekday {g['domingo_sobre_laboral']:.2f}, night/day {g['noche_sobre_dia']:.2f}); "
             f"{g['pct_energia_manufactura']:.0f}\\% of its energy is manufacturing."
         )
