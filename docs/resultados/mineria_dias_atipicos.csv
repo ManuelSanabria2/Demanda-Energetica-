@@ -1,0 +1,22 @@
+fecha,grupo,distancia,nombre_dia,tipo_dia,nombre_festivo
+2026-01-01,G2,0.3221,jueves,festivo,Año Nuevo
+2025-01-01,G2,0.2413,miercoles,festivo,Año Nuevo
+2025-12-24,G2,0.2309,miercoles,laboral,
+2023-09-02,G1,0.2214,sabado,sabado,
+2025-01-06,G2,0.2172,lunes,festivo,Día de los Reyes Magos
+2023-09-11,G1,0.2161,lunes,laboral,
+2023-01-01,G2,0.2112,domingo,festivo,Año Nuevo
+2024-12-07,G1,0.2095,sabado,sabado,
+2022-12-24,G2,0.2081,sabado,sabado,
+2024-09-28,G1,0.2081,sabado,sabado,
+2026-06-06,G2,0.2062,sabado,sabado,
+2025-01-02,G1,0.2033,jueves,laboral,
+2024-12-25,G2,0.201,miercoles,festivo,Navidad
+2021-07-24,G1,0.2004,sabado,sabado,
+2021-12-24,G1,0.1995,viernes,laboral,
+2025-12-25,G2,0.197,jueves,festivo,Navidad
+2023-10-14,G2,0.196,sabado,sabado,
+2025-08-02,G1,0.1951,sabado,sabado,
+2024-06-17,G1,0.1906,lunes,laboral,
+2023-07-01,G1,0.1902,sabado,sabado,
+2025-09-06,G2,0.1893,sabado,sabado,

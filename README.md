@@ -1,5 +1,10 @@
 # Ingesta de demanda energética horaria — SIN Colombia
 
+> **Avance del proyecto integrador (Minería de Datos y Cloud Computing):**
+> índice de entregables en [`docs/ENTREGA_AVANCE.md`](docs/ENTREGA_AVANCE.md),
+> reporte IEEE en [`docs/informe/`](docs/informe/), infraestructura en
+> [`infra/`](infra/README.md). Todo se regenera con `python scripts/generar_entrega.py`.
+
 Capa de ingesta para un modelo predictivo de demanda energética horaria del
 Sistema Interconectado Nacional colombiano, horizonte 24 h.
 
@@ -48,7 +53,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 270 pruebas, ninguna toca la red
+python -m pytest tests -q          # 292 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -496,6 +501,13 @@ a las métricas de pronóstico del CND, que sí se publican por adelantado.
 ## Estructura
 
 ```
+src/mineria/
+  perfiles.py     dia x hora: forma (media 1) y nivel; atributos de calendario por dia
+  clustering.py   K-means con seleccion de k (silueta + estabilidad), Ward, V de Cramer
+  reglas.py       Apriori sobre dias: grupo, calendario, nivel y clima; poda de redundantes
+  sectores.py     sectores CIIU agrupados por perfil semanal (168 h)
+  eda.py          estadisticos y pruebas del analisis exploratorio
+  estilo.py       paleta y estilo comun de las figuras
 src/variables/
   construir.py    tabla de modelado: rezagos por marca de tiempo, cíclicas, selección
 src/limpieza/
@@ -515,6 +527,9 @@ src/ingesta/
   manifiesto.py   qué se descargó, hasta dónde llega, qué falta
   cli.py          orquestación y escritura a Parquet
 scripts/
+  eda.py                 EDA: figuras en docs/figuras/eda, cifras en docs/resultados/eda.json
+  mineria_no_supervisada.py  clustering, reglas y sectores -> docs/figuras/mineria
+  generar_entrega.py     encadena panel, EDA, mineria, costos y el PDF del informe
   descargar_datasets.py  genera datasets/ en CSV, tramo a tramo
   generar_notebooks.py   define y regenera los notebooks
   construir_panel.py  demanda limpia + clima + calendario -> panel de modelado

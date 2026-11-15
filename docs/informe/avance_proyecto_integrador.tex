@@ -1,0 +1,333 @@
+\documentclass[conference,10pt]{IEEEtran}
+% Avance del proyecto integrador - Mineria de Datos, Cloud Computing y
+% Evaluacion Economica de Soluciones de IA. USTA Tunja, noviembre de 2026.
+% Compilar:  python docs/informe/generar_valores.py && latexmk -pdf avance_proyecto_integrador.tex
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{xcolor}
+\usepackage{xurl}
+\usepackage{cite}
+\usepackage{siunitx}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{multirow}
+\usepackage[hidelinks]{hyperref}
+
+\newcommand{\pendiente}{\textcolor{red}{\textbf{[pending]}}}
+\input{generado/valores.tex}
+\graphicspath{{../figuras/}}
+
+% Figura o recuadro "pendiente" si la figura aun no se ha generado.
+\newcommand{\figura}[2]{%
+  \IfFileExists{../figuras/#1}{\includegraphics[width=#2]{#1}}%
+  {\fbox{\parbox[c][3cm][c]{\dimexpr#2-2\fboxsep-2\fboxrule\relax}{\centering\pendiente\\\footnotesize\texttt{\detokenize{#1}}}}}}
+
+\begin{document}
+
+\title{Day-Ahead Hourly Electricity Demand Forecasting for Colombia's National Interconnected System: Data Mining and Cloud Architecture Progress Report (SDG~9)}
+
+\author{
+\IEEEauthorblockN{Manuel Jos\'e Sanabria Gil, Luna Gabriela Guampe Ni\~no, Astrid Vannessa Rinc\'on Oros}
+\IEEEauthorblockA{Faculty of Data Engineering and Artificial Intelligence, Universidad Santo Tom\'as, Tunja, Colombia\\
+Integrative project, 5th semester --- Data Mining, Cloud Computing, Economic Evaluation of AI Solutions\\
+Repository: \url{https://github.com/ManuelSanabria2/Demanda-Energetica-}}
+}
+
+\maketitle
+
+\begin{abstract}
+Colombia's power system plans capacity largely after demand has already grown, while official balances project a firm-energy deficit of 1.97~TWh/year for December~2025--November~2026 and 3.9~TWh/year for the following year. This progress report documents the first CRISP-DM phases of a system that forecasts the hourly demand of the National Interconnected System (SIN) 24~hours ahead from open data published by the market operator XM, enriched with weather and the Colombian holiday calendar. We describe (i) an audited ingestion layer over the XM and SIMEM public APIs and the Open-Meteo archive, (ii) traceable cleaning of \panelFilas{} hourly observations (no missing hours) and of \ciiuFilas{} sector-level rows, with causal outlier flags and explicit leakage control, (iii) an exploratory analysis with non-parametric tests that justify each engineered feature, (iv) unsupervised mining---K-means on daily load shapes, Apriori association rules and clustering of economic sectors by weekly profile---and (v) a Terraform-defined AWS architecture with a preliminary monthly cost of \costoAcademicoUsd~USD in the academic scenario. The project is aligned with SDG target 9.1 (reliable, resilient infrastructure).
+\end{abstract}
+
+\begin{IEEEkeywords}
+load forecasting, data mining, clustering, association rules, CRISP-DM, infrastructure as code, Terraform, AWS, SDG 9, Colombia.
+\end{IEEEkeywords}
+
+% ============================================================================
+\section{Introduction}
+% ============================================================================
+Electricity systems must balance generation and demand at every instant. When demand rises above what was anticipated, operators dispatch more expensive thermal generation or, in the worst case, ration supply. Both outcomes are costly and both are, to a large extent, avoidable if demand is anticipated correctly~\cite{hong2016}.
+
+The Colombian situation makes the problem concrete. SIN demand grew 2.6\% in 2025 with respect to 2024 according to XM~\cite{lr2025}, and the planning unit UPME projects a medium-scenario average growth of 2.52\% per year for 2025--2039~\cite{upme2026}. On the supply side, the Ministry of Mines and Energy warned in May 2026 that firm energy falls short of projected demand by 1.97~TWh/year for December~2025--November~2026 and by 3.9~TWh/year for December~2026--November~2027~\cite{minminas2026}. In that context, every percentage point of forecast error in the peak hours translates into either expensive reserve or exposure to rationing.
+
+Data are not the bottleneck. Since 2023 Colombia publishes SIMEM, an open-data portal of the wholesale market with hundreds of datasets, and XM exposes the same operational data through its SINERGOX API. The gap is that these data describe the past and are not being turned systematically into anticipation of the future. This project closes that gap for one decision: the day-ahead hourly demand that operational planners need.
+
+This document is the progress report requested for the 5th-semester integrative project. Following the modular guidelines, it contains: the initial sections of the technical paper (Sections~\ref{sec:problema}--\ref{sec:sistema}); the Data Mining module (Section~\ref{sec:mineria}); the Cloud Computing module (Section~\ref{sec:nube}); and the integration with the Economic Evaluation of AI Solutions course (Section~\ref{sec:economia}). Appendix~\ref{sec:trazabilidad} maps every requirement of the guidelines to its evidence in the repository.
+
+% ============================================================================
+\section{Problem Statement and SDG 9 Alignment}\label{sec:problema}
+% ============================================================================
+\subsection{Problem}
+The planning of the Colombian electric infrastructure is predominantly reactive: capacity is adjusted after demand has grown, not before. The lack of anticipation of consumption peaks results in operating overcosts, rationing risk and investment decisions made with incomplete information.
+
+\subsection{Data mining question}
+\emph{Can the hourly demand of the SIN be forecast 24~hours ahead, from consumption history, weather and calendar variables, with an error in peak hours low enough to support operational planning decisions?}
+
+The task is supervised regression on a time series: the target (hourly demand, MWh) is continuous and observations are temporally dependent, which constrains both feature construction and the validation scheme. The success criterion fixed before modelling is a reduction of at least 20\% of the MAPE of the seasonal-naïve baseline (same hour, one week earlier), sustained on the peak-hour subset.
+
+\subsection{Beneficiaries}
+System operator and planners (anticipation of peaks to size capacity); industry (less exposure to interruptions and restriction overcosts); policy bodies UPME and CREG (quantitative input for infrastructure projections); and citizens (fewer restriction costs passed on to the tariff).
+
+\subsection{Alignment with SDG 9}
+SDG target 9.1 calls for \emph{quality, reliable, sustainable and resilient infrastructure}~\cite{un_sdg9}. The reliability of power infrastructure depends on the quality of planning, and planning depends on the ability to anticipate demand: the project intervenes exactly in that link. It also contributes to target 9.5 (enhancing technological capabilities) by turning an underused public data asset into a reproducible forecasting capability.
+
+\subsection{Scope}
+The target is the aggregate demand of the system (XM \texttt{DemaReal}, entity \texttt{Sistema}). Industrial demand cannot be isolated in the aggregate series; the non-regulated demand by economic activity (CIIU) is used to characterise which sectors drive the load (Section~\ref{sec:sectores}), not as the forecasting target. This is a demand-forecasting project, not an energy-efficiency one: efficiency would require a production denominator (DANE), which is out of scope.
+
+% ============================================================================
+\section{Related Work}
+% ============================================================================
+Short-term load forecasting is a mature field; Hong and Fan~\cite{hong2016} review point and probabilistic methods and stress that strong seasonal baselines are hard to beat. Calendar effects and temperature are the dominant exogenous drivers in tropical and temperate systems alike. Gradient-boosted trees have become the reference for tabular forecasting with engineered lags~\cite{ke2017}. On the unsupervised side, clustering of daily load curves is the standard tool for load profiling~\cite{chicco2012}; normalising each curve by its own level separates \emph{shape} from \emph{size}, which is essential when the series has a trend. Association-rule mining~\cite{agrawal1994} has been used to relate consumption patterns to contextual attributes. Methodologically, the project follows CRISP-DM~\cite{chapman2000}, with KDD~\cite{fayyad1996} as its conceptual antecedent.
+
+% ============================================================================
+\section{General System Structure}\label{sec:sistema}
+% ============================================================================
+Table~\ref{tab:crisp} maps the CRISP-DM phases to the modules of the repository. The code is a Python package (\texttt{src/}) with one sub-package per phase, command-line scripts that run each stage end to end, executed notebooks that \emph{reuse} the package instead of re-implementing it, and a test suite of \nPruebas{} tests that block network access so that every check is deterministic.
+
+\begin{table}[!t]
+\caption{CRISP-DM phases and their implementation}\label{tab:crisp}
+\centering\footnotesize
+\begin{tabularx}{\columnwidth}{@{}p{2.1cm}Xl@{}}
+\toprule
+Phase & Implementation (repository) & Status \\
+\midrule
+Business understanding & Problem, SDG, baseline and success criterion (this document) & Done \\
+Data understanding & \texttt{src/ingesta}, \texttt{src/calidad}, notebooks 01--02, \texttt{notas/} & Done \\
+Data preparation & \texttt{src/limpieza}, \texttt{src/variables}, panel and tables r24/r120 & Done \\
+EDA and unsupervised mining & \texttt{src/mineria}, \texttt{scripts/eda.py}, \texttt{scripts/mineria\_no\_\allowbreak{}supervisada.py} & This report \\
+Modelling & Model ladder with walk-forward validation & Next \\
+Evaluation & Global and peak-hour metrics, residual analysis & Next \\
+Deployment & \texttt{infra/terraform} (architecture as code) & This report \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The data flow is layered. \emph{Raw}: what XM and SIMEM publish, stored as monthly-partitioned Parquet with an append-only manifest recording requested and obtained ranges, row counts and hashes. \emph{Staging}: series normalised to a common schema (\texttt{fecha\_hora}, \texttt{fuente}, \texttt{metrica}, \texttt{entidad}, \texttt{valor\_kwh}, \texttt{version}) in local Colombian time (UTC$-5$, no daylight saving). \emph{Processed}: the modelling panel (demand + weather + calendar, \panelFilas{} rows) and the two modelling tables. The same layers become S3 prefixes in the cloud architecture (Section~\ref{sec:nube}).
+
+% ============================================================================
+\section{Data Mining Module}\label{sec:mineria}
+% ============================================================================
+\subsection{Data acquisition from external sources}
+Three external sources are consumed programmatically:
+\begin{itemize}
+\item \textbf{XM SINERGOX API} (POST, JSON): hourly real demand \texttt{DemaReal}/\texttt{Sistema} (target), commercial demand and non-regulated demand by CIIU activity. The client reads each metric's maximum range per call (\texttt{MaxDays}) from the 193-metric catalogue instead of assuming it, splits long ranges, retries only on 5xx/timeouts with exponential back-off, and caches each chunk.
+\item \textbf{SIMEM API} (GET): national real demand (dataset \texttt{14fabb}) for cross-reconciliation. Several settlement versions coexist for the same hour; summing naïvely inflates demand by an integer factor that reached $5\times$ in January 2026. The normaliser collapses to one version per hour before aggregating.
+\item \textbf{Open-Meteo archive}: hourly temperature for Bogot\'a, Medell\'in, Cali and Barranquilla, aggregated to a national series with explicit, logged weights.
+\end{itemize}
+Every assumption about the APIs was verified against the servers and documented (\texttt{notas/hallazgos\_apis.md}); the XM and SIMEM national series agree with a correlation of 0.9925 over 49\,752 common hours, with a stable $+1.44\%$ scope difference.
+
+\subsection{Data quality: missing values and outliers}
+The quality diagnosis (\texttt{src/calidad}) describes without correcting; cleaning (\texttt{src/limpieza}) corrects and records each operation with its criterion and affected rows. Main findings:
+\begin{itemize}
+\item \textbf{Completeness.} \panelFilas{} of \panelFilas{} expected hours from 2021-01-01 to 2026-09-07 (100\%), no duplicates, no day with 23 or 25 hours, no zeros or negatives. A 624-hour gap in March 2025 was traced to a destructive write in our own CLI, fixed, covered by a regression test and re-ingested.
+\item \textbf{Imputation policy.} Only gaps of up to 3~h are interpolated, never extrapolated; longer gaps stay \texttt{NaN} and flagged. On the target series no value needed imputation. On the CIIU dataset (\ciiuFilas{} rows, \ciiuGrupos{} activity--sub-activity groups) \ciiuObservadoPct\% of values are observed, \ciiuInterpolados{} were interpolated and \ciiuFaltantes{} remain as flagged \texttt{NaN}.
+\item \textbf{Outliers.} A global IQR rule flags 48 hours but cannot tell a normal 2~p.m. peak from an abnormal 3~a.m. value. The project uses a \emph{seasonal} modified z-score against the (weekday, hour) group, computed \emph{causally} (only past observations), which flags 321 hours (157 with the non-causal version). Outliers are flagged, never deleted: whether to exclude them is a modelling decision.
+\item \textbf{Partial publication.} The last two published days arrive at $\approx$24\% of their normal value although they have 24 hours and no nulls. Only the seasonal criterion detects them; the last 5 days are therefore excluded from any training or evaluation.
+\end{itemize}
+
+\subsection{Feature engineering and leakage control}
+Two modelling tables are built from the panel, differing in one parameter: the minimum lag between the hour to forecast and the last demand available. \texttt{r24} (\rVeinticuatroFilas{} rows) assumes demand is known up to $t-24$~h (academic backtesting); \texttt{r120} (\rCientoVeinteFilas{} rows) respects the real availability ($\approx$5 days of publication lag). Features: \texttt{lag\_24}, \texttt{lag\_168}, a 168-h rolling mean and standard deviation that end at $t-r$, weighted temperature, sine/cosine of hour, weekday and month, and five calendar flags (holiday with Emiliani law, eve, long weekend, Holy Week, last week of December). \texttt{lag\_1} cannot be generated: the construction fails below the horizon. Columns computed with the target hour itself (outlier flags, z-scores) are excluded with their reason in the registry. Nothing is scaled or imputed with full-sample statistics.
+
+\subsection{Exploratory data analysis}\label{sec:eda}
+EDA is computed by \texttt{scripts/eda.py} on \edaHoras{} hours (\edaDesde{} to \edaHasta{}). Hourly demand has mean \edaMedia~MWh (s.d. \edaDesv, CV \edaCV\%), median \edaMediana, range \edaMin--\edaMax~MWh, skewness \edaAsimetria{} and excess kurtosis \edaCurtosis. The distribution is not normal: it is flat and only weakly bimodal, with a shoulder from the night hours and a main mode from the day plateau, so non-parametric tests are used throughout.
+
+\begin{figure*}[!t]
+\centering
+\figura{eda/01_serie_diaria.png}{0.49\textwidth}\hfill
+\figura{eda/02_heatmap_hora_dia.png}{0.49\textwidth}\\[2pt]
+\figura{eda/03_cajas_hora_mes.png}{0.49\textwidth}\hfill
+\figura{eda/05_acf_pacf.png}{0.49\textwidth}
+\caption{EDA of the SIN hourly demand. Top: daily energy with 30-day mean and days containing causal outlier hours; median demand by weekday and hour. Bottom: hourly demand relative to its year's mean by hour and month; autocorrelation (2 weeks) and partial autocorrelation (48~h).}\label{fig:eda1}
+\end{figure*}
+
+\textbf{Trend.} Mean daily demand grew at a compound \edaCrecimientoAnual\% per year between \edaAnioIni{} and \edaAnioFin{} (\edaEnergiaUltimo~GWh in \edaAnioFin). On the daily series ADF does not reject a unit root ($p={}$\edaAdfP) and KPSS rejects stationarity ($p\leq{}$\edaKpssP, the lower bound of its lookup table), so the level is non-stationary; on the weekly difference ADF rejects a unit root ($p={}$\edaAdfDiffP). A robust STL decomposition~\cite{cleveland1990} (Fig.~\ref{fig:stl}) yields a trend strength of \edaFuerzaTendencia{} and weekly seasonal strength of \edaFuerzaSemanal. \emph{Implication:} tree ensembles cannot extrapolate a growing level, and the weekly difference is stationary, so the model ladder will predict the weekly difference or combine a linear trend with a tree on the residual.
+
+\textbf{Daily and weekly seasonality.} The median profile has its valley at \edaHoraValle{}~h and its peak at \edaHoraPico{}~h, with the valley at \edaValleSobrePico\% of the peak (Fig.~\ref{fig:eda1}). The autocorrelation is \edaAcfVeinticuatro{} at 24~h and \edaAcfSemana{} at 168~h, higher than at 24~h: \emph{the same hour of the previous week is more informative than the previous day}, which supports \texttt{lag\_168} and the seasonal-naïve baseline.
+
+\textbf{Calendar.} Daily demand relative to its year's mean differs across day types (Kruskal--Wallis $H={}$\edaKruskalH, $p={}$\edaKruskalP, $\varepsilon^2={}$\edaEpsilon; medians: weekday \edaMedianaLaboral, Saturday \edaMedianaSabado, Sunday \edaMedianaDomingo, holiday \edaMedianaFestivo). Relative to weekdays, holiday demand changes by \edaFestivoPct\% (one-sided Mann--Whitney $p={}$\edaMannWhitneyP, rank-biserial $r={}$\edaRankBiserial), and holidays behave like Sundays: their medians are almost identical (\edaMedianaFestivo{} and \edaMedianaDomingo, Fig.~\ref{fig:eda2}). \emph{Implication:} a model that only knows the weekday would treat a Monday holiday as a working day and overestimate it, which is what the holiday flags with the Emiliani law correct.
+
+\textbf{Temperature.} The hourly Spearman correlation between demand and weighted temperature is \edaRhoHorario, but it is confounded by the daily cycle (both rise during the day). Within each hour the correlation ranges from \edaRhoHoraMin{} to \edaRhoHoraMax{} (Fig.~\ref{fig:eda2}), and between daily anomalies (deviation from a 28-day median) it is \edaRhoAnomalia{} ($p={}$\edaRhoAnomaliaP). The correlation is positive at every hour and roughly doubles from the morning ramp to the evening peak. \emph{Implication:} temperature acts through an interaction with the hour, which a tree captures directly and a linear model only with explicit temperature-by-hour terms; since the association between anomalies is weak, temperature should refine the forecast rather than drive it.
+
+\textbf{Feature relevance.} In table \texttt{r24}, the Spearman correlation with the target is \edaCorrLagSemana{} for \texttt{lag\_168}, \edaCorrLagDia{} for \texttt{lag\_24}, \edaCorrTemp{} for temperature and \edaCorrHoraCos{} for the hour cosine (Fig.~\ref{fig:corr}). \emph{Implication:} the ranking agrees with the autocorrelation, so \texttt{lag\_168} is the anchor of every model; the correlation of temperature is inflated by the daily cycle shown above, and the calendar flags have small marginal correlations because they affect few days, which does not make them irrelevant given the holiday effect.
+
+\begin{figure*}[!t]
+\centering
+\figura{eda/08_tipo_de_dia.png}{0.49\textwidth}\hfill
+\figura{eda/07_temperatura.png}{0.49\textwidth}
+\caption{Left: daily demand by type of day. Right: demand vs.\ temperature and per-hour correlation.}\label{fig:eda2}
+\end{figure*}
+
+\begin{figure}[!t]
+\centering
+\figura{eda/06_stl.png}{\columnwidth}
+\caption{Robust STL decomposition of daily energy.}\label{fig:stl}
+\end{figure}
+
+\begin{figure}[!t]
+\centering
+\figura{eda/09_correlacion_r24.png}{\columnwidth}
+\caption{Spearman correlation matrix of the \texttt{r24} modelling table.}\label{fig:corr}
+\end{figure}
+
+\subsection{Unsupervised mining I: clustering of daily load shapes}
+\textbf{Design.} Each complete day (24 observed hours, partial-publication days excluded) is a 24-dimensional vector divided by its own mean, so that clusters capture the \emph{shape} of the day and not the year-to-year growth of its level. Calendar and weather do \emph{not} enter the algorithm; they are used afterwards to interpret the clusters. K-means~\cite{macqueen1967} (20 initialisations) is evaluated for $k=2,\dots,10$ with inertia, silhouette~\cite{rousseeuw1987}, Davies--Bouldin and a stability index: the mean adjusted Rand index~\cite{hubert1985} between the reference partition and partitions fitted on 80\% subsamples with other seeds. The chosen $k$ maximises the silhouette among stable partitions (ARI $\geq 0.80$, no cluster below 10 days). Ward's hierarchical clustering is used as an independent check.
+
+\textbf{Results.} On \minDias{} days the procedure selects $k={}$\minK{} (silhouette \minSilueta, Davies--Bouldin \minDaviesBouldin, stability ARI \minEstabilidad). Ward's method reproduces the partition with ARI \minAriWard, so the clusters are not an artefact of K-means. The two first principal components explain \minVarPca\% of the variance of the shapes. Cluster membership is strongly associated with the day type (Cram\'er's $V={}$\minCramer). Table~\ref{tab:grupos} and Fig.~\ref{fig:mineria} summarise the clusters.
+
+\input{generado/interpretacion_grupos.tex}
+
+G1 is the working-day shape, with a deep night valley at 3~h and a flat plateau from 11 to 16~h, while G2 is the rest-day shape, with the valley delayed to 6~h, a lower midday plateau and a more pronounced evening peak; G2 also takes about a fifth of the Saturdays. During Holy Week the clusters follow the holidays rather than the week: Holy Thursday and Good Friday fall in G2 every year, the Saturday is split, and Monday to Wednesday almost always stay in G1. The days farthest from their centroid concentrate at the end of the year: New Year's Day (2023, 2025 and 2026), Christmas Day, Christmas Eve and Epiphany, and New Year's Eve falls in G2 even when it is a working day (2021, 2024 and 2025). A few ordinary Saturdays and Mondays, such as 2 and 11 September 2023, are also atypical with no calendar explanation and deserve a check against the outlier flags before modelling.
+
+\begin{table}[!t]
+\caption{Clusters of daily load shape (K-means). Composition by day type, peak hour of the centroid, valley/peak ratio and mean level}\label{tab:grupos}
+\centering\scriptsize\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{\input{generado/tabla_grupos.tex}}
+\end{table}
+
+\begin{figure*}[!t]
+\centering
+\figura{mineria/01_seleccion_k.png}{0.62\textwidth}\hfill
+\figura{mineria/04_contingencia_tipo_dia.png}{0.36\textwidth}\\[2pt]
+\figura{mineria/02_centroides.png}{0.49\textwidth}\hfill
+\figura{mineria/05_calendario_grupos.png}{0.49\textwidth}
+\caption{Clustering of daily load shapes. Top: choice of $k$ and day type vs.\ cluster. Bottom: centroids with 10th--90th percentile bands; cluster of each day across the calendar.}\label{fig:mineria}
+\end{figure*}
+
+\subsection{Unsupervised mining II: association rules}
+Each day is a transaction whose items are its cluster, day type, long-weekend, Holy Week, Dec~25--31 and eve-of-holiday flags, and whether its demand level and temperature fall in the top or bottom tercile \emph{of its own year} (global terciles would mostly encode the trend). Apriori~\cite{agrawal1994} with minimum support 0.02, confidence 0.60 and lift 1.20 on \minTransacciones{} transactions yields \minReglas{} rules with a single consequent, \minReglasNoRedundantes{} after removing rules whose antecedent extends a simpler rule with the same consequent and no gain in confidence; Table~\ref{tab:reglas} lists the strongest. Lift, not confidence, is the selection criterion: a rule towards the largest cluster can have high confidence just because that cluster is frequent.
+
+\begin{table}[!t]
+\caption{Strongest association rules (Apriori)}\label{tab:reglas}
+\centering\scriptsize\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{\input{generado/tabla_reglas.tex}}
+\end{table}
+
+\subsection{Unsupervised mining III: economic sectors by weekly profile}\label{sec:sectores}
+To address the scope question---how much of the non-regulated load behaves like industry---each CIIU sub-activity is represented by its mean demand for each of the 168 hours of the week divided by its own mean (observed values only, at least 8 weeks of data). K-means with the same selection rule groups \secSectores{} sectors into \secK{} clusters (Table~\ref{tab:sectores}, Fig.~\ref{fig:sectores}). Interpretable features describe each cluster: Sunday/weekday ratio, night/day ratio and load factor (mean/peak).
+
+\input{generado/interpretacion_sectores.tex}
+
+S1 is dominated by continuous processes such as crude oil extraction, nickel mining, steel, plastics and water treatment, which keep a nearly flat week: Sunday load is about three quarters of a weekday and night load is close to 80\% of day load. S2 groups smaller sub-activities such as universities, real estate and retail, whose consumption follows office and shop hours, with high weekday daytime load, a shorter Saturday peak and Sunday load below half of a weekday. Because S2 carries only 4.5\% of the energy, working-hours activity is a small part of the non-regulated load, and most of it behaves like S1. Manufacturing is not a cluster of its own, since it accounts for 42\% of the energy of S1 and 16\% of S2, so the sector label alone does not determine the load shape.
+
+\begin{table}[!t]
+\caption{Clusters of CIIU sub-activities (non-regulated market) by weekly profile. Medians of shape features and share of manufacturing energy}\label{tab:sectores}
+\centering\scriptsize\setlength{\tabcolsep}{3pt}
+\resizebox{\columnwidth}{!}{\input{generado/tabla_sectores.tex}}
+\end{table}
+
+\begin{figure}[!t]
+\centering
+\figura{mineria/06_sectores_perfil_semanal.png}{\columnwidth}\\[2pt]
+\figura{mineria/07_sectores_rasgos.png}{0.8\columnwidth}
+\caption{CIIU sub-activities clustered by weekly profile: median profile per cluster and shape features (size proportional to energy).}\label{fig:sectores}
+\end{figure}
+
+% ============================================================================
+\section{Cloud Computing Module}\label{sec:nube}
+% ============================================================================
+\subsection{Architecture}
+Fig.~\ref{fig:arquitectura} shows the proposed AWS architecture (region \texttt{us-east-1}). A single container image, built from the same code that passes the test suite, serves an AWS Lambda function for the daily incremental ingestion and three ECS Fargate tasks: \emph{procesar} (cleaning, panel and features), \emph{predecir} (24-h forecast) and \emph{entrenar} (weekly retraining of the model ladder with walk-forward validation). Two Step Functions state machines orchestrate the daily and weekly flows with retries and failure notification; EventBridge Scheduler triggers them in Colombian time. Data live in a versioned S3 data lake whose prefixes mirror the local layers (\texttt{raw/}, \texttt{staging/}, \texttt{processed/}, \texttt{models/}, \texttt{predictions/}); forecasts are queried with Athena over a Glue Data Catalog that uses partition projection, so no crawler is needed. CloudWatch alarms cover pipeline failures, the absence of a forecast for 48~h and model drift (weekly global and peak-hour MAPE above a threshold), and AWS Budgets caps the monthly spend.
+
+\begin{figure*}[!t]
+\centering
+\figura{cloud/arquitectura.png}{\textwidth}
+\caption{Proposed AWS architecture, generated from code (\texttt{infra/diagrama/arquitectura.py}) and matching the Terraform resources one to one.}\label{fig:arquitectura}
+\end{figure*}
+
+\subsection{Infrastructure as code (Terraform)}
+The whole architecture is declared in \texttt{infra/terraform} (10 files): storage (bucket with versioning, SSE, public-access block, TLS-only policy and lifecycle rules; ECR with scan on push and immutable tags), compute (Lambda with reserved concurrency~1 so two ingestions never overwrite the same partitions; ECS cluster with Fargate Spot; one task definition per stage), orchestration, analytics, monitoring and one least-privilege IAM role per component (each role can only read or write the S3 prefixes of its own layer). The Lambda handler and the Fargate wrapper (\texttt{infra/contenedor}) synchronise the layer they need from S3, run the repository command unchanged and upload only files whose MD5 differs from the stored ETag; a failed command uploads nothing.
+
+Verification in this progress stage: all \texttt{.tf} files parse (python-hcl2) and the Checkov static security scan reports \textbf{171 passed and 0 failed checks}, with 22 justified skips written in the resources themselves (cost decisions such as customer-managed KMS keys or one-year log retention). \texttt{terraform validate}/\texttt{plan} require the team's AWS credentials and are the first step of the next iteration. Two design decisions are driven by cost: tasks run in public subnets of the default VPC with a security group that admits \emph{no} inbound traffic, which avoids a NAT Gateway (\costoNat~USD/month, more than all other services together); and Fargate Spot is used for minutes-long batch jobs that Step Functions can retry.
+
+\subsection{Preliminary cost estimate}
+\texttt{infra/costos/estimar\_costos.py} computes the monthly cost from list prices (\texttt{us-east-1}, November 2026) and usage derived from the pipeline's local behaviour (Table~\ref{tab:costos}). In the academic scenario, which applies AWS's permanent free tier, the cost is \costoAcademicoUsd~USD/month (\costoAcademicoCop~COP at a TRM of \trm); without free tier, \costoSinGratisUsd~USD/month; an operation scenario with two environments, daily retraining and on-demand Fargate reaches \costoOperacionUsd~USD/month (\costoOperacionAnual~USD/year). These are estimates to be validated with the AWS Pricing Calculator.
+
+\begin{table}[!t]
+\caption{Preliminary monthly cost by service and scenario (USD, us-east-1)}\label{tab:costos}
+\centering\scriptsize\setlength{\tabcolsep}{4pt}
+\resizebox{\columnwidth}{!}{\input{generado/tabla_costos.tex}}
+\end{table}
+
+% ============================================================================
+\section{Integration with Economic Evaluation of AI Solutions}\label{sec:economia}
+% ============================================================================
+The project is also the integrative project of the Economic Evaluation of AI Solutions course, organised with Scrum in three work fronts (features and modelling; technical evaluation; economic evaluation and documentation) that share a fixed data schema (column names, time zone, hour-indexing convention) agreed before splitting the work. Three elements of this report feed that evaluation:
+\begin{enumerate}
+\item \textbf{Operating cost.} The cloud estimate (Table~\ref{tab:costos}) is the infrastructure term of the solution's cost; development cost (team hours) will be added following the course methodology.
+\item \textbf{Asymmetric cost of error.} Under-forecasting exposes the system to rationing, whose cost is published by UPME (\emph{Costos de Racionamiento de Energ\'ia}) and which the press has quantified at COP~165--204 billion per national hour~\cite{abc2026}; over-forecasting implies idle reserve at a much lower unit cost. This asymmetry is the core of the cost--benefit analysis and also a technical argument: it justifies evaluating an asymmetric (quantile) loss that penalises under-forecasting more.
+\item \textbf{Peak hours.} The EDA and the clustering locate the peaks (\edaHoraPico~h on the median day, and a distinct holiday/Sunday shape), which defines the subset on which the economic value of the forecast concentrates.
+\end{enumerate}
+
+% ============================================================================
+\section{Reproducibility}
+% ============================================================================
+Every figure and number in this report is regenerated by scripts; none is typed by hand. From a clean clone, the commands below are run in order before compiling this \LaTeX{} source (the download takes minutes):\par
+{\footnotesize
+\begin{itemize}\setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}
+\item \texttt{pip install -r requirements.txt}
+\item \texttt{python -m ingesta.cli -{}-fuente todas}
+\item \texttt{python scripts/construir\_panel.py -{}-imputacion causal}
+\item \texttt{python scripts/construir\_variables.py}
+\item \texttt{python scripts/eda.py}
+\item \texttt{python scripts/mineria\_no\_supervisada.py}
+\item \texttt{python infra/costos/estimar\_costos.py}
+\item \texttt{python docs/informe/generar\_valores.py}
+\end{itemize}}
+\noindent The test suite (\texttt{python -m pytest tests}, \nPruebas{} tests, network blocked) includes end-to-end runs of the EDA and mining scripts on a synthetic panel built with the production functions, temporal-leakage tests for both modelling tables and tests of the cloud synchronisation code. Data are not versioned (they are regenerable), but the download manifest, the cleaning and feature registries and the SHA-256 of each table are.
+
+% ============================================================================
+\section{Progress, Limitations and Next Steps}
+% ============================================================================
+\textbf{Done:} business and data understanding, audited ingestion from three external sources, traceable cleaning, leakage-safe features, EDA, three unsupervised analyses and the cloud architecture as code with cost estimate.
+\textbf{Limitations:} the target is aggregate demand, not industrial demand; the temperature used in backtesting is the observed one (equivalent to a perfect weather forecast), which must be replaced by a forecast issued before prediction time in operation; the temperature weights are a provisional proxy by metropolitan size; and the cloud stack has not yet been deployed.
+\textbf{Next (final report, 26 November):} model ladder (seasonal-naïve, regularised linear regression, random forest on the weekly difference, gradient boosting) with walk-forward validation on \texttt{r24} and \texttt{r120}; global and peak-hour metrics and residual analysis by hour and day type; cost--benefit analysis; and \texttt{terraform plan}/\texttt{apply} in a sandbox account.
+
+% ============================================================================
+\begin{thebibliography}{99}
+\bibitem{hong2016} T.~Hong and S.~Fan, ``Probabilistic electric load forecasting: A tutorial review,'' \emph{Int. J. Forecasting}, vol.~32, no.~3, pp.~914--938, 2016.
+\bibitem{lr2025} La Rep\'ublica, ``La demanda de energ\'ia el\'ectrica del SIN creci\'o 2,62\% en 2025 frente al a\~no pasado,'' 2026. [Online]. Available: \url{https://www.larepublica.co/especiales/ciencia-tecnologia-y-talento-para-el-futuro-energetico/la-demanda-de-energia-electrica-del-sin-crecio-2-62-en-2025-frente-al-ano-pasado-4371992}
+\bibitem{upme2026} UPME, ``Proyecci\'on de la demanda de energ\'ia el\'ectrica y potencia m\'axima 2025--2039, revisi\'on enero de 2026,'' Bogot\'a, 2026.
+\bibitem{minminas2026} Ministerio de Minas y Energ\'ia, Circular 40023 of 14 May 2026, as reported by La FM, ``MinMinas advierte riesgo para el suministro de energ\'ia,'' 2026. [Online]. Available: \url{https://www.lafm.com.co/economia/alerta-riesgo-electrico-fenomeno-del-nino-399540}
+\bibitem{abc2026} ABC Econom\'ia, ``Colombia quiere crecer 6\% con un riesgo de apag\'on de 5,4\% encima,'' Sep. 2026 (citing Banco de Bogot\'a).
+\bibitem{un_sdg9} United Nations, ``Goal 9: Build resilient infrastructure, promote inclusive and sustainable industrialization and foster innovation.'' [Online]. Available: \url{https://sdgs.un.org/goals/goal9}
+\bibitem{ke2017} G.~Ke \emph{et al.}, ``LightGBM: A highly efficient gradient boosting decision tree,'' in \emph{Proc. NeurIPS}, 2017, pp.~3146--3154.
+\bibitem{chicco2012} G.~Chicco, ``Overview and performance assessment of the clustering methods for electrical load pattern grouping,'' \emph{Energy}, vol.~42, no.~1, pp.~68--80, 2012.
+\bibitem{agrawal1994} R.~Agrawal and R.~Srikant, ``Fast algorithms for mining association rules,'' in \emph{Proc. 20th VLDB}, 1994, pp.~487--499.
+\bibitem{chapman2000} P.~Chapman \emph{et al.}, \emph{CRISP-DM 1.0: Step-by-step data mining guide}. SPSS, 2000.
+\bibitem{fayyad1996} U.~Fayyad, G.~Piatetsky-Shapiro, and P.~Smyth, ``From data mining to knowledge discovery in databases,'' \emph{AI Magazine}, vol.~17, no.~3, pp.~37--54, 1996.
+\bibitem{macqueen1967} J.~MacQueen, ``Some methods for classification and analysis of multivariate observations,'' in \emph{Proc. 5th Berkeley Symp. Math. Statist. Probab.}, 1967, pp.~281--297.
+\bibitem{rousseeuw1987} P.~J.~Rousseeuw, ``Silhouettes: A graphical aid to the interpretation and validation of cluster analysis,'' \emph{J. Comput. Appl. Math.}, vol.~20, pp.~53--65, 1987.
+\bibitem{hubert1985} L.~Hubert and P.~Arabie, ``Comparing partitions,'' \emph{J. Classification}, vol.~2, no.~1, pp.~193--218, 1985.
+\bibitem{cleveland1990} R.~B.~Cleveland, W.~S.~Cleveland, J.~E.~McRae, and I.~Terpenning, ``STL: A seasonal-trend decomposition procedure based on loess,'' \emph{J. Official Statistics}, vol.~6, no.~1, pp.~3--73, 1990.
+\end{thebibliography}
+
+\appendices
+\section{Traceability to the progress guidelines}\label{sec:trazabilidad}
+\begin{table}[!h]
+\caption{Guideline requirement and evidence}
+\centering\scriptsize\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\columnwidth}{@{}>{\raggedright\arraybackslash}p{2.2cm}>{\raggedright\arraybackslash}X@{}}
+\toprule
+Requirement & Evidence in the repository \\
+\midrule
+A. IEEE document: introduction, problem with SDG, system structure & This document, Sections I--IV; source in \texttt{docs/informe/} \\
+B. Structured, clean dataset & \texttt{src/limpieza}, \texttt{scripts/construir\_panel.py}, \texttt{data/procesado/registro\_*.json}, \texttt{datasets/limpios/registro\_*.json} \\
+B. Nulls and outliers & \texttt{src/calidad}, notebooks \texttt{02\_diagnostico\_calidad} and \texttt{limpieza/*}, \texttt{notas/hallazgos\_calidad.md} \\
+B. Deep EDA with statistical plots & \texttt{scripts/eda.py}, \texttt{src/mineria/eda.py}, \texttt{docs/figuras/eda/}, \texttt{docs/resultados/eda.json}, notebook \texttt{03\_eda} \\
+B. Web scraping / external sources & \texttt{src/ingesta/clientes.py} (XM, SIMEM), \texttt{complementarias.py} (Open-Meteo), \texttt{notas/hallazgos\_apis.md} \\
+B. Clustering / association rules & \texttt{src/mineria/\{clustering,reglas,sectores\}.py}, \texttt{scripts/mineria\_no\_supervisada.py}, \texttt{docs/figuras/mineria/}, notebook \texttt{04\_mineria\_no\_supervisada} \\
+C. Cloud architecture diagram & \texttt{docs/figuras/cloud/arquitectura.png} (\texttt{infra/diagrama/}) \\
+C. IaC scripts (Terraform) & \texttt{infra/terraform/} (+ \texttt{infra/contenedor/}), Checkov 171/0 \\
+C. Preliminary cost estimate & \texttt{infra/costos/} (script, JSON, table) \\
+D. Other courses & Section~\ref{sec:economia} \\
+Reproducibility & \texttt{tests/} (\nPruebas{} tests), \texttt{README.md}, \texttt{docs/ENTREGA\_AVANCE.md} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\end{document}

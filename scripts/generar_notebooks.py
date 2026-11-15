@@ -904,6 +904,131 @@ print("registro ->", SALIDA / "registro_simem_desagregado.json")'''),
 ])
 
 
+
+# --------------------------------------------------------------------------
+# 03 y 04: EDA y mineria no supervisada (avance del proyecto integrador)
+# --------------------------------------------------------------------------
+# Leen el panel de modelado, no los CSV: es la tabla que ya paso por limpieza
+# y union con clima y calendario. Las funciones estan en src/mineria y probadas
+# en tests/test_mineria.py; los scripts de la entrega usan las mismas.
+
+CARGA_PANEL = """PROCESADO = RAIZ / "data" / "procesado"
+panel = pd.read_parquet(PROCESADO / "panel_modelado.parquet")
+print(f"{len(panel):,} filas x {panel.shape[1]} columnas · {panel.fecha_hora.min()} .. {panel.fecha_hora.max()}")"""
+
+NB09 = cuaderno([
+    ("md", """# 03 · Análisis exploratorio (EDA)
+
+Cada prueba responde a una decisión de modelado: tendencia (¿hace falta
+diferenciar?), estacionalidad diaria y semanal (¿qué rezagos?), calendario
+(¿sirven las banderas de festivo?) y temperatura (¿entra lineal o con la hora?).
+
+Las figuras para el informe las produce `python scripts/eda.py` con las mismas
+funciones (`src/mineria/eda.py`)."""),
+    ("code", ARRANQUE),
+    ("code", CARGA_PANEL),
+    ("code", """from mineria import eda
+serie = eda.recortar_parcial(eda.serie_mwh(panel), dias=5)   # publicacion parcial: notas/hallazgos_calidad.md
+pd.Series(eda.descriptivos(serie)).to_frame("valor")"""),
+    ("md", "## Tendencia y estacionariedad"),
+    ("code", """print(eda.crecimiento_anual(serie).round(2).to_string())
+pd.Series(eda.estacionariedad(serie))"""),
+    ("code", """from statsmodels.tsa.seasonal import STL
+diario = serie.resample("D").sum(min_count=24).dropna() / 1000
+STL(diario, period=7, robust=True).fit().plot();"""),
+    ("md", "## Estacionalidad diaria y semanal"),
+    ("code", """tabla = serie.groupby([serie.index.dayofweek, serie.index.hour]).median().unstack() / 1000
+fig, eje = plt.subplots(figsize=(12, 3.5))
+im = eje.imshow(tabla.values, aspect="auto", cmap="Blues")
+eje.set_yticks(range(7), ["lun", "mar", "mie", "jue", "vie", "sab", "dom"]); eje.set_xlabel("hora")
+fig.colorbar(im, ax=eje, label="GWh"); eje.set_title("Mediana horaria por día y hora");"""),
+    ("code", """acf, pacf = eda.autocorrelacion(serie)
+print("ACF  1h  :", round(acf[1], 3))
+print("ACF 24h  :", round(acf[24], 3))
+print("ACF 168h :", round(acf[168], 3), " <- la misma hora de la semana anterior pesa más que la del día anterior")
+acf.plot(figsize=(12, 3), title="ACF hasta 2 semanas");"""),
+    ("md", "## Calendario colombiano (Ley Emiliani)"),
+    ("code", """local = panel.set_index(eda.serie_mwh(panel).index)
+festivo = local["es_festivo"].astype(bool).resample("D").max().reindex(diario.index)
+tipos = eda.tipo_dia(diario.index, festivo)
+pd.Series(eda.pruebas_calendario(diario * 1000, tipos))"""),
+    ("md", "## Temperatura"),
+    ("code", """resultado = eda.temperatura(serie, local["temperatura_c"].reindex(serie.index))
+pd.Series(resultado["spearman_por_hora"]).plot.bar(figsize=(12, 3), title="Spearman demanda-temperatura dentro de cada hora")
+{k: v for k, v in resultado.items() if k != "spearman_por_hora"}"""),
+    ("md", """## Conclusiones para el modelado
+
+- La serie tiene tendencia: un bosque no extrapola, así que se modelará la
+  diferencia semanal o un componente lineal más un árbol sobre el residuo.
+- `lag_168` es el rezago más informativo y la base estacional ingenua es la
+  referencia obligatoria.
+- Festivos y domingos se comportan igual: las banderas del calendario entran.
+- El efecto de la temperatura depende de la hora: interacción que captura un
+  árbol y no un modelo lineal."""),
+])
+
+NB10 = cuaderno([
+    ("md", """# 04 · Minería no supervisada
+
+Tres análisis, con las funciones de `src/mineria` (probadas en
+`tests/test_mineria.py`):
+
+1. **K-means sobre la forma del día**: cada día dividido por su media, para que
+   la tendencia no decida los grupos. El calendario NO entra al algoritmo; se
+   usa después para leer los grupos.
+2. **Reglas de asociación (Apriori)** entre grupo, tipo de día, nivel y clima.
+3. **Sectores CIIU por perfil semanal**: qué subactividades se comportan como
+   industria de proceso continuo.
+
+Las figuras del informe salen de `python scripts/mineria_no_supervisada.py`."""),
+    ("code", ARRANQUE),
+    ("code", CARGA_PANEL),
+    ("code", """from mineria.perfiles import perfiles_diarios, forma_y_nivel, atributos_dia
+perfiles, registro = perfiles_diarios(panel)
+forma, nivel = forma_y_nivel(perfiles)
+atributos = atributos_dia(panel, perfiles.index)
+registro"""),
+    ("md", "## Elección de k\n\nSilueta como criterio, estabilidad (ARI entre semillas y submuestras) como freno."),
+    ("code", """from mineria.clustering import evaluar_k, elegir_k, agrupar, describir, contingencia, v_cramer, dias_atipicos
+evaluacion = evaluar_k(forma.to_numpy(), ks=range(2, 11))
+k = elegir_k(evaluacion)
+print("k elegido:", k)
+evaluacion.round(3)"""),
+    ("code", """resultado = agrupar(forma, k)
+print(f"silueta {resultado.silueta:.3f} · ARI frente a Ward {resultado.ari_ward:.3f}")
+describir(resultado, forma, nivel, atributos)"""),
+    ("code", """tabla = contingencia(resultado, atributos)
+print("V de Cramér grupo x tipo de día:", round(v_cramer(tabla), 3))
+tabla"""),
+    ("code", """fig, eje = plt.subplots(figsize=(12, 4))
+resultado.centroides.T.plot(ax=eje, marker="o")
+eje.set_xlabel("hora"); eje.set_ylabel("demanda / media del día"); eje.set_title("Centroides");"""),
+    ("md", "## Días que no se parecen a su grupo"),
+    ("code", "dias_atipicos(resultado, atributos, cuantil=0.99).head(15)"),
+    ("md", "## Reglas de asociación"),
+    ("code", """from mineria.reglas import transacciones, reglas_asociacion, podar_redundantes, reglas_hacia
+canasta = transacciones(atributos, resultado.etiquetas, nivel)
+reglas = podar_redundantes(reglas_asociacion(canasta))
+print(len(reglas), "reglas no redundantes")
+reglas_hacia(reglas, "grupo=").head(10)"""),
+    ("code", "reglas.head(15)"),
+    ("md", "## Sectores CIIU por perfil semanal\n\nRequiere `datasets/limpios/ciiu_limpio.parquet` (notebook `limpieza/xm_ciiu`)."),
+    ("code", """ruta_ciiu = DATASETS / "limpios" / "ciiu_limpio.parquet"
+if ruta_ciiu.exists():
+    from sklearn.cluster import KMeans
+    from mineria.sectores import perfiles_sectoriales, describir_sectores, ordenar_por_tamano, mayores_por_grupo
+    ciiu = pd.read_parquet(ruta_ciiu, columns=["timestamp", "activity", "subactivity", "valor", "origen_valor"])
+    perf, energia, reg = perfiles_sectoriales(ciiu)
+    del ciiu
+    ev = evaluar_k(perf.to_numpy(), ks=range(2, 9))
+    ks = elegir_k(ev, tamano_minimo=5)
+    etiquetas = pd.Series(ordenar_por_tamano(KMeans(ks, n_init=20, random_state=42).fit_predict(perf.to_numpy())), index=perf.index)
+    display(reg, describir_sectores(perf, energia, etiquetas), mayores_por_grupo(energia, etiquetas))
+else:
+    print("Falta", ruta_ciiu, "-> ejecuta notebooks/limpieza/xm_ciiu")"""),
+])
+
+
 # Clave -> (ruta dentro de notebooks/ sin extension, notebook). Los de limpieza
 # van en una carpeta por dataset, con la fuente como prefijo para no confundir
 # la demanda real de XM con la de SIMEM.
@@ -917,6 +1042,8 @@ NOTEBOOKS = {
     "xm_ciiu": ("limpieza/xm_ciiu/limpieza_xm_ciiu", NB06),
     "simem_nacional": ("limpieza/simem_nacional/limpieza_simem_nacional", NB07),
     "simem_desagregado": ("limpieza/simem_desagregado/limpieza_simem_desagregado", NB08),
+    "03_eda": ("03_eda", NB09),
+    "04_mineria_no_supervisada": ("04_mineria_no_supervisada", NB10),
 }
 
 

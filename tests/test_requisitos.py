@@ -15,7 +15,9 @@ import sys
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[1]
-PAQUETES_PROPIOS = {"ingesta", "calidad", "limpieza", "variables", "conftest"}
+PAQUETES_PROPIOS = {"ingesta", "calidad", "limpieza", "variables", "mineria", "conftest",
+                    # infra/contenedor: modulos del handler de Lambda, importados por tests/test_infra.py
+                    "lambda_ingesta", "s3sync"}
 
 
 def _requisitos() -> dict[str, str]:
@@ -59,7 +61,9 @@ def _importados(codigo: str) -> set[str]:
 def test_todo_lo_que_se_importa_esta_en_requirements():
     importados = set().union(*map(_importados, _codigo_del_proyecto()))
     terceros = importados - set(sys.stdlib_module_names) - PAQUETES_PROPIOS
-    faltan = sorted(n for n in terceros if n.lower() not in _requisitos())
+    # Paquetes cuyo nombre de importacion no coincide con el de PyPI.
+    distribucion = {"sklearn": "scikit-learn"}
+    faltan = sorted(n for n in terceros if distribucion.get(n, n).lower() not in _requisitos())
     assert not faltan, f"Se importan pero no estan en requirements.txt: {faltan}"
 
 

@@ -1,0 +1,7 @@
+# Copiar a terraform.tfvars (no versionado) y ajustar.
+region                  = "us-east-1"
+proyecto                = "demanda-energetica"
+entorno                 = "dev"
+correo_alertas          = "equipo@ejemplo.com"
+presupuesto_mensual_usd = 10
+umbral_mape_pct         = 5

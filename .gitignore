@@ -35,3 +35,19 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
+
+# Informe LaTeX: se versionan la fuente, lo generado y el PDF; no los auxiliares.
+docs/informe/*.aux
+docs/informe/*.log
+docs/informe/*.out
+docs/informe/*.fls
+docs/informe/*.fdb_latexmk
+docs/informe/*.synctex.gz
+
+# Terraform: estado, planes y variables locales nunca van al repositorio.
+infra/terraform/.terraform/
+infra/terraform/*.tfstate
+infra/terraform/*.tfstate.*
+infra/terraform/*.tfplan
+infra/terraform/terraform.tfvars
+infra/terraform/backend.tf
