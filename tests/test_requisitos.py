@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[1]
-PAQUETES_PROPIOS = {"ingesta", "calidad", "limpieza", "variables", "mineria", "conftest",
+PAQUETES_PROPIOS = {"ingesta", "calidad", "limpieza", "variables", "mineria", "modelado", "conftest",
                     # infra/contenedor: modulos del handler de Lambda, importados por tests/test_infra.py
                     "lambda_ingesta", "s3sync"}
 
