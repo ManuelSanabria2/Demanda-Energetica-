@@ -53,3 +53,7 @@ infra/terraform/terraform.tfvars
 infra/terraform/backend.tf
 # Salidas sin redactar (ID de cuenta, correo): la version publicada va redactada.
 infra/terraform/evidencia/*_sin_redactar.txt
+
+# Modelos entrenados: pesados y regenerables. Su SHA-256 queda anotado en
+# docs/resultados/modelado_*.json, que si se versiona.
+models/
