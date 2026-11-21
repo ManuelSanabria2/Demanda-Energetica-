@@ -53,7 +53,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 362 pruebas, ninguna toca la red
+python -m pytest tests -q          # 374 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -294,6 +294,7 @@ python scripts/entrenar.py --tabla r24  --familia baseline
 python scripts/entrenar.py --tabla r120 --familia baseline
 python scripts/entrenar.py --tabla r24  --familia lineal          # y lo mismo con r120
 python scripts/entrenar.py --tabla r24  --familia clasificacion   # y lo mismo con r120
+python scripts/entrenar.py --tabla r24  --familia ensembles       # y lo mismo con r120
 ```
 
 | bloque | rango (hora local) | uso |
@@ -308,7 +309,8 @@ carga, igual que una tabla cuyo SHA-256 no coincide con su registro. Un MAPE por
 debajo del 1 % lanza `AlertaFuga`.
 
 Resultados en `docs/resultados/modelado_baselines.json`,
-`modelado_regresion.json` y `modelado_clasificacion.json` (una entrada por
+`modelado_regresion.json`, `modelado_clasificacion.json` y
+`modelado_ensembles.json` (una entrada por
 tabla, con la partición, el entorno,
 las métricas de validación y los tiempos); modelos en `models/`, fuera de git,
 con su SHA-256 anotado en ese JSON.
@@ -332,6 +334,18 @@ entrenamiento, porque su ajuste crece entre cuadrática y cúbicamente con las
 filas), más el baseline «`lag_168` supera el umbral». Se eligen por PR-AUC, no
 por accuracy, y las curvas precisión-recall de validación van a
 `docs/figuras/modelado/precision_recall_r24.png` y `_r120.png`.
+
+La familia **ensembles** (`src/modelado/ensembles.py`) son `RandomForestRegressor`,
+`AdaBoostRegressor` sobre un árbol de profundidad 6, `GradientBoostingRegressor`
+y `HistGradientBoostingRegressor`, con hiperparámetros por defecto razonables.
+Un árbol no predice por encima del máximo que vio, y la demanda crece de un año
+a otro: cada ensemble se entrena sobre el **nivel** (`y = demanda_mwh`) y sobre
+la serie **diferenciada** (`y = demanda_mwh - lag_168`, y a la predicción se le
+suma `lag_168`). Por cada uno quedan el sesgo medio, cuántas predicciones y
+cuántos valores reales de validación superan el máximo de entrenamiento, y el
+sesgo en esas horas. No se usa el error *out-of-bag* de Random Forest (el
+bootstrap mezcla momentos distintos), ni la parada temprana de
+`HistGradientBoosting`, que separaría al azar parte del entrenamiento.
 
 Métricas de regresión: MAE, RMSE, MAPE, MAPE en horas pico (18–20 h), error
 sobre el máximo diario, sesgo medio (negativo si subestima) y mejora de MAPE
@@ -574,6 +588,7 @@ src/modelado/
   regresion.py    lineal, polinomial (+Ridge), Ridge, Lasso, ElasticNet; GridSearchCV temporal
   objetivos.py    alerta_pico: demanda(t) > percentil 90 de la ventana de ma_168
   clasificacion.py  logística, KNN, LinearSVC, SVC RBF submuestreada, baseline; PR-AUC
+  ensembles.py    RF, AdaBoost, GB e HistGB sobre el nivel y sobre y - lag_168
 src/limpieza/
   limpiar.py      limpieza trazable: cada operación devuelve marco + registro
   grupos.py       limpieza de tablas desagregadas, un grupo cada vez
@@ -614,6 +629,7 @@ tests/
   test_modelado_base.py  partición, TimeSeriesSplit, métricas a mano, baselines, sin fuga
   test_modelado_regresion.py  la validación no entra en el ajuste; reproducibilidad
   test_modelado_clasificacion.py  umbral de alerta_pico sin fuga; clasificadores sin validación
+  test_modelado_ensembles.py  el bosque no pasa del máximo sobre el nivel; diferenciado sí; sin fuga
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
   test_datasets.py    escritor de CSV: escritura atómica, orden fijo, gzip

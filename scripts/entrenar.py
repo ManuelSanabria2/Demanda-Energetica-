@@ -4,12 +4,13 @@
     python scripts/entrenar.py --tabla r120 --familia baseline
     python scripts/entrenar.py --tabla r24  --familia lineal
     python scripts/entrenar.py --tabla r24  --familia clasificacion
+    python scripts/entrenar.py --tabla r24  --familia ensembles
 
 Ajusta con el bloque de entrenamiento, evalua en validacion y escribe una
 entrada por tabla en docs/resultados (FAMILIAS: baseline ->
 modelado_baselines.json, lineal -> modelado_regresion.json, clasificacion ->
 modelado_clasificacion.json, con su figura precision-recall en
-docs/figuras/modelado): correr r24 y
+docs/figuras/modelado; ensembles -> modelado_ensembles.json): correr r24 y
 despues r120 deja las dos en el mismo archivo. La familia lineal busca sus
 hiperparametros con el TimeSeriesSplit del bloque de entrenamiento. Los modelos ajustados van a
 models/ (fuera de git) y su SHA-256 queda en el registro.
@@ -47,6 +48,8 @@ from modelado.baselines import (  # noqa: E402
     DESCRIPCIONES,
     baselines_disponibles,
 )
+from modelado.ensembles import FORMAS, MODELOS as MODELOS_ENSEMBLES  # noqa: E402
+from modelado.ensembles import comparar_formas, evaluar_ensemble  # noqa: E402
 from modelado.datos import DIR_SALIDA, ahora, cargar_tabla, clave_version, rezago_de  # noqa: E402
 from modelado.metricas import mape, metricas_regresion  # noqa: E402
 from modelado.objetivos import construir_alerta_pico  # noqa: E402
@@ -63,6 +66,7 @@ FAMILIAS = {
     "baseline": "modelado_baselines.json",
     "lineal": "modelado_regresion.json",
     "clasificacion": "modelado_clasificacion.json",
+    "ensembles": "modelado_ensembles.json",
 }
 RESULTADOS = RAIZ / "docs" / "resultados"
 MODELOS = RAIZ / "models"
@@ -234,7 +238,57 @@ def evaluar_clasificadores(
     }
 
 
-EVALUADORES = {"baseline": evaluar_baselines, "lineal": evaluar_lineales, "clasificacion": evaluar_clasificadores}
+def evaluar_ensembles(
+    X: pd.DataFrame,
+    y: pd.Series,
+    fechas: pd.Series,
+    indices: dict,
+    clave: str,
+    dir_modelos: Path,
+    dir_figuras: Path | None = None,
+) -> dict[str, Any]:
+    """Cada ensemble sobre el nivel y sobre la serie diferenciada, con su comparacion.
+
+    CV en entrenamiento y evaluacion en validacion; la mejora de MAPE es frente
+    al baseline estacional en las mismas horas. La prueba no entra.
+    """
+    entrena, valida = indices["entrenamiento"], indices["validacion"]
+    if fechas.iloc[valida].max() >= inicio_prueba() or fechas.iloc[entrena].max() >= inicio_prueba():
+        raise RuntimeError("Filas del bloque de prueba en el ajuste o la evaluacion.")  # defensa
+
+    tscv, registro_cv = validacion_cruzada(clave, fechas.iloc[entrena])
+    columna_base = BASELINES[BASELINE_REFERENCIA]
+    mape_base = mape(y.iloc[valida], X[columna_base].iloc[valida])
+
+    resultados: dict[str, Any] = {}
+    comparacion: dict[str, Any] = {}
+    for nombre in MODELOS_ENSEMBLES:
+        resultados[nombre] = {}
+        for forma in FORMAS:
+            log.info("%s %s (%s): CV y validacion", clave, nombre, forma)
+            modelo, registro = evaluar_ensemble(nombre, forma, X, y, fechas, indices, tscv, mape_base)
+            ruta = dir_modelos / f"ensemble_{nombre}_{forma}_{clave}.joblib"
+            resultados[nombre][forma] = {**registro, "modelo": {**guardar_modelo(modelo, ruta), "ruta": _relativa(ruta)}}
+        comparacion[nombre] = comparar_formas(resultados[nombre])
+    return {
+        "validacion_cruzada": registro_cv,
+        "baseline_referencia": {
+            "nombre": BASELINE_REFERENCIA,
+            "descripcion": DESCRIPCIONES[BASELINE_REFERENCIA],
+            "mape_validacion_pct": mape_base,
+        },
+        "maximo_entrenamiento_mwh": float(y.iloc[entrena].max()),
+        "comparacion_formas": comparacion,
+        "modelos": resultados,
+    }
+
+
+EVALUADORES = {
+    "baseline": evaluar_baselines,
+    "lineal": evaluar_lineales,
+    "clasificacion": evaluar_clasificadores,
+    "ensembles": evaluar_ensembles,
+}
 
 
 def escribir_resultados(ruta: Path, familia: str, clave: str, entrada: dict[str, Any]) -> dict[str, Any]:
@@ -311,7 +365,18 @@ def main(argv: list[str] | None = None) -> int:
                 f"{resultado.get('hiperparametros', '')}"
             )
         print(f"  figura -> {evaluacion['figura']}")
-    for nombre, resultado in ({} if args.familia == "clasificacion" else evaluacion["modelos"]).items():
+    if args.familia == "ensembles":
+        print(f"  maximo de entrenamiento {evaluacion['maximo_entrenamiento_mwh']:.0f} MWh")
+        for nombre, formas in evaluacion["modelos"].items():
+            for forma, resultado in formas.items():
+                m, e = resultado["metricas_validacion"], resultado["extrapolacion_validacion"]
+                print(
+                    f"  {nombre:<17} {forma:<12} MAPE {m['mape_pct']:.2f} % · pico {m['mape_pico_pct']:.2f} % · "
+                    f"RMSE {m['rmse_mwh']:.0f} · sesgo {m['sesgo_medio_mwh']:+.0f} MWh · mejora "
+                    f"{m['mejora_mape_pct']:+.1f} % · sobre el maximo {e['predicciones_sobre_maximo']} pred / "
+                    f"{e['reales_sobre_maximo']} reales · ajuste {resultado['tiempos']['ajuste_s']:.1f} s"
+                )
+    for nombre, resultado in ({} if args.familia in ("clasificacion", "ensembles") else evaluacion["modelos"]).items():
         m = resultado["metricas_validacion"]
         mejora = "" if m["mejora_mape_pct"] is None else f" · mejora {m['mejora_mape_pct']:+.1f} %"
         print(
