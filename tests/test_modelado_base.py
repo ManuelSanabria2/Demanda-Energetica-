@@ -24,6 +24,11 @@ RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))
 
 from ingesta.complementarias import calendario_horario  # noqa: E402
+from modelado.baselines import (  # noqa: E402
+    BaselineRezago,
+    ErrorBaseline,
+    baselines_disponibles,
+)
 from modelado.datos import (  # noqa: E402
     ErrorDatos,
     cargar_tabla,
@@ -364,3 +369,40 @@ def test_clasificacion_con_una_sola_clase_no_inventa_auc():
     assert resultado["recall"] is None and resultado["precision"] == 0.0 and resultado["f1"] is None
     with pytest.raises(ErrorMetricas):
         metricas_clasificacion([0, 2, 1], [0.1, 0.2, 0.3])
+
+
+# ==========================================================================
+# baselines: lag_168 en las dos tablas, lag_24 solo donde existe
+# ==========================================================================
+
+
+@pytest.mark.parametrize("version", VERSIONES)
+def test_los_baselines_predicen_exactamente_su_rezago(carpeta_tablas, version):
+    (X, y, fechas), _ = cargar_tabla(version, carpeta_tablas)
+    modelos, registro = baselines_disponibles(list(X.columns))
+
+    assert list(modelos)[0] == "estacional" and registro["detalle"]["referencia"] == "estacional"
+    assert ("diario" in modelos) == (version == "r24")
+    if version == "r120":
+        assert "lag_24" in registro["detalle"]["omitidos"]["diario"]
+
+    for modelo in modelos.values():
+        modelo.fit(X.iloc[:100], y.iloc[:100])
+        np.testing.assert_array_equal(modelo.predict(X.iloc[100:]), X[modelo.columna].iloc[100:].to_numpy(float))
+
+
+def test_el_baseline_se_comporta_como_un_estimador_de_sklearn(tablas):
+    from sklearn.base import clone
+    from sklearn.exceptions import NotFittedError
+
+    X = tablas["r120"].drop(columns=["fecha_hora", "demanda_mwh"])
+    modelo = BaselineRezago("lag_168")
+    with pytest.raises(NotFittedError):
+        modelo.predict(X)
+    assert clone(modelo).get_params() == {"columna": "lag_168"}
+    with pytest.raises(ErrorBaseline, match="lag_24"):
+        BaselineRezago("lag_24").fit(X)
+    with pytest.raises(ErrorBaseline, match="DataFrame"):
+        modelo.fit(X.to_numpy())
+    with pytest.raises(ErrorBaseline):
+        baselines_disponibles(["temperatura_c"])
