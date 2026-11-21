@@ -450,14 +450,14 @@ def test_tiempos_y_tamano_del_modelo_guardado(tablas, tmp_path):
 # ==========================================================================
 
 
-def _entrenar(carpeta_datos: Path, salida: Path, version: str) -> int:
+def _entrenar(carpeta_datos: Path, salida: Path, version: str, familia: str = "baseline") -> int:
     import importlib.util
 
     spec = importlib.util.spec_from_file_location("entrenar", RAIZ / "scripts" / "entrenar.py")
     modulo = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(modulo)
     return modulo.main(
-        ["--tabla", version, "--familia", "baseline", "--datos", str(carpeta_datos),
+        ["--tabla", version, "--familia", familia, "--datos", str(carpeta_datos),
          "--resultados", str(salida / "resultados"), "--modelos", str(salida / "models")]
     )
 

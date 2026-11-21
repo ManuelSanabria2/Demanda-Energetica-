@@ -9,6 +9,7 @@ tests/test_modelado_base.py.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -20,6 +21,7 @@ sys.path.insert(0, str(RAIZ / "src"))
 
 from modelado.datos import cargar_tabla  # noqa: E402
 from modelado.particion import particionar, validacion_cruzada  # noqa: E402
+from modelado.tiempos import cargar_modelo  # noqa: E402
 from modelado.regresion import (  # noqa: E402
     MODELOS,
     ajustado_con,
@@ -28,7 +30,7 @@ from modelado.regresion import (  # noqa: E402
     crear_pipeline,
     evaluar_modelo,
 )
-from test_modelado_base import VERSIONES, guardar_tablas, panel_minimo  # noqa: E402
+from test_modelado_base import VERSIONES, _entrenar, guardar_tablas, panel_minimo  # noqa: E402
 
 # Lo que cambia entre ejecuciones sin que cambie el modelo.
 CLAVES_VARIABLES = {"momento", "segundos", "tiempos"}
@@ -143,3 +145,19 @@ def test_la_expansion_polinomial_tiene_columnas_dependientes(entradas):
     assert diseno["columnas"] == X.shape[1] * (X.shape[1] + 3) // 2
     assert diseno["rango"] < diseno["columnas"]
 
+def test_entrenar_familia_lineal_de_punta_a_punta(carpeta_tablas, tmp_path):
+    for version in VERSIONES:
+        assert _entrenar(carpeta_tablas, tmp_path, version, familia="lineal") == 0
+    resultados = json.loads((tmp_path / "resultados" / "modelado_regresion.json").read_text(encoding="utf-8"))
+
+    assert resultados["familia"] == "lineal" and list(resultados["tablas"]) == ["r24", "r120"]
+    for version, entrada in resultados["tablas"].items():
+        assert list(entrada["modelos"]) == list(MODELOS)
+        assert entrada["validacion_cruzada"]["detalle"]["gap_h"] == (24 if version == "r24" else 120)
+        referencia = entrada["baseline_referencia"]["mape_validacion_pct"]
+        for registro in entrada["modelos"].values():
+            m = registro["metricas_validacion"]
+            assert m["n"] == 8760
+            assert m["mejora_mape_pct"] == pytest.approx(100 * (referencia - m["mape_pct"]) / referencia)
+            archivo = tmp_path / "models" / Path(registro["modelo"]["ruta"]).name
+            assert cargar_modelo(archivo, registro["modelo"]["sha256"]).steps[0][0] == "escalar"

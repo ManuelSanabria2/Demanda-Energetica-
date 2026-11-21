@@ -2,10 +2,13 @@
 
     python scripts/entrenar.py --tabla r24  --familia baseline
     python scripts/entrenar.py --tabla r120 --familia baseline
+    python scripts/entrenar.py --tabla r24  --familia lineal
 
-Ajusta con el bloque de entrenamiento, evalua en validacion y escribe
-docs/resultados/modelado_<familia>s.json con una entrada por tabla: correr r24
-y despues r120 deja las dos en el mismo archivo. Los modelos ajustados van a
+Ajusta con el bloque de entrenamiento, evalua en validacion y escribe una
+entrada por tabla en docs/resultados (FAMILIAS: baseline ->
+modelado_baselines.json, lineal -> modelado_regresion.json): correr r24 y
+despues r120 deja las dos en el mismo archivo. La familia lineal busca sus
+hiperparametros con el TimeSeriesSplit del bloque de entrenamiento. Los modelos ajustados van a
 models/ (fuera de git) y su SHA-256 queda en el registro.
 
 El bloque de prueba (2025-09-03 .. 2026-09-02) no se toca: el registro de la
@@ -32,10 +35,16 @@ import pandas as pd
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))
 
-from modelado.baselines import BASELINE_REFERENCIA, DESCRIPCIONES, baselines_disponibles  # noqa: E402
+from modelado.baselines import (  # noqa: E402
+    BASELINE_REFERENCIA,
+    BASELINES,
+    DESCRIPCIONES,
+    baselines_disponibles,
+)
 from modelado.datos import DIR_SALIDA, ahora, cargar_tabla, clave_version, rezago_de  # noqa: E402
-from modelado.metricas import metricas_regresion  # noqa: E402
-from modelado.particion import inicio_prueba, particionar  # noqa: E402
+from modelado.metricas import mape, metricas_regresion  # noqa: E402
+from modelado.particion import inicio_prueba, particionar, validacion_cruzada  # noqa: E402
+from modelado.regresion import MODELOS as MODELOS_LINEALES, evaluar_modelo  # noqa: E402
 from modelado.tiempos import entorno, guardar_modelo, medir_ajuste, medir_prediccion  # noqa: E402
 
 log = logging.getLogger("modelado")
@@ -43,7 +52,7 @@ log = logging.getLogger("modelado")
 VERSION_FORMATO = 1
 TABLAS = ("r24", "r120")
 # familia -> archivo de resultados en docs/resultados.
-FAMILIAS = {"baseline": "modelado_baselines.json"}
+FAMILIAS = {"baseline": "modelado_baselines.json", "lineal": "modelado_regresion.json"}
 RESULTADOS = RAIZ / "docs" / "resultados"
 MODELOS = RAIZ / "models"
 
@@ -105,6 +114,47 @@ def evaluar_baselines(
     return {"baselines": registro, "modelos": resultados}
 
 
+def evaluar_lineales(
+    X: pd.DataFrame,
+    y: pd.Series,
+    fechas: pd.Series,
+    indices: dict,
+    clave: str,
+    dir_modelos: Path,
+) -> dict[str, Any]:
+    """Cada modelo de modelado.regresion: busqueda y CV en entrenamiento, evaluacion en validacion.
+
+    La mejora de MAPE es frente al baseline estacional en las mismas horas de
+    validacion. La prueba no entra.
+    """
+    entrena, valida = indices["entrenamiento"], indices["validacion"]
+    if fechas.iloc[valida].max() >= inicio_prueba() or fechas.iloc[entrena].max() >= inicio_prueba():
+        raise RuntimeError("Filas del bloque de prueba en el ajuste o la evaluacion.")  # defensa
+
+    tscv, registro_cv = validacion_cruzada(clave, fechas.iloc[entrena])
+    columna_base = BASELINES[BASELINE_REFERENCIA]
+    mape_base = mape(y.iloc[valida], X[columna_base].iloc[valida])
+
+    resultados: dict[str, Any] = {}
+    for nombre in MODELOS_LINEALES:
+        log.info("%s %s: busqueda, CV y validacion", clave, nombre)
+        modelo, registro = evaluar_modelo(nombre, X, y, fechas, indices, tscv, mape_base)
+        ruta = dir_modelos / f"lineal_{nombre}_{clave}.joblib"
+        resultados[nombre] = {**registro, "modelo": {**guardar_modelo(modelo, ruta), "ruta": _relativa(ruta)}}
+    return {
+        "validacion_cruzada": registro_cv,
+        "baseline_referencia": {
+            "nombre": BASELINE_REFERENCIA,
+            "descripcion": DESCRIPCIONES[BASELINE_REFERENCIA],
+            "mape_validacion_pct": mape_base,
+        },
+        "modelos": resultados,
+    }
+
+
+EVALUADORES = {"baseline": evaluar_baselines, "lineal": evaluar_lineales}
+
+
 def escribir_resultados(ruta: Path, familia: str, clave: str, entrada: dict[str, Any]) -> dict[str, Any]:
     """Actualiza la entrada de una tabla sin tocar las demas y reescribe el JSON de forma atomica."""
     resultados: dict[str, Any] = {}
@@ -148,7 +198,7 @@ def main(argv: list[str] | None = None) -> int:
 
     (X, y, fechas), registro_datos = cargar_tabla(clave, args.datos)
     indices, registro_particion = particionar(fechas)
-    evaluacion = evaluar_baselines(X, y, fechas, indices, clave, args.modelos)
+    evaluacion = EVALUADORES[args.familia](X, y, fechas, indices, clave, args.modelos)
 
     valida = indices["validacion"]
     entrada = {
@@ -172,12 +222,15 @@ def main(argv: list[str] | None = None) -> int:
         m = resultado["metricas_validacion"]
         mejora = "" if m["mejora_mape_pct"] is None else f" · mejora {m['mejora_mape_pct']:+.1f} %"
         print(
-            f"  {nombre:<11} MAPE {m['mape_pct']:.2f} % · pico {m['mape_pico_pct']:.2f} % · "
+            f"  {nombre:<17} MAPE {m['mape_pct']:.2f} % · pico {m['mape_pico_pct']:.2f} % · "
             f"MAE {m['mae_mwh']:.0f} · RMSE {m['rmse_mwh']:.0f} MWh · max diario "
             f"{m['error_maximo_diario_pct']:.2f} % · sesgo {m['sesgo_medio_mwh']:+.0f} MWh{mejora}"
         )
-    for nombre, motivo in evaluacion["baselines"]["detalle"]["omitidos"].items():
-        print(f"  {nombre:<11} omitido: {motivo}")
+        if resultado.get("hiperparametros"):
+            print(f"  {'':<17} hiperparametros {resultado['hiperparametros']}")
+    if "baselines" in evaluacion:
+        for nombre, motivo in evaluacion["baselines"]["detalle"]["omitidos"].items():
+            print(f"  {nombre:<17} omitido: {motivo}")
     print(f"  -> {_relativa(ruta)}")
     return 0
 

@@ -53,7 +53,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 321 pruebas, ninguna toca la red
+python -m pytest tests -q          # 339 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -292,6 +292,7 @@ la evalúa en validación, siempre en r24 y en r120:
 ```bash
 python scripts/entrenar.py --tabla r24  --familia baseline
 python scripts/entrenar.py --tabla r120 --familia baseline
+python scripts/entrenar.py --tabla r24  --familia lineal     # y lo mismo con r120
 ```
 
 | bloque | rango (hora local) | uso |
@@ -305,9 +306,20 @@ que `variables.construir` no reconoce, o que excluye por fuga, hace fallar la
 carga, igual que una tabla cuyo SHA-256 no coincide con su registro. Un MAPE por
 debajo del 1 % lanza `AlertaFuga`.
 
-Resultados en `docs/resultados/modelado_<familia>s.json` (una entrada por
-tabla, con la partición, el entorno, las métricas de validación y los tiempos);
-modelos en `models/`, fuera de git, con su SHA-256 anotado en ese JSON.
+Resultados en `docs/resultados/modelado_baselines.json` y
+`modelado_regresion.json` (una entrada por tabla, con la partición, el entorno,
+las métricas de validación y los tiempos); modelos en `models/`, fuera de git,
+con su SHA-256 anotado en ese JSON.
+
+La familia **lineal** (`src/modelado/regresion.py`) son seis Pipelines
+`StandardScaler` + modelo: `LinearRegression`, polinomial de grado 2 con
+`LinearRegression` y con `Ridge`, `Ridge`, `Lasso` y `ElasticNet`. Los
+hiperparámetros se eligen con `GridSearchCV` sobre el Pipeline completo y el
+`TimeSeriesSplit` del entrenamiento (no con `RidgeCV`/`LassoCV` dentro del
+Pipeline: ahí el escalado vería las filas de validación de cada pliegue). Por
+modelo quedan las métricas por pliegue, las de validación, los tiempos, los
+coeficientes (los que anula Lasso) y el número de condición de la matriz de
+diseño.
 
 Métricas de regresión: MAE, RMSE, MAPE, MAPE en horas pico (18–20 h), error
 sobre el máximo diario, sesgo medio (negativo si subestima) y mejora de MAPE
@@ -547,6 +559,7 @@ src/modelado/
   metricas.py     regresión (MAPE, pico, máximo diario, sesgo), clasificación, alarma de fuga
   baselines.py    estacional (lag_168) y diario (lag_24) como estimadores de sklearn
   tiempos.py      tiempo de ajuste y predicción, tamaño serializado, models/ con SHA-256
+  regresion.py    lineal, polinomial (+Ridge), Ridge, Lasso, ElasticNet; GridSearchCV temporal
 src/limpieza/
   limpiar.py      limpieza trazable: cada operación devuelve marco + registro
   grupos.py       limpieza de tablas desagregadas, un grupo cada vez
@@ -585,6 +598,7 @@ tests/
   test_criticos.py    lo que falla en silencio + ausencia de fuga temporal
   test_variables.py   fuga temporal de la tabla de modelado, en r24 y en r120
   test_modelado_base.py  partición, TimeSeriesSplit, métricas a mano, baselines, sin fuga
+  test_modelado_regresion.py  la validación no entra en el ajuste; reproducibilidad
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
   test_datasets.py    escritor de CSV: escritura atómica, orden fijo, gzip
