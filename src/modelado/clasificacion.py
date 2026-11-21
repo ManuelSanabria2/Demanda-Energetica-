@@ -220,18 +220,18 @@ def buscar_hiperparametros(
 # --------------------------------------------------------------------------
 
 
-def evaluar_clasificador(
+def muestra_de_entrenamiento(
     nombre: str,
-    X: pd.DataFrame,
     objetivo: np.ndarray,
     fechas: pd.Series,
     indices: dict[str, np.ndarray],
     rezago_minimo_h: int | str,
-) -> tuple[Pipeline, dict[str, Any], np.ndarray]:
-    """Busca, ajusta con entrenamiento (o su submuestra) y evalua en validacion.
+) -> tuple[np.ndarray, TimeSeriesSplit, dict[str, Any], dict[str, Any] | None]:
+    """Posiciones de entrenamiento del clasificador y su TimeSeriesSplit.
 
-    `objetivo` es alerta_pico alineado con X (NaN en el arranque sin umbral).
-    Devuelve (Pipeline ajustado, registro, puntajes de validacion).
+    Quita el arranque sin objetivo y, si el clasificador va submuestreado,
+    toma una de cada `submuestra` horas con `gap = ceil(rezago / paso)` filas.
+    Devuelve (posiciones, tscv, registro de la CV, descripcion de la submuestra o None).
     """
     especificacion = _especificacion(nombre)
     rezago = rezago_de(rezago_minimo_h)
@@ -246,27 +246,49 @@ def evaluar_clasificador(
     paso = especificacion.submuestra
     if paso == 1:
         tscv, registro_cv = validacion_cruzada(rezago, fechas.iloc[entrena])
-        submuestra = None
-    else:
-        entrena = entrena[::paso]
-        gap = math.ceil(rezago / paso)
-        tscv = TimeSeriesSplit(n_splits=5, gap=gap)
-        registro_cv = registro_operacion(
-            "validacion_cruzada",
-            f"TimeSeriesSplit(n_splits=5, gap={gap}) sobre la submuestra: {gap} filas de "
-            f"{paso} h = {gap * paso} h >= rezago de {rezago} h",
-            n_splits=5,
-            gap_filas=gap,
-            gap_h=gap * paso,
-            filas=int(len(entrena)),
-        )
-        submuestra = {
-            "paso_h": paso,
-            "filas": int(len(entrena)),
-            "desde": str(fechas.iloc[entrena[0]]),
-            "hasta": str(fechas.iloc[entrena[-1]]),
-            "motivo": MOTIVO_SUBMUESTRA.format(paso=paso),
-        }
+        return entrena, tscv, registro_cv, None
+
+    entrena = entrena[::paso]
+    gap = math.ceil(rezago / paso)
+    tscv = TimeSeriesSplit(n_splits=5, gap=gap)
+    registro_cv = registro_operacion(
+        "validacion_cruzada",
+        f"TimeSeriesSplit(n_splits=5, gap={gap}) sobre la submuestra: {gap} filas de "
+        f"{paso} h = {gap * paso} h >= rezago de {rezago} h",
+        n_splits=5,
+        gap_filas=gap,
+        gap_h=gap * paso,
+        filas=int(len(entrena)),
+    )
+    submuestra = {
+        "paso_h": paso,
+        "filas": int(len(entrena)),
+        "desde": str(fechas.iloc[entrena[0]]),
+        "hasta": str(fechas.iloc[entrena[-1]]),
+        "motivo": MOTIVO_SUBMUESTRA.format(paso=paso),
+    }
+    return entrena, tscv, registro_cv, submuestra
+
+
+def evaluar_clasificador(
+    nombre: str,
+    X: pd.DataFrame,
+    objetivo: np.ndarray,
+    fechas: pd.Series,
+    indices: dict[str, np.ndarray],
+    rezago_minimo_h: int | str,
+) -> tuple[Pipeline, dict[str, Any], np.ndarray]:
+    """Busca, ajusta con entrenamiento (o su submuestra) y evalua en validacion.
+
+    `objetivo` es alerta_pico alineado con X (NaN en el arranque sin umbral).
+    Devuelve (Pipeline ajustado, registro, puntajes de validacion).
+    """
+    especificacion = _especificacion(nombre)
+    objetivo = np.asarray(objetivo, dtype="float64")
+    valida = indices["validacion"]
+    entrena, tscv, registro_cv, submuestra = muestra_de_entrenamiento(
+        nombre, objetivo, fechas, indices, rezago_minimo_h
+    )
 
     X_entrena = X.iloc[entrena].reset_index(drop=True)
     y_entrena = objetivo[entrena].astype(int)

@@ -53,7 +53,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 374 pruebas, ninguna toca la red
+python -m pytest tests -q          # 407 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -295,6 +295,7 @@ python scripts/entrenar.py --tabla r120 --familia baseline
 python scripts/entrenar.py --tabla r24  --familia lineal          # y lo mismo con r120
 python scripts/entrenar.py --tabla r24  --familia clasificacion   # y lo mismo con r120
 python scripts/entrenar.py --tabla r24  --familia ensembles       # y lo mismo con r120
+python scripts/entrenar.py --tabla r24  --familia busqueda        # después de las anteriores
 ```
 
 | bloque | rango (hora local) | uso |
@@ -309,8 +310,8 @@ carga, igual que una tabla cuyo SHA-256 no coincide con su registro. Un MAPE por
 debajo del 1 % lanza `AlertaFuga`.
 
 Resultados en `docs/resultados/modelado_baselines.json`,
-`modelado_regresion.json`, `modelado_clasificacion.json` y
-`modelado_ensembles.json` (una entrada por
+`modelado_regresion.json`, `modelado_clasificacion.json`,
+`modelado_ensembles.json` y `modelado_busqueda.json` (una entrada por
 tabla, con la partición, el entorno,
 las métricas de validación y los tiempos); modelos en `models/`, fuera de git,
 con su SHA-256 anotado en ese JSON.
@@ -346,6 +347,18 @@ cuántos valores reales de validación superan el máximo de entrenamiento, y el
 sesgo en esas horas. No se usa el error *out-of-bag* de Random Forest (el
 bootstrap mezcla momentos distintos), ni la parada temprana de
 `HistGradientBoosting`, que separaría al azar parte del entrenamiento.
+
+La **busqueda** (`src/modelado/busqueda.py`) lee esos resultados y toma, por
+tabla, los 3 mejores modelos de regresión en validación por MAPE y el mejor
+clasificador por PR-AUC. A cada uno le pasa `GridSearchCV` con una rejilla
+acotada y `RandomizedSearchCV` con distribuciones de `scipy.stats` sobre el
+mismo rango y tantas iteraciones como combinaciones tiene la rejilla: el
+`TimeSeriesSplit` del entrenamiento, `neg_mean_absolute_error` (F1 en
+clasificación), `n_jobs=-1` y `random_state=42`. El mejor de cada búsqueda se
+reentrena con todo el entrenamiento y se evalúa en validación, frente a la
+configuración del paso anterior. La figura
+`docs/figuras/modelado/busqueda_puntaje_tiempo_r24.png` (y `_r120`) traza el
+mejor puntaje de CV acumulado frente al cómputo acumulado de cada método.
 
 Métricas de regresión: MAE, RMSE, MAPE, MAPE en horas pico (18–20 h), error
 sobre el máximo diario, sesgo medio (negativo si subestima) y mejora de MAPE
@@ -589,6 +602,7 @@ src/modelado/
   objetivos.py    alerta_pico: demanda(t) > percentil 90 de la ventana de ma_168
   clasificacion.py  logística, KNN, LinearSVC, SVC RBF submuestreada, baseline; PR-AUC
   ensembles.py    RF, AdaBoost, GB e HistGB sobre el nivel y sobre y - lag_168
+  busqueda.py     GridSearchCV frente a RandomizedSearchCV para los mejores de cada paso
 src/limpieza/
   limpiar.py      limpieza trazable: cada operación devuelve marco + registro
   grupos.py       limpieza de tablas desagregadas, un grupo cada vez
@@ -630,6 +644,7 @@ tests/
   test_modelado_regresion.py  la validación no entra en el ajuste; reproducibilidad
   test_modelado_clasificacion.py  umbral de alerta_pico sin fuga; clasificadores sin validación
   test_modelado_ensembles.py  el bosque no pasa del máximo sobre el nivel; diferenciado sí; sin fuga
+  test_modelado_busqueda.py  selección de candidatos, mismo espacio en Grid y Random, sin fuga
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
   test_datasets.py    escritor de CSV: escritura atómica, orden fijo, gzip

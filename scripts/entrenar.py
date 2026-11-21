@@ -5,12 +5,15 @@
     python scripts/entrenar.py --tabla r24  --familia lineal
     python scripts/entrenar.py --tabla r24  --familia clasificacion
     python scripts/entrenar.py --tabla r24  --familia ensembles
+    python scripts/entrenar.py --tabla r24  --familia busqueda
 
 Ajusta con el bloque de entrenamiento, evalua en validacion y escribe una
 entrada por tabla en docs/resultados (FAMILIAS: baseline ->
 modelado_baselines.json, lineal -> modelado_regresion.json, clasificacion ->
 modelado_clasificacion.json, con su figura precision-recall en
-docs/figuras/modelado; ensembles -> modelado_ensembles.json): correr r24 y
+docs/figuras/modelado; ensembles -> modelado_ensembles.json; busqueda ->
+modelado_busqueda.json, que lee los resultados de lineal, ensembles y
+clasificacion para elegir sus candidatos): correr r24 y
 despues r120 deja las dos en el mismo archivo. La familia lineal busca sus
 hiperparametros con el TimeSeriesSplit del bloque de entrenamiento. Los modelos ajustados van a
 models/ (fuera de git) y su SHA-256 queda en el registro.
@@ -30,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import sys
 from pathlib import Path
 from typing import Any
@@ -40,6 +44,7 @@ import pandas as pd
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))
 
+from modelado import busqueda  # noqa: E402
 from modelado.clasificacion import MODELOS as MODELOS_CLASIFICACION  # noqa: E402
 from modelado.clasificacion import evaluar_baseline, evaluar_clasificador  # noqa: E402
 from modelado.baselines import (  # noqa: E402
@@ -67,7 +72,10 @@ FAMILIAS = {
     "lineal": "modelado_regresion.json",
     "clasificacion": "modelado_clasificacion.json",
     "ensembles": "modelado_ensembles.json",
+    "busqueda": "modelado_busqueda.json",
 }
+# Familias cuyos resultados lee la busqueda para elegir candidatos.
+ENTRADAS_BUSQUEDA = ("lineal", "ensembles", "clasificacion")
 RESULTADOS = RAIZ / "docs" / "resultados"
 MODELOS = RAIZ / "models"
 FIGURAS = RAIZ / "docs" / "figuras" / "modelado"
@@ -283,11 +291,102 @@ def evaluar_ensembles(
     }
 
 
+def figura_busqueda(registros: dict[str, Any], clave: str, ruta: Path) -> Path:
+    """Mejor puntaje de CV acumulado frente al computo acumulado, Grid y Random, un panel por candidato."""
+    from mineria import estilo
+
+    estilo.aplicar()
+    n = len(registros)
+    columnas = 2
+    filas = math.ceil(n / columnas)
+    figura, ejes = estilo.plt.subplots(filas, columnas, figsize=(9.0, 3.3 * filas), squeeze=False)
+    colores = {"grid": estilo.CATEGORICA[0], "random": estilo.CATEGORICA[1]}
+    for eje, (etiqueta, registro) in zip(ejes.ravel(), registros.items()):
+        regresion = registro["tipo"] == "regresion"
+        signo = -1.0 if regresion else 1.0  # MAE positivo en el eje
+        for metodo in busqueda.METODOS:
+            r = registro[metodo]
+            computo = [p["computo_acumulado_s"] for p in r["trayectoria"]]
+            eje.scatter(computo, [signo * p["puntaje_cv"] for p in r["trayectoria"]], s=9, alpha=0.35,
+                        color=colores[metodo], linewidths=0)
+            eje.step(computo, [signo * p["mejor_puntaje_cv_acumulado"] for p in r["trayectoria"]], where="post",
+                     color=colores[metodo], linewidth=1.6,
+                     label=f"{'Grid' if metodo == 'grid' else 'Random'} · {r['n_ajustes_cv']} ajustes · "
+                           f"{r['segundos_busqueda']:.0f} s de reloj")
+        eje.axhline(signo * registro["referencia"]["puntaje_cv"], color=estilo.TINTA_SECUNDARIA,
+                    linewidth=0.8, linestyle=":", label="referencia (paso anterior)")
+        eje.set(xlabel="computo acumulado (s, suma de ajustes)",
+                ylabel="MAE de CV (MWh)" if regresion else "F1 de CV", title=etiqueta)
+        if regresion:
+            # Los candidatos malos estiran el eje: se recorta al rango de lo que importa.
+            mejores = [signo * registro[m]["mejor_puntaje_cv"] for m in busqueda.METODOS]
+            techo = max(signo * registro["referencia"]["puntaje_cv"], *mejores)
+            eje.set_ylim(min(mejores) * 0.97, techo * 1.12)
+        eje.legend(fontsize=7, loc="upper right" if regresion else "lower right")
+    for eje in ejes.ravel()[n:]:
+        eje.set_visible(False)
+    figura.suptitle(f"Grid frente a Random Search · {clave}", fontsize=10)
+    figura.tight_layout()
+    return estilo.guardar(figura, ruta)
+
+
+def evaluar_busquedas(
+    X: pd.DataFrame,
+    y: pd.Series,
+    fechas: pd.Series,
+    indices: dict,
+    clave: str,
+    dir_modelos: Path,
+    dir_figuras: Path | None = None,
+    dir_resultados: Path | None = None,
+) -> dict[str, Any]:
+    """Grid y Random para los mejores de regresion y el mejor clasificador de los pasos anteriores."""
+    entrena, valida = indices["entrenamiento"], indices["validacion"]
+    if fechas.iloc[valida].max() >= inicio_prueba() or fechas.iloc[entrena].max() >= inicio_prueba():
+        raise RuntimeError("Filas del bloque de prueba en el ajuste o la evaluacion.")  # defensa
+
+    carpeta = dir_resultados or RESULTADOS
+    previos = {}
+    for familia in ENTRADAS_BUSQUEDA:
+        ruta = carpeta / FAMILIAS[familia]
+        if not ruta.exists():
+            raise FileNotFoundError(f"La busqueda necesita {_relativa(ruta)}: corre antes --familia {familia}.")
+        previos[familia] = json.loads(ruta.read_text(encoding="utf-8"))
+    candidatos, registro_seleccion = busqueda.seleccionar_candidatos(previos, clave)
+
+    objetivo = None
+    if any(c.tipo == "clasificacion" for c in candidatos):
+        marco, _ = construir_alerta_pico(fechas, y, clave, indices)
+        objetivo = marco["alerta_pico"].to_numpy()
+
+    resultados: dict[str, Any] = {}
+    for candidato in candidatos:
+        log.info("%s %s: referencia, Grid y Random", clave, candidato.etiqueta)
+        modelos, registro = busqueda.evaluar_candidato(candidato, X, y, objetivo, fechas, indices, clave)
+        for metodo in busqueda.METODOS:
+            ruta = dir_modelos / f"busqueda_{candidato.clave}_{metodo}_{clave}.joblib"
+            registro[metodo]["modelo"] = {**guardar_modelo(modelos[metodo], ruta), "ruta": _relativa(ruta)}
+        resultados[candidato.etiqueta] = registro
+
+    ruta_figura = figura_busqueda(resultados, clave, (dir_figuras or FIGURAS) / f"busqueda_puntaje_tiempo_{clave}.png")
+    return {
+        "seleccion": registro_seleccion,
+        "baseline_referencia": {
+            "nombre": BASELINE_REFERENCIA,
+            "mape_validacion_pct": mape(y.iloc[valida], X[BASELINES[BASELINE_REFERENCIA]].iloc[valida]),
+        },
+        "tolerancia_relativa": busqueda.TOLERANCIA_RELATIVA,
+        "modelos": resultados,
+        "figura": _relativa(ruta_figura),
+    }
+
+
 EVALUADORES = {
     "baseline": evaluar_baselines,
     "lineal": evaluar_lineales,
     "clasificacion": evaluar_clasificadores,
     "ensembles": evaluar_ensembles,
+    "busqueda": evaluar_busquedas,
 }
 
 
@@ -335,7 +434,8 @@ def main(argv: list[str] | None = None) -> int:
 
     (X, y, fechas), registro_datos = cargar_tabla(clave, args.datos)
     indices, registro_particion = particionar(fechas)
-    evaluacion = EVALUADORES[args.familia](X, y, fechas, indices, clave, args.modelos, args.figuras)
+    extra = {"dir_resultados": args.resultados} if args.familia == "busqueda" else {}
+    evaluacion = EVALUADORES[args.familia](X, y, fechas, indices, clave, args.modelos, args.figuras, **extra)
 
     valida = indices["validacion"]
     entrada = {
@@ -376,7 +476,24 @@ def main(argv: list[str] | None = None) -> int:
                     f"{m['mejora_mape_pct']:+.1f} % · sobre el maximo {e['predicciones_sobre_maximo']} pred / "
                     f"{e['reales_sobre_maximo']} reales · ajuste {resultado['tiempos']['ajuste_s']:.1f} s"
                 )
-    for nombre, resultado in ({} if args.familia in ("clasificacion", "ensembles") else evaluacion["modelos"]).items():
+    if args.familia == "busqueda":
+        for etiqueta, registro in evaluacion["modelos"].items():
+            regresion = registro["tipo"] == "regresion"
+            metrica = "mae_mwh" if regresion else "f1"
+            ref = registro["referencia"]
+            print(f"  {etiqueta:<30} referencia CV {ref['puntaje_cv']:+.4g} · validacion "
+                  f"{metrica} {ref['metricas_validacion'][metrica]:.4g}")
+            for metodo in busqueda.METODOS:
+                r = registro[metodo]
+                print(f"  {'':<30} {metodo:<6} CV {r['mejor_puntaje_cv']:+.4g} · validacion {metrica} "
+                      f"{r['metricas_validacion'][metrica]:.4g} · {r['n_ajustes']} ajustes · "
+                      f"{r['segundos_total']:.0f} s · {r['mejores']}")
+            c = registro["comparacion"]
+            print(f"  {'':<30} random alcanza a grid: {c['random_alcanza_grid']} "
+                  f"({c['ajustes_cv_random_hasta_alcanzar']} ajustes; grid llega a su mejor en "
+                  f"{c['ajustes_cv_grid_hasta_su_mejor']})")
+        print(f"  figura -> {evaluacion['figura']}")
+    for nombre, resultado in ({} if args.familia in ("clasificacion", "ensembles", "busqueda") else evaluacion["modelos"]).items():
         m = resultado["metricas_validacion"]
         mejora = "" if m["mejora_mape_pct"] is None else f" · mejora {m['mejora_mape_pct']:+.1f} %"
         print(
