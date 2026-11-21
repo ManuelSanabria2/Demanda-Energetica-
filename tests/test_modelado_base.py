@@ -443,3 +443,64 @@ def test_tiempos_y_tamano_del_modelo_guardado(tablas, tmp_path):
     with pytest.raises(ErrorModelo, match="SHA-256"):
         cargar_modelo(ruta, "0" * 64)
     assert {"python", "numpy", "scikit-learn", "joblib"} <= set(entorno())
+
+
+# ==========================================================================
+# scripts/entrenar.py: de punta a punta, sin tocar el bloque de prueba
+# ==========================================================================
+
+
+def _entrenar(carpeta_datos: Path, salida: Path, version: str) -> int:
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location("entrenar", RAIZ / "scripts" / "entrenar.py")
+    modulo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(modulo)
+    return modulo.main(
+        ["--tabla", version, "--familia", "baseline", "--datos", str(carpeta_datos),
+         "--resultados", str(salida / "resultados"), "--modelos", str(salida / "models")]
+    )
+
+
+def _baselines_de(carpeta_datos: Path, salida: Path) -> dict:
+    for version in VERSIONES:
+        assert _entrenar(carpeta_datos, salida, version) == 0
+    import json
+
+    return json.loads((salida / "resultados" / "modelado_baselines.json").read_text(encoding="utf-8"))
+
+
+def test_entrenar_baselines_evalua_en_validacion_y_guarda_las_dos_tablas(carpeta_tablas, tmp_path):
+    resultados = _baselines_de(carpeta_tablas, tmp_path)
+
+    assert resultados["familia"] == "baseline" and list(resultados["tablas"]) == ["r24", "r120"]
+    for version, entrada in resultados["tablas"].items():
+        assert entrada["evaluacion"]["rango_evaluacion"] == [
+            str(pd.Timestamp("2024-09-03 00:00", tz=ZONA)), str(pd.Timestamp("2025-09-02 23:00", tz=ZONA))
+        ]
+        assert entrada["datos"]["sha256"] and entrada["datos"]["tabla"] == version
+        assert ("diario" in entrada["modelos"]) == (version == "r24")
+        for nombre, modelo in entrada["modelos"].items():
+            m = modelo["metricas_validacion"]
+            assert m["n"] == entrada["evaluacion"]["filas_evaluacion"] == 8760
+            assert m["mape_pct"] > 1  # el ruido del 3 % deja a los baselines lejos del umbral de fuga
+            assert (m["mejora_mape_pct"] is None) == (nombre == "estacional")
+            archivo = tmp_path / "models" / Path(modelo["modelo"]["ruta"]).name
+            assert cargar_modelo(archivo, modelo["modelo"]["sha256"]).columna == modelo["columna"]
+    assert "diario" in resultados["tablas"]["r120"]["baselines"]["detalle"]["omitidos"]
+
+
+def test_alterar_la_demanda_del_bloque_de_prueba_no_cambia_ninguna_metrica(panel, carpeta_tablas, tmp_path):
+    alterado = panel.copy()
+    en_prueba = alterado["fecha_hora"] >= inicio_prueba()
+    alterado.loc[en_prueba, "valor_kwh"] *= 2.0
+    carpeta_alterada = guardar_tablas(alterado, tmp_path / "procesado_alterado")
+
+    original = _baselines_de(carpeta_tablas, tmp_path / "original")
+    cambiado = _baselines_de(carpeta_alterada, tmp_path / "alterado")
+    for version in VERSIONES:
+        # Las tablas si difieren (la prueba cambio)...
+        assert original["tablas"][version]["datos"]["sha256"] != cambiado["tablas"][version]["datos"]["sha256"]
+        # ...pero ninguna metrica de validacion se entera.
+        for nombre, modelo in original["tablas"][version]["modelos"].items():
+            assert modelo["metricas_validacion"] == cambiado["tablas"][version]["modelos"][nombre]["metricas_validacion"]

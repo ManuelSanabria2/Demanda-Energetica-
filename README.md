@@ -53,7 +53,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 292 pruebas, ninguna toca la red
+python -m pytest tests -q          # 321 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -283,6 +283,37 @@ exactamente la demanda de esa marca de tiempo, la media y la desviación
 recalculadas a mano coinciden, y alterar la demanda futura no cambia ninguna
 variable anterior.
 
+## Modelado supervisado
+
+Las reglas están en [`CLAUDE.md`](CLAUDE.md). `src/modelado/` carga las dos
+tablas, las parte y mide; `scripts/entrenar.py` ajusta una familia de modelos y
+la evalúa en validación, siempre en r24 y en r120:
+
+```bash
+python scripts/entrenar.py --tabla r24  --familia baseline
+python scripts/entrenar.py --tabla r120 --familia baseline
+```
+
+| bloque | rango (hora local) | uso |
+|---|---|---|
+| entrenamiento | inicio de la tabla → 2024-09-02 23:00 | ajuste; dentro, `TimeSeriesSplit` (5 pliegues, `gap` = 24 h en r24 y 120 h en r120) |
+| validación | 2024-09-03 → 2025-09-02 23:00 | selección de modelos e hiperparámetros |
+| prueba | 2025-09-03 → 2026-09-02 23:00 | **reservado** para la evaluación final |
+
+`X` son las columnas de la tabla menos `fecha_hora` y `demanda_mwh`; una columna
+que `variables.construir` no reconoce, o que excluye por fuga, hace fallar la
+carga, igual que una tabla cuyo SHA-256 no coincide con su registro. Un MAPE por
+debajo del 1 % lanza `AlertaFuga`.
+
+Resultados en `docs/resultados/modelado_<familia>s.json` (una entrada por
+tabla, con la partición, el entorno, las métricas de validación y los tiempos);
+modelos en `models/`, fuera de git, con su SHA-256 anotado en ese JSON.
+
+Métricas de regresión: MAE, RMSE, MAPE, MAPE en horas pico (18–20 h), error
+sobre el máximo diario, sesgo medio (negativo si subestima) y mejora de MAPE
+frente al baseline estacional. Baselines: **estacional**, `y_pred = lag_168`,
+en las dos tablas, y **diario**, `y_pred = lag_24`, solo en r24.
+
 ## Ausencia de fuga temporal
 
 Las marcas de atípicos se calculan con estadísticos **causales**: cada fila se
@@ -510,6 +541,12 @@ src/mineria/
   estilo.py       paleta y estilo comun de las figuras
 src/variables/
   construir.py    tabla de modelado: rezagos por marca de tiempo, cíclicas, selección
+src/modelado/
+  datos.py        tabla de modelado -> X, y, fechas; SHA-256 y variables de la tabla
+  particion.py    entrenamiento / validación / prueba por fecha; TimeSeriesSplit con gap
+  metricas.py     regresión (MAPE, pico, máximo diario, sesgo), clasificación, alarma de fuga
+  baselines.py    estacional (lag_168) y diario (lag_24) como estimadores de sklearn
+  tiempos.py      tiempo de ajuste y predicción, tamaño serializado, models/ con SHA-256
 src/limpieza/
   limpiar.py      limpieza trazable: cada operación devuelve marco + registro
   grupos.py       limpieza de tablas desagregadas, un grupo cada vez
@@ -534,6 +571,7 @@ scripts/
   generar_notebooks.py   define y regenera los notebooks
   construir_panel.py  demanda limpia + clima + calendario -> panel de modelado
   construir_variables.py  panel -> tablas de modelado r24 y r120 + registro
+  entrenar.py         ajusta y evalúa una familia en validación -> docs/resultados/modelado_*.json
   explorar_apis.py    vuelca el JSON crudo y describe su estructura
   verificar_apis.py   comprueba los invariantes de los que depende el código
   reconciliar.py      XM vs SIMEM; resuelve empíricamente la convención HourNN
@@ -546,6 +584,7 @@ tests/
   test_complementarias.py pesos, ponderación, Ley Emiliani, validación del merge
   test_criticos.py    lo que falla en silencio + ausencia de fuga temporal
   test_variables.py   fuga temporal de la tabla de modelado, en r24 y en r120
+  test_modelado_base.py  partición, TimeSeriesSplit, métricas a mano, baselines, sin fuga
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
   test_datasets.py    escritor de CSV: escritura atómica, orden fijo, gzip
