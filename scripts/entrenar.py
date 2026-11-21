@@ -3,10 +3,13 @@
     python scripts/entrenar.py --tabla r24  --familia baseline
     python scripts/entrenar.py --tabla r120 --familia baseline
     python scripts/entrenar.py --tabla r24  --familia lineal
+    python scripts/entrenar.py --tabla r24  --familia clasificacion
 
 Ajusta con el bloque de entrenamiento, evalua en validacion y escribe una
 entrada por tabla en docs/resultados (FAMILIAS: baseline ->
-modelado_baselines.json, lineal -> modelado_regresion.json): correr r24 y
+modelado_baselines.json, lineal -> modelado_regresion.json, clasificacion ->
+modelado_clasificacion.json, con su figura precision-recall en
+docs/figuras/modelado): correr r24 y
 despues r120 deja las dos en el mismo archivo. La familia lineal busca sus
 hiperparametros con el TimeSeriesSplit del bloque de entrenamiento. Los modelos ajustados van a
 models/ (fuera de git) y su SHA-256 queda en el registro.
@@ -30,11 +33,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))
 
+from modelado.clasificacion import MODELOS as MODELOS_CLASIFICACION  # noqa: E402
+from modelado.clasificacion import evaluar_baseline, evaluar_clasificador  # noqa: E402
 from modelado.baselines import (  # noqa: E402
     BASELINE_REFERENCIA,
     BASELINES,
@@ -43,6 +49,7 @@ from modelado.baselines import (  # noqa: E402
 )
 from modelado.datos import DIR_SALIDA, ahora, cargar_tabla, clave_version, rezago_de  # noqa: E402
 from modelado.metricas import mape, metricas_regresion  # noqa: E402
+from modelado.objetivos import construir_alerta_pico  # noqa: E402
 from modelado.particion import inicio_prueba, particionar, validacion_cruzada  # noqa: E402
 from modelado.regresion import MODELOS as MODELOS_LINEALES, evaluar_modelo  # noqa: E402
 from modelado.tiempos import entorno, guardar_modelo, medir_ajuste, medir_prediccion  # noqa: E402
@@ -52,9 +59,14 @@ log = logging.getLogger("modelado")
 VERSION_FORMATO = 1
 TABLAS = ("r24", "r120")
 # familia -> archivo de resultados en docs/resultados.
-FAMILIAS = {"baseline": "modelado_baselines.json", "lineal": "modelado_regresion.json"}
+FAMILIAS = {
+    "baseline": "modelado_baselines.json",
+    "lineal": "modelado_regresion.json",
+    "clasificacion": "modelado_clasificacion.json",
+}
 RESULTADOS = RAIZ / "docs" / "resultados"
 MODELOS = RAIZ / "models"
+FIGURAS = RAIZ / "docs" / "figuras" / "modelado"
 
 
 def _relativa(ruta: Path) -> str:
@@ -72,6 +84,7 @@ def evaluar_baselines(
     indices: dict,
     clave: str,
     dir_modelos: Path,
+    dir_figuras: Path | None = None,
 ) -> dict[str, Any]:
     """Ajusta cada baseline con entrenamiento, lo evalua en validacion y lo guarda.
 
@@ -121,6 +134,7 @@ def evaluar_lineales(
     indices: dict,
     clave: str,
     dir_modelos: Path,
+    dir_figuras: Path | None = None,
 ) -> dict[str, Any]:
     """Cada modelo de modelado.regresion: busqueda y CV en entrenamiento, evaluacion en validacion.
 
@@ -152,7 +166,75 @@ def evaluar_lineales(
     }
 
 
-EVALUADORES = {"baseline": evaluar_baselines, "lineal": evaluar_lineales}
+def figura_precision_recall(curvas: dict[str, tuple[np.ndarray, np.ndarray]], prevalencia: float, clave: str, ruta: Path) -> Path:
+    """Curvas precision-recall en validacion, una por clasificador y el baseline."""
+    from sklearn.metrics import precision_recall_curve
+
+    from mineria import estilo
+
+    estilo.aplicar()
+    figura, ejes = estilo.plt.subplots(figsize=(5.2, 4.0))
+    for posicion, (nombre, (real, puntajes)) in enumerate(curvas.items()):
+        precision, recall, _ = precision_recall_curve(real, puntajes)
+        es_base = nombre == "baseline"
+        ejes.plot(
+            recall,
+            precision,
+            label=nombre,
+            color=estilo.TINTA_SECUNDARIA if es_base else estilo.CATEGORICA[posicion % len(estilo.CATEGORICA)],
+            linestyle="--" if es_base else "-",
+            linewidth=1.3 if es_base else 1.6,
+        )
+    ejes.axhline(prevalencia, color=estilo.TINTA_SECUNDARIA, linewidth=0.8, linestyle=":")
+    ejes.annotate(f"prevalencia {100 * prevalencia:.1f} %", (1.0, prevalencia), xytext=(-4, 4),
+                  textcoords="offset points", ha="right", fontsize=7.5, color=estilo.TINTA_SECUNDARIA)
+    ejes.set(xlim=(0, 1), ylim=(0, 1.02), xlabel="recall", ylabel="precision",
+             title=f"alerta_pico en validacion · {clave}")
+    ejes.legend(loc="upper right", fontsize=8)
+    return estilo.guardar(figura, ruta)
+
+
+def evaluar_clasificadores(
+    X: pd.DataFrame,
+    y: pd.Series,
+    fechas: pd.Series,
+    indices: dict,
+    clave: str,
+    dir_modelos: Path,
+    dir_figuras: Path | None = None,
+) -> dict[str, Any]:
+    """alerta_pico: cada clasificador y el baseline, evaluados en validacion, con la figura PR."""
+    entrena, valida = indices["entrenamiento"], indices["validacion"]
+    if fechas.iloc[valida].max() >= inicio_prueba() or fechas.iloc[entrena].max() >= inicio_prueba():
+        raise RuntimeError("Filas del bloque de prueba en el ajuste o la evaluacion.")  # defensa
+
+    marco, registro_objetivo = construir_alerta_pico(fechas, y, clave, indices)
+    objetivo = marco["alerta_pico"].to_numpy()
+    real = objetivo[valida].astype(int)
+
+    resultados: dict[str, Any] = {}
+    curvas: dict[str, tuple[np.ndarray, np.ndarray]] = {}
+    for nombre in MODELOS_CLASIFICACION:
+        log.info("%s %s: busqueda y validacion", clave, nombre)
+        modelo, registro, puntajes = evaluar_clasificador(nombre, X, objetivo, fechas, indices, clave)
+        ruta = dir_modelos / f"clasificacion_{nombre}_{clave}.joblib"
+        resultados[nombre] = {**registro, "modelo": {**guardar_modelo(modelo, ruta), "ruta": _relativa(ruta)}}
+        curvas[nombre] = (real, puntajes)
+
+    baseline, puntajes_base = evaluar_baseline(X, objetivo, marco["umbral_alerta_mwh"].to_numpy(), indices)
+    curvas["baseline"] = (real, puntajes_base)
+    ruta_figura = figura_precision_recall(
+        curvas, float(real.mean()), clave, (dir_figuras or FIGURAS) / f"precision_recall_{clave}.png"
+    )
+    return {
+        "objetivo": registro_objetivo,
+        "baseline": baseline,
+        "modelos": resultados,
+        "figura": _relativa(ruta_figura),
+    }
+
+
+EVALUADORES = {"baseline": evaluar_baselines, "lineal": evaluar_lineales, "clasificacion": evaluar_clasificadores}
 
 
 def escribir_resultados(ruta: Path, familia: str, clave: str, entrada: dict[str, Any]) -> dict[str, Any]:
@@ -191,6 +273,7 @@ def main(argv: list[str] | None = None) -> int:
     analizador.add_argument("--datos", type=Path, default=DIR_SALIDA, help="carpeta de las tablas y su registro")
     analizador.add_argument("--resultados", type=Path, default=RESULTADOS)
     analizador.add_argument("--modelos", type=Path, default=MODELOS)
+    analizador.add_argument("--figuras", type=Path, default=FIGURAS)
     args = analizador.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(levelname)-7s %(name)s: %(message)s")
@@ -198,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
 
     (X, y, fechas), registro_datos = cargar_tabla(clave, args.datos)
     indices, registro_particion = particionar(fechas)
-    evaluacion = EVALUADORES[args.familia](X, y, fechas, indices, clave, args.modelos)
+    evaluacion = EVALUADORES[args.familia](X, y, fechas, indices, clave, args.modelos, args.figuras)
 
     valida = indices["validacion"]
     entrada = {
@@ -218,7 +301,17 @@ def main(argv: list[str] | None = None) -> int:
 
     rango = entrada["evaluacion"]["rango_evaluacion"]
     print(f"\n=== {args.familia.upper()} · {clave} === validacion {rango[0][:16]} .. {rango[1][:16]}")
-    for nombre, resultado in evaluacion["modelos"].items():
+    if args.familia == "clasificacion":
+        filas = {**evaluacion["modelos"], "baseline": evaluacion["baseline"]}
+        for nombre, resultado in filas.items():
+            m = resultado["metricas_validacion"]
+            print(
+                f"  {nombre:<11} PR-AUC {m['pr_auc']:.3f} · ROC-AUC {m['roc_auc']:.3f} · F1 {m['f1'] or 0:.3f} · "
+                f"precision {m['precision'] or 0:.3f} · recall {m['recall'] or 0:.3f} · "
+                f"{resultado.get('hiperparametros', '')}"
+            )
+        print(f"  figura -> {evaluacion['figura']}")
+    for nombre, resultado in ({} if args.familia == "clasificacion" else evaluacion["modelos"]).items():
         m = resultado["metricas_validacion"]
         mejora = "" if m["mejora_mape_pct"] is None else f" · mejora {m['mejora_mape_pct']:+.1f} %"
         print(

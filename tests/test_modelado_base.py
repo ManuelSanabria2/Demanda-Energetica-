@@ -458,7 +458,8 @@ def _entrenar(carpeta_datos: Path, salida: Path, version: str, familia: str = "b
     spec.loader.exec_module(modulo)
     return modulo.main(
         ["--tabla", version, "--familia", familia, "--datos", str(carpeta_datos),
-         "--resultados", str(salida / "resultados"), "--modelos", str(salida / "models")]
+         "--resultados", str(salida / "resultados"), "--modelos", str(salida / "models"),
+         "--figuras", str(salida / "figuras")]
     )
 
 

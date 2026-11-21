@@ -1,0 +1,2196 @@
+{
+  "version_formato": 1,
+  "familia": "clasificacion",
+  "momento": "2026-11-21T00:19:06",
+  "bloque_ajuste": "entrenamiento",
+  "bloque_evaluacion": "validacion",
+  "nota": "El bloque de prueba no se usa: se evalua solo en la evaluacion final. Los tiempos dependen de la maquina (ver entorno de cada tabla).",
+  "tablas": {
+    "r24": {
+      "momento": "2026-11-21T00:18:02",
+      "entorno": {
+        "python": "3.12.10",
+        "numpy": "1.26.4",
+        "pandas": "2.3.3",
+        "scikit-learn": "1.5.2",
+        "joblib": "1.6.0",
+        "sistema": "Windows AMD64"
+      },
+      "datos": {
+        "version_formato": 1,
+        "momento": "2026-11-21T00:17:30",
+        "tabla": "r24",
+        "archivo": "tabla_modelado_r24.parquet",
+        "sha256": "6bb6260ce166b2dbeb72167fd3a4daad4c13755673873eecd7817f5fae3b847f",
+        "rezago_minimo_h": 24,
+        "filas": 49513,
+        "variables": [
+          "lag_24",
+          "lag_168",
+          "ma_168",
+          "std_168",
+          "temperatura_c",
+          "hora_sin",
+          "hora_cos",
+          "dia_semana_sin",
+          "dia_semana_cos",
+          "mes_sin",
+          "mes_cos",
+          "es_festivo",
+          "es_vispera_festivo",
+          "es_puente",
+          "es_semana_santa",
+          "es_ultima_semana_diciembre"
+        ],
+        "rango": [
+          "2021-01-08 23:00:00-05:00",
+          "2026-09-02 23:00:00-05:00"
+        ],
+        "operaciones": [
+          {
+            "operacion": "verificar_sha256",
+            "criterio": "SHA-256 del Parquet igual al anotado en registro_variables.json",
+            "momento": "2026-11-21T00:17:30",
+            "detalle": {
+              "archivo": "tabla_modelado_r24.parquet",
+              "sha256": "6bb6260ce166b2dbeb72167fd3a4daad4c13755673873eecd7817f5fae3b847f",
+              "coincide": true
+            }
+          },
+          {
+            "operacion": "separar",
+            "criterio": "X = columnas de la tabla menos fecha_hora y demanda_mwh, cada una reconocida por variables.construir",
+            "momento": "2026-11-21T00:17:30",
+            "detalle": {
+              "filas": 49513,
+              "variables": [
+                "lag_24",
+                "lag_168",
+                "ma_168",
+                "std_168",
+                "temperatura_c",
+                "hora_sin",
+                "hora_cos",
+                "dia_semana_sin",
+                "dia_semana_cos",
+                "mes_sin",
+                "mes_cos",
+                "es_festivo",
+                "es_vispera_festivo",
+                "es_puente",
+                "es_semana_santa",
+                "es_ultima_semana_diciembre"
+              ],
+              "n_variables": 16,
+              "objetivo": "demanda_mwh",
+              "rezago_minimo_h": 24,
+              "rango": [
+                "2021-01-08 23:00:00-05:00",
+                "2026-09-02 23:00:00-05:00"
+              ],
+              "zona_horaria": "America/Bogota",
+              "nan_por_variable": {},
+              "nan_objetivo": 0
+            }
+          }
+        ]
+      },
+      "particion": {
+        "operacion": "particionar",
+        "criterio": "tres bloques cronologicos consecutivos por fecha de corte (ultimo dia incluido, hora local), sin barajar",
+        "momento": "2026-11-21T00:17:30",
+        "detalle": {
+          "filas": 49513,
+          "zona_horaria": "America/Bogota",
+          "cortes": {
+            "entrenamiento": "2024-09-02",
+            "validacion": "2025-09-02",
+            "prueba": "2026-09-02"
+          },
+          "bloques": {
+            "entrenamiento": {
+              "filas": 31993,
+              "desde": "2021-01-08 23:00:00-05:00",
+              "hasta": "2024-09-02 23:00:00-05:00",
+              "fecha_corte": "2024-09-02"
+            },
+            "validacion": {
+              "filas": 8760,
+              "desde": "2024-09-03 00:00:00-05:00",
+              "hasta": "2025-09-02 23:00:00-05:00",
+              "fecha_corte": "2025-09-02"
+            },
+            "prueba": {
+              "filas": 8760,
+              "desde": "2025-09-03 00:00:00-05:00",
+              "hasta": "2026-09-02 23:00:00-05:00",
+              "fecha_corte": "2026-09-02",
+              "uso": "reservado para la evaluacion final: no se usa para seleccionar modelos, ajustar hiperparametros ni escalar"
+            }
+          }
+        }
+      },
+      "evaluacion": {
+        "filas_ajuste": 31993,
+        "filas_evaluacion": 8760,
+        "rango_evaluacion": [
+          "2024-09-03 00:00:00-05:00",
+          "2025-09-02 23:00:00-05:00"
+        ]
+      },
+      "objetivo": {
+        "operacion": "construir_alerta_pico",
+        "criterio": "alerta_pico(t) = 1 si demanda_mwh(t) > percentil 90 de demanda_mwh en las 168 h que acaban en t - 24 h; 0 si no",
+        "momento": "2026-11-21T00:17:30",
+        "detalle": {
+          "rezago_minimo_h": 24,
+          "percentil": 90,
+          "ventana_h": 168,
+          "ventana": "demanda_mwh(t - 191 h) .. demanda_mwh(t - 24 h), la misma de ma_168",
+          "comparacion": "estricta (>)",
+          "interpolacion": "lineal entre valores ordenados (numpy.percentile)",
+          "calculo": "por marca de tiempo: shift con freq + ventana movil de tiempo, min_periods = ventana",
+          "zona_horaria": "America/Bogota",
+          "filas": 49513,
+          "filas_sin_umbral": 191,
+          "nota_sin_umbral": "las primeras 191 filas de la tabla no tienen ventana completa con la demanda de la propia tabla; quedan sin objetivo",
+          "por_bloque": {
+            "entrenamiento": {
+              "filas": 31993,
+              "filas_con_objetivo": 31802,
+              "positivos": 3691,
+              "proporcion_positivos": 0.11606188290044651
+            },
+            "validacion": {
+              "filas": 8760,
+              "filas_con_objetivo": 8760,
+              "positivos": 979,
+              "proporcion_positivos": 0.11175799086757991
+            },
+            "prueba": {
+              "filas": 8760,
+              "proporcion_positivos": null,
+              "nota": "no se calcula: bloque reservado para la evaluacion final"
+            }
+          }
+        }
+      },
+      "baseline": {
+        "descripcion": "alerta si lag_168(t) supera el umbral de la fila t",
+        "puntaje": "lag_168 - umbral_alerta_mwh (MWh)",
+        "umbral_decision": 0.0,
+        "metricas_validacion": {
+          "n": 8760,
+          "positivos": 979,
+          "umbral": 0.0,
+          "precision": 0.5743016759776536,
+          "recall": 0.5250255362614913,
+          "f1": 0.5485592315901814,
+          "roc_auc": 0.9085280020646925,
+          "pr_auc": 0.57462504481935,
+          "pr_auc_metodo": "average precision (sklearn.metrics.average_precision_score)",
+          "matriz_confusion": {
+            "vn": 7400,
+            "fp": 381,
+            "fn": 465,
+            "vp": 514,
+            "matriz": [
+              [
+                7400,
+                381
+              ],
+              [
+                465,
+                514
+              ]
+            ],
+            "orden": "filas = clase real (0, 1); columnas = clase predicha (0, 1)"
+          },
+          "nota": null
+        }
+      },
+      "modelos": {
+        "logistica": {
+          "descripcion": "StandardScaler + LogisticRegression(class_weight=\"balanced\")",
+          "hiperparametros": {
+            "C": 0.1
+          },
+          "semilla": 42,
+          "puntaje": "predict_proba",
+          "umbral_decision": 0.5,
+          "filas_ajuste": 31802,
+          "positivos_ajuste": 3691,
+          "submuestra": null,
+          "validacion_cruzada": {
+            "operacion": "validacion_cruzada",
+            "criterio": "TimeSeriesSplit(n_splits=5, gap=24) sobre el bloque de entrenamiento; gap = rezago_minimo_h, en filas de una rejilla horaria completa",
+            "momento": "2026-11-21T00:17:30",
+            "detalle": {
+              "n_splits": 5,
+              "gap_h": 24,
+              "rezago_minimo_h": 24,
+              "filas": 31802,
+              "pliegues": [
+                {
+                  "pliegue": 1,
+                  "entrenamiento": {
+                    "filas": 5278,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2021-08-24 19:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2021-08-25 20:00:00-05:00",
+                    "hasta": "2022-04-03 15:00:00-05:00"
+                  },
+                  "gap_h": 24
+                },
+                {
+                  "pliegue": 2,
+                  "entrenamiento": {
+                    "filas": 10578,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2022-04-02 15:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2022-04-03 16:00:00-05:00",
+                    "hasta": "2022-11-10 11:00:00-05:00"
+                  },
+                  "gap_h": 24
+                },
+                {
+                  "pliegue": 3,
+                  "entrenamiento": {
+                    "filas": 15878,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2022-11-09 11:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2022-11-10 12:00:00-05:00",
+                    "hasta": "2023-06-19 07:00:00-05:00"
+                  },
+                  "gap_h": 24
+                },
+                {
+                  "pliegue": 4,
+                  "entrenamiento": {
+                    "filas": 21178,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2023-06-18 07:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2023-06-19 08:00:00-05:00",
+                    "hasta": "2024-01-26 03:00:00-05:00"
+                  },
+                  "gap_h": 24
+                },
+                {
+                  "pliegue": 5,
+                  "entrenamiento": {
+                    "filas": 26478,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2024-01-25 03:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2024-01-26 04:00:00-05:00",
+                    "hasta": "2024-09-02 23:00:00-05:00"
+                  },
+                  "gap_h": 24
+                }
+              ]
+            }
+          },
+          "busqueda": {
+            "operacion": "buscar_hiperparametros",
+            "criterio": "GridSearchCV del Pipeline completo, cv=TimeSeriesSplit(n_splits=5, gap=24), criterio PR-AUC (average precision) medio; tambien F1",
+            "momento": "2026-11-21T00:17:31",
+            "detalle": {
+              "rejilla": {
+                "C": [
+                  0.01,
+                  0.1,
+                  1.0,
+                  10.0,
+                  100.0
+                ]
+              },
+              "mejores": {
+                "C": 0.1
+              },
+              "metrica_seleccion": "pr_auc",
+              "validacion_cruzada_mejor": {
+                "pr_auc": {
+                  "media": 0.6320384807112533,
+                  "desviacion": 0.045111758667124864,
+                  "por_pliegue": [
+                    0.5585881419619202,
+                    0.6566246996093492,
+                    0.678223488424187,
+                    0.6348280194868952,
+                    0.631928054073915
+                  ]
+                },
+                "f1": {
+                  "media": 0.6007564447778589,
+                  "desviacion": 0.023784842572915375,
+                  "por_pliegue": [
+                    0.5788599889319314,
+                    0.6124075128059192,
+                    0.6345903771131339,
+                    0.5995623632385121,
+                    0.5783619817997978
+                  ]
+                }
+              },
+              "en_borde": {
+                "C": false
+              },
+              "candidatos": [
+                {
+                  "hiperparametros": {
+                    "C": 0.01
+                  },
+                  "pr_auc_media": 0.6233379908410754,
+                  "f1_media": 0.5781466833967948,
+                  "pr_auc_desviacion": 0.03689210242125055,
+                  "f1_desviacion": 0.022409762515355147
+                },
+                {
+                  "hiperparametros": {
+                    "C": 0.1
+                  },
+                  "pr_auc_media": 0.6320384807112533,
+                  "f1_media": 0.6007564447778589,
+                  "pr_auc_desviacion": 0.0403491835857026,
+                  "f1_desviacion": 0.021273809930867908
+                },
+                {
+                  "hiperparametros": {
+                    "C": 1.0
+                  },
+                  "pr_auc_media": 0.6319778197983112,
+                  "f1_media": 0.6070464719262503,
+                  "pr_auc_desviacion": 0.04179841797107495,
+                  "f1_desviacion": 0.022469994639832198
+                },
+                {
+                  "hiperparametros": {
+                    "C": 10.0
+                  },
+                  "pr_auc_media": 0.6319730090853284,
+                  "f1_media": 0.6074045375392263,
+                  "pr_auc_desviacion": 0.04193889429798498,
+                  "f1_desviacion": 0.022218153180367597
+                },
+                {
+                  "hiperparametros": {
+                    "C": 100.0
+                  },
+                  "pr_auc_media": 0.6319229598304891,
+                  "f1_media": 0.607174352150109,
+                  "pr_auc_desviacion": 0.04195649340845916,
+                  "f1_desviacion": 0.022256005771585926
+                }
+              ],
+              "avisos_convergencia": 0,
+              "segundos": 0.7728840999989188
+            }
+          },
+          "metricas_validacion": {
+            "n": 8760,
+            "positivos": 979,
+            "umbral": 0.5,
+            "precision": 0.42293407613741874,
+            "recall": 0.9305413687436159,
+            "f1": 0.5815512288541335,
+            "roc_auc": 0.9517416183235688,
+            "pr_auc": 0.7042611474626999,
+            "pr_auc_metodo": "average precision (sklearn.metrics.average_precision_score)",
+            "matriz_confusion": {
+              "vn": 6538,
+              "fp": 1243,
+              "fn": 68,
+              "vp": 911,
+              "matriz": [
+                [
+                  6538,
+                  1243
+                ],
+                [
+                  68,
+                  911
+                ]
+              ],
+              "orden": "filas = clase real (0, 1); columnas = clase predicha (0, 1)"
+            },
+            "nota": null
+          },
+          "tiempos": {
+            "busqueda_s": 0.7728840999989188,
+            "ajuste_s": 0.03528070000174921,
+            "prediccion_ms_por_1000_filas": 0.16751141567062267,
+            "repeticiones_prediccion": 5,
+            "tamano_serializado_bytes": 2302
+          },
+          "avisos_convergencia_ajuste_final": 0,
+          "modelo": {
+            "archivo": "clasificacion_logistica_r24.joblib",
+            "formato": "joblib",
+            "bytes": 2302,
+            "sha256": "9337b336196acb4b070e3a77030e2a8691b8c64828ee2b9aec4313e64139b40f",
+            "ruta": "models/clasificacion_logistica_r24.joblib"
+          }
+        },
+        "knn": {
+          "descripcion": "StandardScaler + KNeighborsClassifier",
+          "hiperparametros": {
+            "n_neighbors": 45,
+            "weights": "distance"
+          },
+          "semilla": 42,
+          "puntaje": "predict_proba",
+          "umbral_decision": 0.5,
+          "filas_ajuste": 31802,
+          "positivos_ajuste": 3691,
+          "submuestra": null,
+          "validacion_cruzada": {
+            "operacion": "validacion_cruzada",
+            "criterio": "TimeSeriesSplit(n_splits=5, gap=24) sobre el bloque de entrenamiento; gap = rezago_minimo_h, en filas de una rejilla horaria completa",
+            "momento": "2026-11-21T00:17:31",
+            "detalle": {
+              "n_splits": 5,
+              "gap_h": 24,
+              "rezago_minimo_h": 24,
+              "filas": 31802,
+              "pliegues": [
+                {
+                  "pliegue": 1,
+                  "entrenamiento": {
+                    "filas": 5278,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2021-08-24 19:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2021-08-25 20:00:00-05:00",
+                    "hasta": "2022-04-03 15:00:00-05:00"
+                  },
+                  "gap_h": 24
+                },
+                {
+                  "pliegue": 2,
+                  "entrenamiento": {
+                    "filas": 10578,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2022-04-02 15:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2022-04-03 16:00:00-05:00",
+                    "hasta": "2022-11-10 11:00:00-05:00"
+                  },
+                  "gap_h": 24
+                },
+                {
+                  "pliegue": 3,
+                  "entrenamiento": {
+                    "filas": 15878,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2022-11-09 11:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2022-11-10 12:00:00-05:00",
+                    "hasta": "2023-06-19 07:00:00-05:00"
+                  },
+                  "gap_h": 24
+                },
+                {
+                  "pliegue": 4,
+                  "entrenamiento": {
+                    "filas": 21178,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2023-06-18 07:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2023-06-19 08:00:00-05:00",
+                    "hasta": "2024-01-26 03:00:00-05:00"
+                  },
+                  "gap_h": 24
+                },
+                {
+                  "pliegue": 5,
+                  "entrenamiento": {
+                    "filas": 26478,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2024-01-25 03:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2024-01-26 04:00:00-05:00",
+                    "hasta": "2024-09-02 23:00:00-05:00"
+                  },
+                  "gap_h": 24
+                }
+              ]
+            }
+          },
+          "busqueda": {
+            "operacion": "buscar_hiperparametros",
+            "criterio": "GridSearchCV del Pipeline completo, cv=TimeSeriesSplit(n_splits=5, gap=24), criterio PR-AUC (average precision) medio; tambien F1",
+            "momento": "2026-11-21T00:17:46",
+            "detalle": {
+              "rejilla": {
+                "n_neighbors": [
+                  5,
+                  15,
+                  45,
+                  135
+                ],
+                "weights": [
+                  "uniform",
+                  "distance"
+                ]
+              },
+              "mejores": {
+                "n_neighbors": 45,
+                "weights": "distance"
+              },
+              "metrica_seleccion": "pr_auc",
+              "validacion_cruzada_mejor": {
+                "pr_auc": {
+                  "media": 0.6277225442289915,
+                  "desviacion": 0.03230332979010289,
+                  "por_pliegue": [
+                    0.5933401176062817,
+                    0.6442180119875835,
+                    0.6140342906303087,
+                    0.6116204700178532,
+                    0.6753998309029305
+                  ]
+                },
+                "f1": {
+                  "media": 0.42078408526920336,
+                  "desviacion": 0.11019956572927055,
+                  "por_pliegue": [
+                    0.2864864864864865,
+                    0.5317545748116254,
+                    0.41134751773049644,
+                    0.3433583959899749,
+                    0.5309734513274337
+                  ]
+                }
+              },
+              "en_borde": {
+                "n_neighbors": false
+              },
+              "candidatos": [
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 5,
+                    "weights": "uniform"
+                  },
+                  "pr_auc_media": 0.4915802035291755,
+                  "f1_media": 0.5058700684578682,
+                  "pr_auc_desviacion": 0.038229764562402485,
+                  "f1_desviacion": 0.05250255163928246
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 5,
+                    "weights": "distance"
+                  },
+                  "pr_auc_media": 0.5224415636391436,
+                  "f1_media": 0.5075713739789445,
+                  "pr_auc_desviacion": 0.039316837320128174,
+                  "f1_desviacion": 0.05261306159336328
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 15,
+                    "weights": "uniform"
+                  },
+                  "pr_auc_media": 0.5733048036397982,
+                  "f1_media": 0.47904177238806633,
+                  "pr_auc_desviacion": 0.028372434816195783,
+                  "f1_desviacion": 0.0747191276101122
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 15,
+                    "weights": "distance"
+                  },
+                  "pr_auc_media": 0.5986935371884394,
+                  "f1_media": 0.48173456258937664,
+                  "pr_auc_desviacion": 0.030691841540345068,
+                  "f1_desviacion": 0.07565315341682777
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 45,
+                    "weights": "uniform"
+                  },
+                  "pr_auc_media": 0.6105121912218474,
+                  "f1_media": 0.4080486174778182,
+                  "pr_auc_desviacion": 0.02752681563168436,
+                  "f1_desviacion": 0.09381661621706845
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 45,
+                    "weights": "distance"
+                  },
+                  "pr_auc_media": 0.6277225442289915,
+                  "f1_media": 0.42078408526920336,
+                  "pr_auc_desviacion": 0.028892976524105635,
+                  "f1_desviacion": 0.09856548802464205
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 135,
+                    "weights": "uniform"
+                  },
+                  "pr_auc_media": 0.5963674713230115,
+                  "f1_media": 0.2331104251952242,
+                  "pr_auc_desviacion": 0.030839769042810272,
+                  "f1_desviacion": 0.10027779261409439
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 135,
+                    "weights": "distance"
+                  },
+                  "pr_auc_media": 0.6152443910297556,
+                  "f1_media": 0.2554038328435851,
+                  "pr_auc_desviacion": 0.031346610495961116,
+                  "f1_desviacion": 0.10591929766341088
+                }
+              ],
+              "avisos_convergencia": 0,
+              "segundos": 15.257032400000753
+            }
+          },
+          "metricas_validacion": {
+            "n": 8760,
+            "positivos": 979,
+            "umbral": 0.5,
+            "precision": 0.7720848056537103,
+            "recall": 0.4463738508682329,
+            "f1": 0.565695792880259,
+            "roc_auc": 0.9547636991655768,
+            "pr_auc": 0.7107234209244397,
+            "pr_auc_metodo": "average precision (sklearn.metrics.average_precision_score)",
+            "matriz_confusion": {
+              "vn": 7652,
+              "fp": 129,
+              "fn": 542,
+              "vp": 437,
+              "matriz": [
+                [
+                  7652,
+                  129
+                ],
+                [
+                  542,
+                  437
+                ]
+              ],
+              "orden": "filas = clase real (0, 1); columnas = clase predicha (0, 1)"
+            },
+            "nota": null
+          },
+          "tiempos": {
+            "busqueda_s": 15.257032400000753,
+            "ajuste_s": 0.010342199999286095,
+            "prediccion_ms_por_1000_filas": 43.94861872163567,
+            "repeticiones_prediccion": 5,
+            "tamano_serializado_bytes": 4327195
+          },
+          "avisos_convergencia_ajuste_final": 0,
+          "modelo": {
+            "archivo": "clasificacion_knn_r24.joblib",
+            "formato": "joblib",
+            "bytes": 4327195,
+            "sha256": "0c99f43a4f51f8755ab611f30836ab97cc356f310a70af8d961894e825a52667",
+            "ruta": "models/clasificacion_knn_r24.joblib"
+          }
+        },
+        "svm_lineal": {
+          "descripcion": "StandardScaler + LinearSVC(class_weight=\"balanced\"), todo el entrenamiento",
+          "hiperparametros": {
+            "C": 0.01
+          },
+          "semilla": 42,
+          "puntaje": "decision_function",
+          "umbral_decision": 0.0,
+          "filas_ajuste": 31802,
+          "positivos_ajuste": 3691,
+          "submuestra": null,
+          "validacion_cruzada": {
+            "operacion": "validacion_cruzada",
+            "criterio": "TimeSeriesSplit(n_splits=5, gap=24) sobre el bloque de entrenamiento; gap = rezago_minimo_h, en filas de una rejilla horaria completa",
+            "momento": "2026-11-21T00:17:49",
+            "detalle": {
+              "n_splits": 5,
+              "gap_h": 24,
+              "rezago_minimo_h": 24,
+              "filas": 31802,
+              "pliegues": [
+                {
+                  "pliegue": 1,
+                  "entrenamiento": {
+                    "filas": 5278,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2021-08-24 19:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2021-08-25 20:00:00-05:00",
+                    "hasta": "2022-04-03 15:00:00-05:00"
+                  },
+                  "gap_h": 24
+                },
+                {
+                  "pliegue": 2,
+                  "entrenamiento": {
+                    "filas": 10578,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2022-04-02 15:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2022-04-03 16:00:00-05:00",
+                    "hasta": "2022-11-10 11:00:00-05:00"
+                  },
+                  "gap_h": 24
+                },
+                {
+                  "pliegue": 3,
+                  "entrenamiento": {
+                    "filas": 15878,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2022-11-09 11:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2022-11-10 12:00:00-05:00",
+                    "hasta": "2023-06-19 07:00:00-05:00"
+                  },
+                  "gap_h": 24
+                },
+                {
+                  "pliegue": 4,
+                  "entrenamiento": {
+                    "filas": 21178,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2023-06-18 07:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2023-06-19 08:00:00-05:00",
+                    "hasta": "2024-01-26 03:00:00-05:00"
+                  },
+                  "gap_h": 24
+                },
+                {
+                  "pliegue": 5,
+                  "entrenamiento": {
+                    "filas": 26478,
+                    "desde": "2021-01-16 22:00:00-05:00",
+                    "hasta": "2024-01-25 03:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5300,
+                    "desde": "2024-01-26 04:00:00-05:00",
+                    "hasta": "2024-09-02 23:00:00-05:00"
+                  },
+                  "gap_h": 24
+                }
+              ]
+            }
+          },
+          "busqueda": {
+            "operacion": "buscar_hiperparametros",
+            "criterio": "GridSearchCV del Pipeline completo, cv=TimeSeriesSplit(n_splits=5, gap=24), criterio PR-AUC (average precision) medio; tambien F1",
+            "momento": "2026-11-21T00:17:50",
+            "detalle": {
+              "rejilla": {
+                "C": [
+                  0.01,
+                  0.1,
+                  1.0,
+                  10.0
+                ]
+              },
+              "mejores": {
+                "C": 0.01
+              },
+              "metrica_seleccion": "pr_auc",
+              "validacion_cruzada_mejor": {
+                "pr_auc": {
+                  "media": 0.6368955625118067,
+                  "desviacion": 0.043189332544117436,
+                  "por_pliegue": [
+                    0.5699976138463039,
+                    0.6641540157354008,
+                    0.6839623069051427,
+                    0.6333470642748646,
+                    0.6330168117973212
+                  ]
+                },
+                "f1": {
+                  "media": 0.5846720035855382,
+                  "desviacion": 0.025790465338763943,
+                  "por_pliegue": [
+                    0.5591070522577372,
+                    0.5871754107048225,
+                    0.6261288380493678,
+                    0.58298755186722,
+                    0.5679611650485437
+                  ]
+                }
+              },
+              "en_borde": {
+                "C": true
+              },
+              "candidatos": [
+                {
+                  "hiperparametros": {
+                    "C": 0.01
+                  },
+                  "pr_auc_media": 0.6368955625118067,
+                  "f1_media": 0.5846720035855382,
+                  "pr_auc_desviacion": 0.038629713388596214,
+                  "f1_desviacion": 0.023067693467531326
+                },
+                {
+                  "hiperparametros": {
+                    "C": 0.1
+                  },
+                  "pr_auc_media": 0.6364459273263294,
+                  "f1_media": 0.5928814731923072,
+                  "pr_auc_desviacion": 0.03880496491854901,
+                  "f1_desviacion": 0.023021834930022265
+                },
+                {
+                  "hiperparametros": {
+                    "C": 1.0
+                  },
+                  "pr_auc_media": 0.6363747711765526,
+                  "f1_media": 0.5948778636027154,
+                  "pr_auc_desviacion": 0.03883538649276919,
+                  "f1_desviacion": 0.02359797928007801
+                },
+                {
+                  "hiperparametros": {
+                    "C": 10.0
+                  },
+                  "pr_auc_media": 0.6363389503026361,
+                  "f1_media": 0.594769279473096,
+                  "pr_auc_desviacion": 0.038914765032030015,
+                  "f1_desviacion": 0.023277487793450062
+                }
+              ],
+              "avisos_convergencia": 0,
+              "segundos": 0.8497366000010516
+            }
+          },
+          "metricas_validacion": {
+            "n": 8760,
+            "positivos": 979,
+            "umbral": 0.0,
+            "precision": 0.4001743679163034,
+            "recall": 0.9376915219611849,
+            "f1": 0.5609532538955088,
+            "roc_auc": 0.9514283962702683,
+            "pr_auc": 0.7087404212534807,
+            "pr_auc_metodo": "average precision (sklearn.metrics.average_precision_score)",
+            "matriz_confusion": {
+              "vn": 6405,
+              "fp": 1376,
+              "fn": 61,
+              "vp": 918,
+              "matriz": [
+                [
+                  6405,
+                  1376
+                ],
+                [
+                  61,
+                  918
+                ]
+              ],
+              "orden": "filas = clase real (0, 1); columnas = clase predicha (0, 1)"
+            },
+            "nota": null
+          },
+          "tiempos": {
+            "busqueda_s": 0.8497366000010516,
+            "ajuste_s": 0.06677399999898626,
+            "prediccion_ms_por_1000_filas": 0.17147260273117826,
+            "repeticiones_prediccion": 5,
+            "tamano_serializado_bytes": 2186
+          },
+          "avisos_convergencia_ajuste_final": 0,
+          "modelo": {
+            "archivo": "clasificacion_svm_lineal_r24.joblib",
+            "formato": "joblib",
+            "bytes": 2186,
+            "sha256": "995dc0c2c6e220f2bb4f0a0c4b2e46aa99b77c7bbab42835fd162215d557a8b6",
+            "ruta": "models/clasificacion_svm_lineal_r24.joblib"
+          }
+        },
+        "svm_rbf": {
+          "descripcion": "StandardScaler + SVC(kernel=\"rbf\", class_weight=\"balanced\"), una de cada 5 h",
+          "hiperparametros": {
+            "C": 1.0
+          },
+          "semilla": 42,
+          "puntaje": "decision_function",
+          "umbral_decision": 0.0,
+          "filas_ajuste": 6361,
+          "positivos_ajuste": 748,
+          "submuestra": {
+            "paso_h": 5,
+            "filas": 6361,
+            "desde": "2021-01-16 22:00:00-05:00",
+            "hasta": "2024-09-02 22:00:00-05:00",
+            "motivo": "SVC con kernel RBF escala entre O(n^2) y O(n^3) con las filas: medido en r24 con C=1, 5 veces mas filas (todo el entrenamiento) tardan 26 veces mas en ajustar, y la rejilla repite el ajuste por candidato y pliegue. Una de cada 5 h, en orden; 5 es coprimo con 168, asi que se recorren todas las horas de la semana.",
+            "segundos_busqueda": 4.5074338000013086,
+            "segundos_ajuste_final": 0.41268050000144285,
+            "vectores_soporte": 1797
+          },
+          "validacion_cruzada": {
+            "operacion": "validacion_cruzada",
+            "criterio": "TimeSeriesSplit(n_splits=5, gap=5) sobre la submuestra: 5 filas de 5 h = 25 h >= rezago de 24 h",
+            "momento": "2026-11-21T00:17:50",
+            "detalle": {
+              "n_splits": 5,
+              "gap_filas": 5,
+              "gap_h": 25,
+              "filas": 6361
+            }
+          },
+          "busqueda": {
+            "operacion": "buscar_hiperparametros",
+            "criterio": "GridSearchCV del Pipeline completo, cv=TimeSeriesSplit(n_splits=5, gap=5), criterio PR-AUC (average precision) medio; tambien F1",
+            "momento": "2026-11-21T00:17:54",
+            "detalle": {
+              "rejilla": {
+                "C": [
+                  0.1,
+                  1.0,
+                  10.0
+                ]
+              },
+              "mejores": {
+                "C": 1.0
+              },
+              "metrica_seleccion": "pr_auc",
+              "validacion_cruzada_mejor": {
+                "pr_auc": {
+                  "media": 0.6802983538363321,
+                  "desviacion": 0.0516372383509839,
+                  "por_pliegue": [
+                    0.6717351816596238,
+                    0.6766174781512062,
+                    0.6260723911742851,
+                    0.6614317535645667,
+                    0.7656349646319789
+                  ]
+                },
+                "f1": {
+                  "media": 0.6036250438945185,
+                  "desviacion": 0.02602534059977174,
+                  "por_pliegue": [
+                    0.6037735849056604,
+                    0.5729166666666666,
+                    0.6447368421052632,
+                    0.5951557093425606,
+                    0.6015424164524421
+                  ]
+                }
+              },
+              "en_borde": {
+                "C": false
+              },
+              "candidatos": [
+                {
+                  "hiperparametros": {
+                    "C": 0.1
+                  },
+                  "pr_auc_media": 0.617706290934229,
+                  "f1_media": 0.5580330230513868,
+                  "pr_auc_desviacion": 0.03089960435590198,
+                  "f1_desviacion": 0.01547894307171936
+                },
+                {
+                  "hiperparametros": {
+                    "C": 1.0
+                  },
+                  "pr_auc_media": 0.6802983538363321,
+                  "f1_media": 0.6036250438945185,
+                  "pr_auc_desviacion": 0.04618575004926365,
+                  "f1_desviacion": 0.023277772287469904
+                },
+                {
+                  "hiperparametros": {
+                    "C": 10.0
+                  },
+                  "pr_auc_media": 0.652003735950988,
+                  "f1_media": 0.5948992420147128,
+                  "pr_auc_desviacion": 0.06768259548812514,
+                  "f1_desviacion": 0.051266396668048886
+                }
+              ],
+              "avisos_convergencia": 0,
+              "segundos": 4.5074338000013086
+            }
+          },
+          "metricas_validacion": {
+            "n": 8760,
+            "positivos": 979,
+            "umbral": 0.0,
+            "precision": 0.4454291044776119,
+            "recall": 0.975485188968335,
+            "f1": 0.611591418507845,
+            "roc_auc": 0.9664419195602183,
+            "pr_auc": 0.7687995411780782,
+            "pr_auc_metodo": "average precision (sklearn.metrics.average_precision_score)",
+            "matriz_confusion": {
+              "vn": 6592,
+              "fp": 1189,
+              "fn": 24,
+              "vp": 955,
+              "matriz": [
+                [
+                  6592,
+                  1189
+                ],
+                [
+                  24,
+                  955
+                ]
+              ],
+              "orden": "filas = clase real (0, 1); columnas = clase predicha (0, 1)"
+            },
+            "nota": null
+          },
+          "tiempos": {
+            "busqueda_s": 4.5074338000013086,
+            "ajuste_s": 0.41268050000144285,
+            "prediccion_ms_por_1000_filas": 124.00571917808699,
+            "repeticiones_prediccion": 5,
+            "tamano_serializado_bytes": 268890
+          },
+          "avisos_convergencia_ajuste_final": 0,
+          "modelo": {
+            "archivo": "clasificacion_svm_rbf_r24.joblib",
+            "formato": "joblib",
+            "bytes": 268890,
+            "sha256": "6b5b6336ff6c84fa5b484283a754524f847b9c456299f2e55765b3b3edc3a73a",
+            "ruta": "models/clasificacion_svm_rbf_r24.joblib"
+          }
+        }
+      },
+      "figura": "docs/figuras/modelado/precision_recall_r24.png"
+    },
+    "r120": {
+      "momento": "2026-11-21T00:19:06",
+      "entorno": {
+        "python": "3.12.10",
+        "numpy": "1.26.4",
+        "pandas": "2.3.3",
+        "scikit-learn": "1.5.2",
+        "joblib": "1.6.0",
+        "sistema": "Windows AMD64"
+      },
+      "datos": {
+        "version_formato": 1,
+        "momento": "2026-11-21T00:18:03",
+        "tabla": "r120",
+        "archivo": "tabla_modelado_r120.parquet",
+        "sha256": "9f7273d62c56838387a2106cbc99acf045a8b4dba57daf5ceb387ba5b061e6b0",
+        "rezago_minimo_h": 120,
+        "filas": 49417,
+        "variables": [
+          "lag_168",
+          "ma_168",
+          "std_168",
+          "temperatura_c",
+          "hora_sin",
+          "hora_cos",
+          "dia_semana_sin",
+          "dia_semana_cos",
+          "mes_sin",
+          "mes_cos",
+          "es_festivo",
+          "es_vispera_festivo",
+          "es_puente",
+          "es_semana_santa",
+          "es_ultima_semana_diciembre"
+        ],
+        "rango": [
+          "2021-01-12 23:00:00-05:00",
+          "2026-09-02 23:00:00-05:00"
+        ],
+        "operaciones": [
+          {
+            "operacion": "verificar_sha256",
+            "criterio": "SHA-256 del Parquet igual al anotado en registro_variables.json",
+            "momento": "2026-11-21T00:18:03",
+            "detalle": {
+              "archivo": "tabla_modelado_r120.parquet",
+              "sha256": "9f7273d62c56838387a2106cbc99acf045a8b4dba57daf5ceb387ba5b061e6b0",
+              "coincide": true
+            }
+          },
+          {
+            "operacion": "separar",
+            "criterio": "X = columnas de la tabla menos fecha_hora y demanda_mwh, cada una reconocida por variables.construir",
+            "momento": "2026-11-21T00:18:03",
+            "detalle": {
+              "filas": 49417,
+              "variables": [
+                "lag_168",
+                "ma_168",
+                "std_168",
+                "temperatura_c",
+                "hora_sin",
+                "hora_cos",
+                "dia_semana_sin",
+                "dia_semana_cos",
+                "mes_sin",
+                "mes_cos",
+                "es_festivo",
+                "es_vispera_festivo",
+                "es_puente",
+                "es_semana_santa",
+                "es_ultima_semana_diciembre"
+              ],
+              "n_variables": 15,
+              "objetivo": "demanda_mwh",
+              "rezago_minimo_h": 120,
+              "rango": [
+                "2021-01-12 23:00:00-05:00",
+                "2026-09-02 23:00:00-05:00"
+              ],
+              "zona_horaria": "America/Bogota",
+              "nan_por_variable": {},
+              "nan_objetivo": 0
+            }
+          }
+        ]
+      },
+      "particion": {
+        "operacion": "particionar",
+        "criterio": "tres bloques cronologicos consecutivos por fecha de corte (ultimo dia incluido, hora local), sin barajar",
+        "momento": "2026-11-21T00:18:03",
+        "detalle": {
+          "filas": 49417,
+          "zona_horaria": "America/Bogota",
+          "cortes": {
+            "entrenamiento": "2024-09-02",
+            "validacion": "2025-09-02",
+            "prueba": "2026-09-02"
+          },
+          "bloques": {
+            "entrenamiento": {
+              "filas": 31897,
+              "desde": "2021-01-12 23:00:00-05:00",
+              "hasta": "2024-09-02 23:00:00-05:00",
+              "fecha_corte": "2024-09-02"
+            },
+            "validacion": {
+              "filas": 8760,
+              "desde": "2024-09-03 00:00:00-05:00",
+              "hasta": "2025-09-02 23:00:00-05:00",
+              "fecha_corte": "2025-09-02"
+            },
+            "prueba": {
+              "filas": 8760,
+              "desde": "2025-09-03 00:00:00-05:00",
+              "hasta": "2026-09-02 23:00:00-05:00",
+              "fecha_corte": "2026-09-02",
+              "uso": "reservado para la evaluacion final: no se usa para seleccionar modelos, ajustar hiperparametros ni escalar"
+            }
+          }
+        }
+      },
+      "evaluacion": {
+        "filas_ajuste": 31897,
+        "filas_evaluacion": 8760,
+        "rango_evaluacion": [
+          "2024-09-03 00:00:00-05:00",
+          "2025-09-02 23:00:00-05:00"
+        ]
+      },
+      "objetivo": {
+        "operacion": "construir_alerta_pico",
+        "criterio": "alerta_pico(t) = 1 si demanda_mwh(t) > percentil 90 de demanda_mwh en las 168 h que acaban en t - 120 h; 0 si no",
+        "momento": "2026-11-21T00:18:03",
+        "detalle": {
+          "rezago_minimo_h": 120,
+          "percentil": 90,
+          "ventana_h": 168,
+          "ventana": "demanda_mwh(t - 287 h) .. demanda_mwh(t - 120 h), la misma de ma_168",
+          "comparacion": "estricta (>)",
+          "interpolacion": "lineal entre valores ordenados (numpy.percentile)",
+          "calculo": "por marca de tiempo: shift con freq + ventana movil de tiempo, min_periods = ventana",
+          "zona_horaria": "America/Bogota",
+          "filas": 49417,
+          "filas_sin_umbral": 287,
+          "nota_sin_umbral": "las primeras 287 filas de la tabla no tienen ventana completa con la demanda de la propia tabla; quedan sin objetivo",
+          "por_bloque": {
+            "entrenamiento": {
+              "filas": 31897,
+              "filas_con_objetivo": 31610,
+              "positivos": 3920,
+              "proporcion_positivos": 0.12401138880101234
+            },
+            "validacion": {
+              "filas": 8760,
+              "filas_con_objetivo": 8760,
+              "positivos": 1032,
+              "proporcion_positivos": 0.1178082191780822
+            },
+            "prueba": {
+              "filas": 8760,
+              "proporcion_positivos": null,
+              "nota": "no se calcula: bloque reservado para la evaluacion final"
+            }
+          }
+        }
+      },
+      "baseline": {
+        "descripcion": "alerta si lag_168(t) supera el umbral de la fila t",
+        "puntaje": "lag_168 - umbral_alerta_mwh (MWh)",
+        "umbral_decision": 0.0,
+        "metricas_validacion": {
+          "n": 8760,
+          "positivos": 1032,
+          "umbral": 0.0,
+          "precision": 0.6148648648648649,
+          "recall": 0.5290697674418605,
+          "f1": 0.5687500000000001,
+          "roc_auc": 0.9127939577415057,
+          "pr_auc": 0.6098424957106804,
+          "pr_auc_metodo": "average precision (sklearn.metrics.average_precision_score)",
+          "matriz_confusion": {
+            "vn": 7386,
+            "fp": 342,
+            "fn": 486,
+            "vp": 546,
+            "matriz": [
+              [
+                7386,
+                342
+              ],
+              [
+                486,
+                546
+              ]
+            ],
+            "orden": "filas = clase real (0, 1); columnas = clase predicha (0, 1)"
+          },
+          "nota": null
+        }
+      },
+      "modelos": {
+        "logistica": {
+          "descripcion": "StandardScaler + LogisticRegression(class_weight=\"balanced\")",
+          "hiperparametros": {
+            "C": 1.0
+          },
+          "semilla": 42,
+          "puntaje": "predict_proba",
+          "umbral_decision": 0.5,
+          "filas_ajuste": 31610,
+          "positivos_ajuste": 3920,
+          "submuestra": null,
+          "validacion_cruzada": {
+            "operacion": "validacion_cruzada",
+            "criterio": "TimeSeriesSplit(n_splits=5, gap=120) sobre el bloque de entrenamiento; gap = rezago_minimo_h, en filas de una rejilla horaria completa",
+            "momento": "2026-11-21T00:18:03",
+            "detalle": {
+              "n_splits": 5,
+              "gap_h": 120,
+              "rezago_minimo_h": 120,
+              "filas": 31610,
+              "pliegues": [
+                {
+                  "pliegue": 1,
+                  "entrenamiento": {
+                    "filas": 5150,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2021-08-27 11:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2021-09-01 12:00:00-05:00",
+                    "hasta": "2022-04-08 23:00:00-05:00"
+                  },
+                  "gap_h": 120
+                },
+                {
+                  "pliegue": 2,
+                  "entrenamiento": {
+                    "filas": 10418,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2022-04-03 23:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2022-04-09 00:00:00-05:00",
+                    "hasta": "2022-11-14 11:00:00-05:00"
+                  },
+                  "gap_h": 120
+                },
+                {
+                  "pliegue": 3,
+                  "entrenamiento": {
+                    "filas": 15686,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2022-11-09 11:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2022-11-14 12:00:00-05:00",
+                    "hasta": "2023-06-21 23:00:00-05:00"
+                  },
+                  "gap_h": 120
+                },
+                {
+                  "pliegue": 4,
+                  "entrenamiento": {
+                    "filas": 20954,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2023-06-16 23:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2023-06-22 00:00:00-05:00",
+                    "hasta": "2024-01-27 11:00:00-05:00"
+                  },
+                  "gap_h": 120
+                },
+                {
+                  "pliegue": 5,
+                  "entrenamiento": {
+                    "filas": 26222,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2024-01-22 11:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2024-01-27 12:00:00-05:00",
+                    "hasta": "2024-09-02 23:00:00-05:00"
+                  },
+                  "gap_h": 120
+                }
+              ]
+            }
+          },
+          "busqueda": {
+            "operacion": "buscar_hiperparametros",
+            "criterio": "GridSearchCV del Pipeline completo, cv=TimeSeriesSplit(n_splits=5, gap=120), criterio PR-AUC (average precision) medio; tambien F1",
+            "momento": "2026-11-21T00:18:04",
+            "detalle": {
+              "rejilla": {
+                "C": [
+                  0.01,
+                  0.1,
+                  1.0,
+                  10.0,
+                  100.0
+                ]
+              },
+              "mejores": {
+                "C": 1.0
+              },
+              "metrica_seleccion": "pr_auc",
+              "validacion_cruzada_mejor": {
+                "pr_auc": {
+                  "media": 0.665905890589072,
+                  "desviacion": 0.04781123581949471,
+                  "por_pliegue": [
+                    0.5915738587442497,
+                    0.6959994585494979,
+                    0.7011122998437284,
+                    0.6436590421844197,
+                    0.697184793623465
+                  ]
+                },
+                "f1": {
+                  "media": 0.6158598806286918,
+                  "desviacion": 0.030717763771515555,
+                  "por_pliegue": [
+                    0.5675471698113208,
+                    0.6279342723004695,
+                    0.6517168885774351,
+                    0.6139747995418099,
+                    0.6181262729124236
+                  ]
+                }
+              },
+              "en_borde": {
+                "C": false
+              },
+              "candidatos": [
+                {
+                  "hiperparametros": {
+                    "C": 0.01
+                  },
+                  "pr_auc_media": 0.647654970085329,
+                  "f1_media": 0.6059304188394953,
+                  "pr_auc_desviacion": 0.04032736857411031,
+                  "f1_desviacion": 0.01719868041046891
+                },
+                {
+                  "hiperparametros": {
+                    "C": 0.1
+                  },
+                  "pr_auc_media": 0.6641969356763842,
+                  "f1_media": 0.6172288174050526,
+                  "pr_auc_desviacion": 0.0429029608048869,
+                  "f1_desviacion": 0.022637928699582296
+                },
+                {
+                  "hiperparametros": {
+                    "C": 1.0
+                  },
+                  "pr_auc_media": 0.665905890589072,
+                  "f1_media": 0.6158598806286918,
+                  "pr_auc_desviacion": 0.042763669352265214,
+                  "f1_desviacion": 0.02747480316395564
+                },
+                {
+                  "hiperparametros": {
+                    "C": 10.0
+                  },
+                  "pr_auc_media": 0.6659040570759022,
+                  "f1_media": 0.6159305841509172,
+                  "pr_auc_desviacion": 0.042812710174496775,
+                  "f1_desviacion": 0.029037794480993855
+                },
+                {
+                  "hiperparametros": {
+                    "C": 100.0
+                  },
+                  "pr_auc_media": 0.6659048312144015,
+                  "f1_media": 0.6162895298656027,
+                  "pr_auc_desviacion": 0.042720651646505285,
+                  "f1_desviacion": 0.028659810363416485
+                }
+              ],
+              "avisos_convergencia": 0,
+              "segundos": 0.7157544000001508
+            }
+          },
+          "metricas_validacion": {
+            "n": 8760,
+            "positivos": 1032,
+            "umbral": 0.5,
+            "precision": 0.4376163873370577,
+            "recall": 0.9108527131782945,
+            "f1": 0.5911949685534591,
+            "roc_auc": 0.9436852249747221,
+            "pr_auc": 0.6667355859297062,
+            "pr_auc_metodo": "average precision (sklearn.metrics.average_precision_score)",
+            "matriz_confusion": {
+              "vn": 6520,
+              "fp": 1208,
+              "fn": 92,
+              "vp": 940,
+              "matriz": [
+                [
+                  6520,
+                  1208
+                ],
+                [
+                  92,
+                  940
+                ]
+              ],
+              "orden": "filas = clase real (0, 1); columnas = clase predicha (0, 1)"
+            },
+            "nota": null
+          },
+          "tiempos": {
+            "busqueda_s": 0.7157544000001508,
+            "ajuste_s": 0.043459799999254756,
+            "prediccion_ms_por_1000_filas": 0.1558675798499791,
+            "repeticiones_prediccion": 5,
+            "tamano_serializado_bytes": 2254
+          },
+          "avisos_convergencia_ajuste_final": 0,
+          "modelo": {
+            "archivo": "clasificacion_logistica_r120.joblib",
+            "formato": "joblib",
+            "bytes": 2254,
+            "sha256": "6bd8dfc3156df3d67d8a22fbac859d46ef5253ac2d6c3799908afa2e7f324578",
+            "ruta": "models/clasificacion_logistica_r120.joblib"
+          }
+        },
+        "knn": {
+          "descripcion": "StandardScaler + KNeighborsClassifier",
+          "hiperparametros": {
+            "n_neighbors": 45,
+            "weights": "distance"
+          },
+          "semilla": 42,
+          "puntaje": "predict_proba",
+          "umbral_decision": 0.5,
+          "filas_ajuste": 31610,
+          "positivos_ajuste": 3920,
+          "submuestra": null,
+          "validacion_cruzada": {
+            "operacion": "validacion_cruzada",
+            "criterio": "TimeSeriesSplit(n_splits=5, gap=120) sobre el bloque de entrenamiento; gap = rezago_minimo_h, en filas de una rejilla horaria completa",
+            "momento": "2026-11-21T00:18:04",
+            "detalle": {
+              "n_splits": 5,
+              "gap_h": 120,
+              "rezago_minimo_h": 120,
+              "filas": 31610,
+              "pliegues": [
+                {
+                  "pliegue": 1,
+                  "entrenamiento": {
+                    "filas": 5150,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2021-08-27 11:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2021-09-01 12:00:00-05:00",
+                    "hasta": "2022-04-08 23:00:00-05:00"
+                  },
+                  "gap_h": 120
+                },
+                {
+                  "pliegue": 2,
+                  "entrenamiento": {
+                    "filas": 10418,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2022-04-03 23:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2022-04-09 00:00:00-05:00",
+                    "hasta": "2022-11-14 11:00:00-05:00"
+                  },
+                  "gap_h": 120
+                },
+                {
+                  "pliegue": 3,
+                  "entrenamiento": {
+                    "filas": 15686,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2022-11-09 11:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2022-11-14 12:00:00-05:00",
+                    "hasta": "2023-06-21 23:00:00-05:00"
+                  },
+                  "gap_h": 120
+                },
+                {
+                  "pliegue": 4,
+                  "entrenamiento": {
+                    "filas": 20954,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2023-06-16 23:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2023-06-22 00:00:00-05:00",
+                    "hasta": "2024-01-27 11:00:00-05:00"
+                  },
+                  "gap_h": 120
+                },
+                {
+                  "pliegue": 5,
+                  "entrenamiento": {
+                    "filas": 26222,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2024-01-22 11:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2024-01-27 12:00:00-05:00",
+                    "hasta": "2024-09-02 23:00:00-05:00"
+                  },
+                  "gap_h": 120
+                }
+              ]
+            }
+          },
+          "busqueda": {
+            "operacion": "buscar_hiperparametros",
+            "criterio": "GridSearchCV del Pipeline completo, cv=TimeSeriesSplit(n_splits=5, gap=120), criterio PR-AUC (average precision) medio; tambien F1",
+            "momento": "2026-11-21T00:18:45",
+            "detalle": {
+              "rejilla": {
+                "n_neighbors": [
+                  5,
+                  15,
+                  45,
+                  135
+                ],
+                "weights": [
+                  "uniform",
+                  "distance"
+                ]
+              },
+              "mejores": {
+                "n_neighbors": 45,
+                "weights": "distance"
+              },
+              "metrica_seleccion": "pr_auc",
+              "validacion_cruzada_mejor": {
+                "pr_auc": {
+                  "media": 0.631659889269427,
+                  "desviacion": 0.04139601869925304,
+                  "por_pliegue": [
+                    0.6190929225835331,
+                    0.607930734731863,
+                    0.6116784415615745,
+                    0.6142427773278506,
+                    0.7053545701423137
+                  ]
+                },
+                "f1": {
+                  "media": 0.36368499751496286,
+                  "desviacion": 0.1181091591301508,
+                  "por_pliegue": [
+                    0.2083897158322057,
+                    0.4072727272727273,
+                    0.35962877030162416,
+                    0.31417624521072796,
+                    0.528957528957529
+                  ]
+                }
+              },
+              "en_borde": {
+                "n_neighbors": false
+              },
+              "candidatos": [
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 5,
+                    "weights": "uniform"
+                  },
+                  "pr_auc_media": 0.4730420583358555,
+                  "f1_media": 0.465188635999464,
+                  "pr_auc_desviacion": 0.04090008947001854,
+                  "f1_desviacion": 0.06129408084100343
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 5,
+                    "weights": "distance"
+                  },
+                  "pr_auc_media": 0.5019875809865336,
+                  "f1_media": 0.46671971841733095,
+                  "pr_auc_desviacion": 0.039871275069479205,
+                  "f1_desviacion": 0.0628972997159038
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 15,
+                    "weights": "uniform"
+                  },
+                  "pr_auc_media": 0.5660680225531981,
+                  "f1_media": 0.41784955190540585,
+                  "pr_auc_desviacion": 0.030672167772971916,
+                  "f1_desviacion": 0.08757275130667072
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 15,
+                    "weights": "distance"
+                  },
+                  "pr_auc_media": 0.5891397516246935,
+                  "f1_media": 0.427175328521834,
+                  "pr_auc_desviacion": 0.029919252544863332,
+                  "f1_desviacion": 0.09018560038573789
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 45,
+                    "weights": "uniform"
+                  },
+                  "pr_auc_media": 0.6170298032742225,
+                  "f1_media": 0.34115820239883865,
+                  "pr_auc_desviacion": 0.04096690451827487,
+                  "f1_desviacion": 0.09977218399678044
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 45,
+                    "weights": "distance"
+                  },
+                  "pr_auc_media": 0.631659889269427,
+                  "f1_media": 0.36368499751496286,
+                  "pr_auc_desviacion": 0.03702572472375289,
+                  "f1_desviacion": 0.10564004343214284
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 135,
+                    "weights": "uniform"
+                  },
+                  "pr_auc_media": 0.6096991803208512,
+                  "f1_media": 0.15982476685801136,
+                  "pr_auc_desviacion": 0.04320998589344812,
+                  "f1_desviacion": 0.11455049989944598
+                },
+                {
+                  "hiperparametros": {
+                    "n_neighbors": 135,
+                    "weights": "distance"
+                  },
+                  "pr_auc_media": 0.6264737399425045,
+                  "f1_media": 0.19034702605350723,
+                  "pr_auc_desviacion": 0.04210330700114945,
+                  "f1_desviacion": 0.11588217542505864
+                }
+              ],
+              "avisos_convergencia": 0,
+              "segundos": 40.92514029999802
+            }
+          },
+          "metricas_validacion": {
+            "n": 8760,
+            "positivos": 1032,
+            "umbral": 0.5,
+            "precision": 0.6964656964656964,
+            "recall": 0.3246124031007752,
+            "f1": 0.44282881692002646,
+            "roc_auc": 0.935951969682379,
+            "pr_auc": 0.625236841378879,
+            "pr_auc_metodo": "average precision (sklearn.metrics.average_precision_score)",
+            "matriz_confusion": {
+              "vn": 7582,
+              "fp": 146,
+              "fn": 697,
+              "vp": 335,
+              "matriz": [
+                [
+                  7582,
+                  146
+                ],
+                [
+                  697,
+                  335
+                ]
+              ],
+              "orden": "filas = clase real (0, 1); columnas = clase predicha (0, 1)"
+            },
+            "nota": null
+          },
+          "tiempos": {
+            "busqueda_s": 40.92514029999802,
+            "ajuste_s": 0.067021199996816,
+            "prediccion_ms_por_1000_filas": 128.83361872161615,
+            "repeticiones_prediccion": 5,
+            "tamano_serializado_bytes": 8651661
+          },
+          "avisos_convergencia_ajuste_final": 0,
+          "modelo": {
+            "archivo": "clasificacion_knn_r120.joblib",
+            "formato": "joblib",
+            "bytes": 8651661,
+            "sha256": "65c68bc272a14993f16763390dcf0a2af9bf1155b19b43db63f3db4906378bf2",
+            "ruta": "models/clasificacion_knn_r120.joblib"
+          }
+        },
+        "svm_lineal": {
+          "descripcion": "StandardScaler + LinearSVC(class_weight=\"balanced\"), todo el entrenamiento",
+          "hiperparametros": {
+            "C": 0.1
+          },
+          "semilla": 42,
+          "puntaje": "decision_function",
+          "umbral_decision": 0.0,
+          "filas_ajuste": 31610,
+          "positivos_ajuste": 3920,
+          "submuestra": null,
+          "validacion_cruzada": {
+            "operacion": "validacion_cruzada",
+            "criterio": "TimeSeriesSplit(n_splits=5, gap=120) sobre el bloque de entrenamiento; gap = rezago_minimo_h, en filas de una rejilla horaria completa",
+            "momento": "2026-11-21T00:18:52",
+            "detalle": {
+              "n_splits": 5,
+              "gap_h": 120,
+              "rezago_minimo_h": 120,
+              "filas": 31610,
+              "pliegues": [
+                {
+                  "pliegue": 1,
+                  "entrenamiento": {
+                    "filas": 5150,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2021-08-27 11:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2021-09-01 12:00:00-05:00",
+                    "hasta": "2022-04-08 23:00:00-05:00"
+                  },
+                  "gap_h": 120
+                },
+                {
+                  "pliegue": 2,
+                  "entrenamiento": {
+                    "filas": 10418,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2022-04-03 23:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2022-04-09 00:00:00-05:00",
+                    "hasta": "2022-11-14 11:00:00-05:00"
+                  },
+                  "gap_h": 120
+                },
+                {
+                  "pliegue": 3,
+                  "entrenamiento": {
+                    "filas": 15686,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2022-11-09 11:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2022-11-14 12:00:00-05:00",
+                    "hasta": "2023-06-21 23:00:00-05:00"
+                  },
+                  "gap_h": 120
+                },
+                {
+                  "pliegue": 4,
+                  "entrenamiento": {
+                    "filas": 20954,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2023-06-16 23:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2023-06-22 00:00:00-05:00",
+                    "hasta": "2024-01-27 11:00:00-05:00"
+                  },
+                  "gap_h": 120
+                },
+                {
+                  "pliegue": 5,
+                  "entrenamiento": {
+                    "filas": 26222,
+                    "desde": "2021-01-24 22:00:00-05:00",
+                    "hasta": "2024-01-22 11:00:00-05:00"
+                  },
+                  "validacion": {
+                    "filas": 5268,
+                    "desde": "2024-01-27 12:00:00-05:00",
+                    "hasta": "2024-09-02 23:00:00-05:00"
+                  },
+                  "gap_h": 120
+                }
+              ]
+            }
+          },
+          "busqueda": {
+            "operacion": "buscar_hiperparametros",
+            "criterio": "GridSearchCV del Pipeline completo, cv=TimeSeriesSplit(n_splits=5, gap=120), criterio PR-AUC (average precision) medio; tambien F1",
+            "momento": "2026-11-21T00:18:53",
+            "detalle": {
+              "rejilla": {
+                "C": [
+                  0.01,
+                  0.1,
+                  1.0,
+                  10.0
+                ]
+              },
+              "mejores": {
+                "C": 0.1
+              },
+              "metrica_seleccion": "pr_auc",
+              "validacion_cruzada_mejor": {
+                "pr_auc": {
+                  "media": 0.6688843045179012,
+                  "desviacion": 0.04317294326968408,
+                  "por_pliegue": [
+                    0.605852025822026,
+                    0.696339867554335,
+                    0.7038862316239578,
+                    0.641754223245693,
+                    0.6965891743434941
+                  ]
+                },
+                "f1": {
+                  "media": 0.6171708800523004,
+                  "desviacion": 0.021179559811029657,
+                  "por_pliegue": [
+                    0.6106870229007634,
+                    0.6175982291090205,
+                    0.6532467532467533,
+                    0.602266594711279,
+                    0.6020558002936858
+                  ]
+                }
+              },
+              "en_borde": {
+                "C": false
+              },
+              "candidatos": [
+                {
+                  "hiperparametros": {
+                    "C": 0.01
+                  },
+                  "pr_auc_media": 0.6678912861684494,
+                  "f1_media": 0.6119271183976778,
+                  "pr_auc_desviacion": 0.039807766253531766,
+                  "f1_desviacion": 0.01621596958776144
+                },
+                {
+                  "hiperparametros": {
+                    "C": 0.1
+                  },
+                  "pr_auc_media": 0.6688843045179012,
+                  "f1_media": 0.6171708800523004,
+                  "pr_auc_desviacion": 0.03861505437590226,
+                  "f1_desviacion": 0.018943574188393965
+                },
+                {
+                  "hiperparametros": {
+                    "C": 1.0
+                  },
+                  "pr_auc_media": 0.6688730552535056,
+                  "f1_media": 0.6174643346921485,
+                  "pr_auc_desviacion": 0.03840274002543803,
+                  "f1_desviacion": 0.018432012450401682
+                },
+                {
+                  "hiperparametros": {
+                    "C": 10.0
+                  },
+                  "pr_auc_media": 0.6688687251817897,
+                  "f1_media": 0.6175673751068536,
+                  "pr_auc_desviacion": 0.03839361276763894,
+                  "f1_desviacion": 0.018424631558245665
+                }
+              ],
+              "avisos_convergencia": 0,
+              "segundos": 0.7608961000005365
+            }
+          },
+          "metricas_validacion": {
+            "n": 8760,
+            "positivos": 1032,
+            "umbral": 0.0,
+            "precision": 0.42390331244404655,
+            "recall": 0.9176356589147286,
+            "f1": 0.5799142682180037,
+            "roc_auc": 0.9430916419904665,
+            "pr_auc": 0.6669525046800571,
+            "pr_auc_metodo": "average precision (sklearn.metrics.average_precision_score)",
+            "matriz_confusion": {
+              "vn": 6441,
+              "fp": 1287,
+              "fn": 85,
+              "vp": 947,
+              "matriz": [
+                [
+                  6441,
+                  1287
+                ],
+                [
+                  85,
+                  947
+                ]
+              ],
+              "orden": "filas = clase real (0, 1); columnas = clase predicha (0, 1)"
+            },
+            "nota": null
+          },
+          "tiempos": {
+            "busqueda_s": 0.7608961000005365,
+            "ajuste_s": 0.07217749999836087,
+            "prediccion_ms_por_1000_filas": 0.1557876713963047,
+            "repeticiones_prediccion": 5,
+            "tamano_serializado_bytes": 2154
+          },
+          "avisos_convergencia_ajuste_final": 0,
+          "modelo": {
+            "archivo": "clasificacion_svm_lineal_r120.joblib",
+            "formato": "joblib",
+            "bytes": 2154,
+            "sha256": "f7eac17b978b0655d311edf1d54ec431921105fc69ac45a6ac641a6f17b44846",
+            "ruta": "models/clasificacion_svm_lineal_r120.joblib"
+          }
+        },
+        "svm_rbf": {
+          "descripcion": "StandardScaler + SVC(kernel=\"rbf\", class_weight=\"balanced\"), una de cada 5 h",
+          "hiperparametros": {
+            "C": 1.0
+          },
+          "semilla": 42,
+          "puntaje": "decision_function",
+          "umbral_decision": 0.0,
+          "filas_ajuste": 6322,
+          "positivos_ajuste": 794,
+          "submuestra": {
+            "paso_h": 5,
+            "filas": 6322,
+            "desde": "2021-01-24 22:00:00-05:00",
+            "hasta": "2024-09-02 19:00:00-05:00",
+            "motivo": "SVC con kernel RBF escala entre O(n^2) y O(n^3) con las filas: medido en r24 con C=1, 5 veces mas filas (todo el entrenamiento) tardan 26 veces mas en ajustar, y la rejilla repite el ajuste por candidato y pliegue. Una de cada 5 h, en orden; 5 es coprimo con 168, asi que se recorren todas las horas de la semana.",
+            "segundos_busqueda": 4.751457400001527,
+            "segundos_ajuste_final": 0.44684179999967455,
+            "vectores_soporte": 1841
+          },
+          "validacion_cruzada": {
+            "operacion": "validacion_cruzada",
+            "criterio": "TimeSeriesSplit(n_splits=5, gap=24) sobre la submuestra: 24 filas de 5 h = 120 h >= rezago de 120 h",
+            "momento": "2026-11-21T00:18:53",
+            "detalle": {
+              "n_splits": 5,
+              "gap_filas": 24,
+              "gap_h": 120,
+              "filas": 6322
+            }
+          },
+          "busqueda": {
+            "operacion": "buscar_hiperparametros",
+            "criterio": "GridSearchCV del Pipeline completo, cv=TimeSeriesSplit(n_splits=5, gap=24), criterio PR-AUC (average precision) medio; tambien F1",
+            "momento": "2026-11-21T00:18:57",
+            "detalle": {
+              "rejilla": {
+                "C": [
+                  0.1,
+                  1.0,
+                  10.0
+                ]
+              },
+              "mejores": {
+                "C": 1.0
+              },
+              "metrica_seleccion": "pr_auc",
+              "validacion_cruzada_mejor": {
+                "pr_auc": {
+                  "media": 0.7093753850998515,
+                  "desviacion": 0.03638067964994281,
+                  "por_pliegue": [
+                    0.6725475651616742,
+                    0.7300619665617102,
+                    0.7424468292140842,
+                    0.6671985922764,
+                    0.7346219722853893
+                  ]
+                },
+                "f1": {
+                  "media": 0.6264110599192761,
+                  "desviacion": 0.035352867670612305,
+                  "por_pliegue": [
+                    0.6382978723404256,
+                    0.5683646112600537,
+                    0.6645161290322581,
+                    0.6318840579710145,
+                    0.628992628992629
+                  ]
+                }
+              },
+              "en_borde": {
+                "C": false
+              },
+              "candidatos": [
+                {
+                  "hiperparametros": {
+                    "C": 0.1
+                  },
+                  "pr_auc_media": 0.6660136325329258,
+                  "f1_media": 0.5794113535989206,
+                  "pr_auc_desviacion": 0.043798356786154215,
+                  "f1_desviacion": 0.040359786758376634
+                },
+                {
+                  "hiperparametros": {
+                    "C": 1.0
+                  },
+                  "pr_auc_media": 0.7093753850998515,
+                  "f1_media": 0.6264110599192761,
+                  "pr_auc_desviacion": 0.03253986910596615,
+                  "f1_desviacion": 0.03162056612441751
+                },
+                {
+                  "hiperparametros": {
+                    "C": 10.0
+                  },
+                  "pr_auc_media": 0.6744046165108277,
+                  "f1_media": 0.6045248144655909,
+                  "pr_auc_desviacion": 0.06232431715961975,
+                  "f1_desviacion": 0.10425812723765963
+                }
+              ],
+              "avisos_convergencia": 0,
+              "segundos": 4.751457400001527
+            }
+          },
+          "metricas_validacion": {
+            "n": 8760,
+            "positivos": 1032,
+            "umbral": 0.0,
+            "precision": 0.4409484724122207,
+            "recall": 0.937015503875969,
+            "f1": 0.5996899224806201,
+            "roc_auc": 0.9530103961031665,
+            "pr_auc": 0.7058356635424213,
+            "pr_auc_metodo": "average precision (sklearn.metrics.average_precision_score)",
+            "matriz_confusion": {
+              "vn": 6502,
+              "fp": 1226,
+              "fn": 65,
+              "vp": 967,
+              "matriz": [
+                [
+                  6502,
+                  1226
+                ],
+                [
+                  65,
+                  967
+                ]
+              ],
+              "orden": "filas = clase real (0, 1); columnas = clase predicha (0, 1)"
+            },
+            "nota": null
+          },
+          "tiempos": {
+            "busqueda_s": 4.751457400001527,
+            "ajuste_s": 0.44684179999967455,
+            "prediccion_ms_por_1000_filas": 141.49432648427134,
+            "repeticiones_prediccion": 5,
+            "tamano_serializado_bytes": 260650
+          },
+          "avisos_convergencia_ajuste_final": 0,
+          "modelo": {
+            "archivo": "clasificacion_svm_rbf_r120.joblib",
+            "formato": "joblib",
+            "bytes": 260650,
+            "sha256": "55eb31cbf816d2c642b7a91ebe760d4c0d6a2c8716329f10925a13e3f4e82906",
+            "ruta": "models/clasificacion_svm_rbf_r120.joblib"
+          }
+        }
+      },
+      "figura": "docs/figuras/modelado/precision_recall_r120.png"
+    }
+  }
+}

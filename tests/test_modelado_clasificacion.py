@@ -8,6 +8,7 @@ informacion que no se tiene al predecir. Todo corre para r24 y para r120.
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
@@ -27,7 +28,7 @@ from modelado.clasificacion import (  # noqa: E402
 from modelado.datos import cargar_tabla  # noqa: E402
 from modelado.objetivos import ErrorObjetivo, construir_alerta_pico, umbral_movil  # noqa: E402
 from modelado.particion import particionar  # noqa: E402
-from test_modelado_base import VERSIONES, guardar_tablas, panel_minimo  # noqa: E402
+from test_modelado_base import VERSIONES, _entrenar, guardar_tablas, panel_minimo  # noqa: E402
 
 REZAGOS = [24, 120]
 VENTANA = 168
@@ -232,3 +233,18 @@ def test_el_baseline_alerta_si_lag_168_supera_el_umbral(entradas, version):
     matriz = registro["metricas_validacion"]["matriz_confusion"]
     assert matriz["vp"] == int((esperado & (real == 1)).sum())
     assert matriz["fp"] == int((esperado & (real == 0)).sum())
+
+
+def test_entrenar_familia_clasificacion_de_punta_a_punta(carpeta_tablas, tmp_path):
+    for version in VERSIONES:
+        assert _entrenar(carpeta_tablas, tmp_path, version, familia="clasificacion") == 0
+    resultados = json.loads((tmp_path / "resultados" / "modelado_clasificacion.json").read_text(encoding="utf-8"))
+
+    assert resultados["familia"] == "clasificacion" and list(resultados["tablas"]) == ["r24", "r120"]
+    for version, entrada in resultados["tablas"].items():
+        assert list(entrada["modelos"]) == list(MODELOS)
+        assert entrada["objetivo"]["detalle"]["por_bloque"]["prueba"]["proporcion_positivos"] is None
+        assert (tmp_path / "figuras" / f"precision_recall_{version}.png").stat().st_size > 0
+        for registro in [*entrada["modelos"].values(), entrada["baseline"]]:
+            m = registro["metricas_validacion"]
+            assert m["n"] == 8760 and 0 <= m["pr_auc"] <= 1

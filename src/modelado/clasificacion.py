@@ -14,9 +14,11 @@ sobre el Pipeline completo y el TimeSeriesSplit del entrenamiento, eligiendo por
 siempre "no hay alerta" ya acierta ~88 %. Tambien se registra el F1 de cada
 candidato.
 
-**SVC con RBF.** Su ajuste crece entre cuadratica y cubicamente con las filas:
-con las ~32 000 del entrenamiento, una rejilla con 5 pliegues tardaria horas.
-Se entrena con una de cada `SUBMUESTRA_RBF` horas, conservando el orden. El paso
+**SVC con RBF.** Su ajuste crece entre cuadratica y cubicamente con las filas.
+Medido una vez sobre r24 con C=1: 0.41 s con una de cada 5 horas (6 361 filas)
+frente a 10.6 s con todo el entrenamiento (31 802 filas), 26 veces mas con 5
+veces las filas, y cada candidato de la rejilla por cada pliegue lo repite. Se
+entrena con una de cada `SUBMUESTRA_RBF` horas, conservando el orden. El paso
 es 5 porque es coprimo con 168: la submuestra recorre todas las horas de la
 semana (con 6 o 7 se quedaria con una fraccion de las combinaciones hora x dia).
 El TimeSeriesSplit de la submuestra lleva `gap = ceil(rezago / paso)` filas, que
@@ -94,9 +96,11 @@ MODELOS: dict[str, Especificacion] = {
 }
 
 MOTIVO_SUBMUESTRA = (
-    "SVC con kernel RBF escala entre O(n^2) y O(n^3) con las filas: con todo el "
-    "entrenamiento la rejilla con 5 pliegues tardaria horas. Una de cada {paso} h, "
-    "en orden; {paso} es coprimo con 168, asi que se recorren todas las horas de la semana."
+    "SVC con kernel RBF escala entre O(n^2) y O(n^3) con las filas: medido en r24 "
+    "con C=1, 5 veces mas filas (todo el entrenamiento) tardan 26 veces mas en "
+    "ajustar, y la rejilla repite el ajuste por candidato y pliegue. Una de cada "
+    "{paso} h, en orden; {paso} es coprimo con 168, asi que se recorren todas las "
+    "horas de la semana."
 )
 
 
