@@ -17,7 +17,9 @@ from pathlib import Path
 RAIZ = Path(__file__).resolve().parents[1]
 PAQUETES_PROPIOS = {"ingesta", "calidad", "limpieza", "variables", "mineria", "modelado", "conftest",
                     # infra/contenedor: modulos del handler de Lambda, importados por tests/test_infra.py
-                    "lambda_ingesta", "s3sync"}
+                    "lambda_ingesta", "s3sync",
+                    # tests/test_modelado_regresion.py reutiliza las tablas sinteticas de este modulo
+                    "test_modelado_base"}
 
 
 def _requisitos() -> dict[str, str]:
