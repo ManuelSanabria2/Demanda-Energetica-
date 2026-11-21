@@ -32,6 +32,16 @@ from modelado.datos import (  # noqa: E402
     separar,
     variables_conocidas,
 )
+from modelado.particion import (  # noqa: E402
+    BLOQUES,
+    ErrorParticion,
+    inicio_prueba,
+    particionar,
+    validacion_cruzada,
+)
+from sklearn.linear_model import Ridge  # noqa: E402
+from sklearn.pipeline import Pipeline  # noqa: E402
+from sklearn.preprocessing import StandardScaler  # noqa: E402
 from variables.construir import BANDERAS_CALENDARIO, construir_tabla, guardar  # noqa: E402
 
 VERSIONES = ["r24", "r120"]
@@ -153,3 +163,101 @@ def test_versiones_y_variables_conocidas():
         rezago_de("24h")
     assert {"lag_24", "lag_168", "ma_168", "temperatura_c", "hora_sin", "es_festivo"} <= variables_conocidas()
     assert not {"demanda_mwh", "fecha_hora", "atipico", "valor_kwh"} & variables_conocidas()
+
+
+# ==========================================================================
+# particion: bloques cronologicos y TimeSeriesSplit
+# ==========================================================================
+
+
+def _hora(texto: str) -> pd.Timestamp:
+    return pd.Timestamp(texto, tz=ZONA)
+
+
+@pytest.mark.parametrize("version", VERSIONES)
+def test_los_bloques_no_se_solapan_y_van_en_orden(carpeta_tablas, version):
+    (_, _, fechas), _ = cargar_tabla(version, carpeta_tablas)
+    indices, registro = particionar(fechas)
+
+    entrena, valida, prueba = (indices[b] for b in BLOQUES)
+    assert not (set(entrena) & set(valida)) and not (set(valida) & set(prueba)) and not (set(entrena) & set(prueba))
+    assert entrena.max() < valida.min() and valida.max() < prueba.min()
+    assert len(entrena) + len(valida) + len(prueba) == len(fechas)
+
+    assert fechas.iloc[entrena].max() == _hora("2024-09-02 23:00")
+    assert fechas.iloc[valida].min() == _hora("2024-09-03 00:00")
+    assert fechas.iloc[valida].max() == _hora("2025-09-02 23:00")
+    assert fechas.iloc[prueba].min() == _hora("2025-09-03 00:00") == inicio_prueba()
+    assert fechas.iloc[prueba].max() == _hora("2026-09-02 23:00")
+
+    bloques = registro["detalle"]["bloques"]
+    assert [bloques[b]["filas"] for b in BLOQUES] == [len(entrena), len(valida), len(prueba)]
+    assert bloques["validacion"]["desde"] == str(_hora("2024-09-03 00:00"))
+    assert "evaluacion final" in bloques["prueba"]["uso"]
+
+
+def test_particionar_falla_con_filas_fuera_de_los_bloques_o_desordenadas():
+    horas = pd.date_range("2024-01-01", "2026-09-03 05:00", freq="h", tz=ZONA)
+    with pytest.raises(ErrorParticion, match="posteriores"):
+        particionar(horas)
+    with pytest.raises(ErrorParticion, match="ordenadas"):
+        particionar(horas[:-6][::-1])
+    with pytest.raises(ErrorParticion, match="vacios"):
+        particionar(pd.date_range("2025-01-01", periods=100, freq="h", tz=ZONA))
+    with pytest.raises(ErrorParticion, match="zona horaria"):
+        particionar(pd.date_range("2024-01-01", "2026-09-02 23:00", freq="h"))
+
+
+@pytest.mark.parametrize(("version", "gap"), [("r24", 24), ("r120", 120)])
+def test_ningun_pliegue_valida_antes_de_lo_que_entrena(carpeta_tablas, version, gap):
+    (_, _, fechas), _ = cargar_tabla(version, carpeta_tablas)
+    indices, _ = particionar(fechas)
+    fechas_entrena = fechas.iloc[indices["entrenamiento"]].reset_index(drop=True)
+    tscv, registro = validacion_cruzada(version, fechas_entrena)
+
+    assert tscv.n_splits == 5 and tscv.gap == gap
+    pliegues = list(tscv.split(np.arange(len(fechas_entrena))))
+    assert len(pliegues) == 5
+    for entrena, valida in pliegues:
+        assert valida.min() > entrena.max()
+        assert valida.min() - entrena.max() - 1 == gap
+        separacion = fechas_entrena.iloc[valida].min() - fechas_entrena.iloc[entrena].max()
+        assert separacion == pd.Timedelta(hours=gap + 1)
+    assert [p["gap_h"] for p in registro["detalle"]["pliegues"]] == [gap] * 5
+
+
+def test_la_validacion_cruzada_exige_rejilla_horaria():
+    horas = pd.date_range("2023-01-01", periods=2000, freq="h", tz=ZONA).delete(700)
+    with pytest.raises(ErrorDatos, match="no es continua"):
+        validacion_cruzada(24, horas)
+    with pytest.raises(ErrorDatos, match="horizonte"):
+        validacion_cruzada(12, horas)
+
+
+@pytest.mark.parametrize("version", VERSIONES)
+def test_un_pipeline_ajustado_en_entrenamiento_no_cambia_si_se_altera_la_prueba(carpeta_tablas, version):
+    (X, y, fechas), _ = cargar_tabla(version, carpeta_tablas)
+    X = X.astype("float64")
+    indices, _ = particionar(fechas)
+    entrena, valida, prueba = (indices[b] for b in BLOQUES)
+
+    def ajustar(X_, y_):
+        modelo = Pipeline([("escalar", StandardScaler()), ("regresion", Ridge(alpha=1.0))])
+        return modelo.fit(X_.iloc[entrena], y_.iloc[entrena])
+
+    original = ajustar(X, y)
+    X_alterada, y_alterada = X.copy(), y.copy()
+    X_alterada.iloc[prueba] = X_alterada.iloc[prueba] * 10 + 1000
+    y_alterada.iloc[prueba] = y_alterada.iloc[prueba] * 3
+    alterado = ajustar(X_alterada, y_alterada)
+
+    for paso in ("mean_", "scale_"):
+        np.testing.assert_array_equal(
+            getattr(original.named_steps["escalar"], paso), getattr(alterado.named_steps["escalar"], paso)
+        )
+    np.testing.assert_array_equal(original.named_steps["regresion"].coef_, alterado.named_steps["regresion"].coef_)
+    np.testing.assert_array_equal(original.predict(X.iloc[valida]), alterado.predict(X_alterada.iloc[valida]))
+
+    # Control: la alteracion si se notaria si el escalado viera la tabla entera.
+    completo = StandardScaler().fit(X), StandardScaler().fit(X_alterada)
+    assert not np.allclose(completo[0].mean_, completo[1].mean_)
