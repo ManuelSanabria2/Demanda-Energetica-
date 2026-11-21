@@ -57,6 +57,15 @@ from modelado.particion import (  # noqa: E402
     particionar,
     validacion_cruzada,
 )
+from modelado.tiempos import (  # noqa: E402
+    ErrorModelo,
+    cargar_modelo,
+    entorno,
+    guardar_modelo,
+    medir_ajuste,
+    medir_prediccion,
+    tamano_serializado,
+)
 from sklearn.linear_model import Ridge  # noqa: E402
 from sklearn.pipeline import Pipeline  # noqa: E402
 from sklearn.preprocessing import StandardScaler  # noqa: E402
@@ -406,3 +415,31 @@ def test_el_baseline_se_comporta_como_un_estimador_de_sklearn(tablas):
         modelo.fit(X.to_numpy())
     with pytest.raises(ErrorBaseline):
         baselines_disponibles(["temperatura_c"])
+
+
+# ==========================================================================
+# tiempos: ajuste, prediccion por 1000 filas y tamano serializado
+# ==========================================================================
+
+
+def test_tiempos_y_tamano_del_modelo_guardado(tablas, tmp_path):
+    tabla = tablas["r24"]
+    X, y = tabla.drop(columns=["fecha_hora", "demanda_mwh"]).astype(float), tabla["demanda_mwh"]
+    modelo = Pipeline([("escalar", StandardScaler()), ("regresion", Ridge(alpha=1.0))])
+
+    modelo, ajuste = medir_ajuste(modelo, X.iloc[:2000], y.iloc[:2000])
+    assert ajuste["detalle"]["segundos"] > 0 and ajuste["detalle"]["filas"] == 2000
+
+    prediccion, medida = medir_prediccion(modelo, X.iloc[2000:4500], repeticiones=3)
+    np.testing.assert_array_equal(prediccion, modelo.predict(X.iloc[2000:4500]))
+    detalle = medida["detalle"]
+    assert detalle["ms_por_1000_filas"] == pytest.approx(1000 * detalle["segundos_mediana"] * 1000 / 2500)
+
+    ruta = tmp_path / "modelos" / "ridge_r24.joblib"
+    archivo = guardar_modelo(modelo, ruta)
+    assert archivo["bytes"] == ruta.stat().st_size == tamano_serializado(modelo)
+    leido = cargar_modelo(ruta, archivo["sha256"])
+    np.testing.assert_array_equal(leido.predict(X.iloc[:50]), modelo.predict(X.iloc[:50]))
+    with pytest.raises(ErrorModelo, match="SHA-256"):
+        cargar_modelo(ruta, "0" * 64)
+    assert {"python", "numpy", "scikit-learn", "joblib"} <= set(entorno())
