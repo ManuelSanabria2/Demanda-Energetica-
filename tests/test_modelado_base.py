@@ -32,6 +32,19 @@ from modelado.datos import (  # noqa: E402
     separar,
     variables_conocidas,
 )
+from modelado.metricas import (  # noqa: E402
+    AlertaFuga,
+    ErrorMetricas,
+    error_maximo_diario,
+    mae,
+    mape,
+    mape_horas_pico,
+    mejora_mape,
+    metricas_clasificacion,
+    metricas_regresion,
+    rmse,
+    sesgo_medio,
+)
 from modelado.particion import (  # noqa: E402
     BLOQUES,
     ErrorParticion,
@@ -261,3 +274,93 @@ def test_un_pipeline_ajustado_en_entrenamiento_no_cambia_si_se_altera_la_prueba(
     # Control: la alteracion si se notaria si el escalado viera la tabla entera.
     completo = StandardScaler().fit(X), StandardScaler().fit(X_alterada)
     assert not np.allclose(completo[0].mean_, completo[1].mean_)
+
+
+# ==========================================================================
+# metricas: contra calculos a mano en un ejemplo pequeno
+# ==========================================================================
+
+
+@pytest.fixture
+def ejemplo_regresion():
+    """Dos dias, real = 1000 MWh en todas las horas; tres errores puestos a mano.
+
+    dia 1, 19 h: +100   (hora pico; sube el maximo del dia 1 a 1100)
+    dia 2,  3 h: -100   (fuera de pico)
+    dia 2, 18 h:  -50   (hora pico; el maximo del dia 2 sigue en 1000)
+    """
+    fechas = pd.Series(pd.date_range("2025-01-06", periods=48, freq="h", tz=ZONA))
+    real = np.full(48, 1000.0)
+    pred = real.copy()
+    pred[19], pred[24 + 3], pred[24 + 18] = 1100.0, 900.0, 950.0
+    return real, pred, fechas
+
+
+def test_metricas_de_regresion_coinciden_con_el_calculo_a_mano(ejemplo_regresion):
+    real, pred, fechas = ejemplo_regresion
+
+    assert mae(real, pred) == pytest.approx(250 / 48)
+    assert rmse(real, pred) == pytest.approx(np.sqrt(22500 / 48))
+    assert mape(real, pred) == pytest.approx(100 * 0.25 / 48)
+    assert sesgo_medio(real, pred) == pytest.approx(-50 / 48)  # negativo: subestima en neto
+    # 6 horas pico (18-20 h de cada dia), errores de 10 % y 5 %.
+    assert mape_horas_pico(real, pred, fechas) == pytest.approx(100 * 0.15 / 6)
+    # Maximos: dia 1 real 1000 / pred 1100, dia 2 real 1000 / pred 1000.
+    assert error_maximo_diario(real, pred, fechas) == pytest.approx({"mae_mwh": 50.0, "mape_pct": 5.0, "n_dias": 2})
+    assert mejora_mape(4.0, 5.0) == pytest.approx(20.0)
+    assert mejora_mape(6.0, 5.0) == pytest.approx(-20.0)
+
+    todas = metricas_regresion(real, pred, fechas, mape_baseline=1.0, alarma_fuga=False)
+    assert todas["n"] == 48 and todas["n_pico"] == 6 and todas["n_dias"] == 2
+    assert todas["mape_pct"] == pytest.approx(100 * 0.25 / 48)
+    # Mejora frente a un baseline de MAPE 1 %: 100 * (1 - 0.5208) / 1.
+    assert todas["mejora_mape_pct"] == pytest.approx(100 * (1.0 - 100 * 0.25 / 48) / 1.0)
+    assert todas["sesgo_medio_pct"] == pytest.approx(100 * (-50 / 48) / 1000)
+
+
+def test_un_mape_menor_que_1_pct_dispara_la_alarma_de_fuga(ejemplo_regresion):
+    real, pred, fechas = ejemplo_regresion  # MAPE = 0.52 %
+    with pytest.raises(AlertaFuga, match="Audita la fuga"):
+        metricas_regresion(real, pred, fechas)
+    peor = pred.copy()
+    peor[:10] = 900.0  # MAPE > 1 %: pasa
+    assert metricas_regresion(real, peor, fechas)["mape_pct"] > 1
+
+
+def test_las_metricas_rechazan_entradas_invalidas(ejemplo_regresion):
+    real, pred, fechas = ejemplo_regresion
+    with pytest.raises(ErrorMetricas):
+        mae(real, pred[:-1])
+    with pytest.raises(ErrorMetricas):
+        mape(np.r_[real[:-1], 0.0], pred)
+    with pytest.raises(ErrorMetricas):
+        rmse(np.r_[real[:-1], np.nan], pred)
+    with pytest.raises(ErrorMetricas):
+        mape_horas_pico(real[:5], pred[:5], fechas[:5])  # 0-4 h: ninguna hora pico
+
+
+def test_metricas_de_clasificacion_coinciden_con_el_calculo_a_mano():
+    real = [0, 0, 1, 1, 1, 0]
+    puntaje = [0.1, 0.6, 0.8, 0.4, 0.9, 0.2]
+    # Umbral 0.5 -> predichos [0, 1, 1, 0, 1, 0]: vp=2, fp=1, fn=1, vn=2.
+    resultado = metricas_clasificacion(real, puntaje)
+
+    assert resultado["matriz_confusion"]["matriz"] == [[2, 1], [1, 2]]
+    assert resultado["precision"] == pytest.approx(2 / 3)
+    assert resultado["recall"] == pytest.approx(2 / 3)
+    assert resultado["f1"] == pytest.approx(2 / 3)
+    # ROC-AUC: de los 9 pares (positivo, negativo), 8 tienen el positivo por encima.
+    assert resultado["roc_auc"] == pytest.approx(8 / 9)
+    # Average precision: positivos en las posiciones 1, 2 y 4 del orden descendente.
+    assert resultado["pr_auc"] == pytest.approx((1 + 1 + 3 / 4) / 3)
+
+    estricto = metricas_clasificacion(real, puntaje, umbral=0.85)  # solo 0.9 es positivo
+    assert estricto["precision"] == pytest.approx(1.0) and estricto["recall"] == pytest.approx(1 / 3)
+
+
+def test_clasificacion_con_una_sola_clase_no_inventa_auc():
+    resultado = metricas_clasificacion([0, 0, 0], [0.2, 0.7, 0.1])
+    assert resultado["roc_auc"] is None and resultado["pr_auc"] is None
+    assert resultado["recall"] is None and resultado["precision"] == 0.0 and resultado["f1"] is None
+    with pytest.raises(ErrorMetricas):
+        metricas_clasificacion([0, 2, 1], [0.1, 0.2, 0.3])
