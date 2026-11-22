@@ -53,7 +53,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 407 pruebas, ninguna toca la red
+python -m pytest tests -q          # 421 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -296,6 +296,7 @@ python scripts/entrenar.py --tabla r24  --familia lineal          # y lo mismo c
 python scripts/entrenar.py --tabla r24  --familia clasificacion   # y lo mismo con r120
 python scripts/entrenar.py --tabla r24  --familia ensembles       # y lo mismo con r120
 python scripts/entrenar.py --tabla r24  --familia busqueda        # después de las anteriores
+python scripts/entrenar.py --tabla r24  --familia interpretabilidad  # explica los modelos guardados
 ```
 
 | bloque | rango (hora local) | uso |
@@ -311,7 +312,8 @@ debajo del 1 % lanza `AlertaFuga`.
 
 Resultados en `docs/resultados/modelado_baselines.json`,
 `modelado_regresion.json`, `modelado_clasificacion.json`,
-`modelado_ensembles.json` y `modelado_busqueda.json` (una entrada por
+`modelado_ensembles.json`, `modelado_busqueda.json` y
+`modelado_interpretabilidad.json` (una entrada por
 tabla, con la partición, el entorno,
 las métricas de validación y los tiempos); modelos en `models/`, fuera de git,
 con su SHA-256 anotado en ese JSON.
@@ -359,6 +361,15 @@ reentrena con todo el entrenamiento y se evalúa en validación, frente a la
 configuración del paso anterior. La figura
 `docs/figuras/modelado/busqueda_puntaje_tiempo_r24.png` (y `_r120`) traza el
 mejor puntaje de CV acumulado frente al cómputo acumulado de cada método.
+
+La **interpretabilidad** (`src/modelado/interpretabilidad.py`) no entrena: lee
+de `models/` (comprobando su SHA-256) el mejor lineal en las variables
+originales y el mejor ensemble en validación, y los explica sobre la
+validación: importancia por impureza y por permutación, SHAP (`TreeExplainer`
+y `LinearExplainer`; resumen y dependencia de `temperatura_c` por hora), LIME
+en una hora pico laboral, un festivo, un día de Semana Santa y la hora de mayor
+error, y el contraste con la autocorrelación del EDA. Cada modelo del proyecto
+lleva una calificación de interpretabilidad (alta, media o baja) con su motivo.
 
 Métricas de regresión: MAE, RMSE, MAPE, MAPE en horas pico (18–20 h), error
 sobre el máximo diario, sesgo medio (negativo si subestima) y mejora de MAPE
@@ -603,6 +614,7 @@ src/modelado/
   clasificacion.py  logística, KNN, LinearSVC, SVC RBF submuestreada, baseline; PR-AUC
   ensembles.py    RF, AdaBoost, GB e HistGB sobre el nivel y sobre y - lag_168
   busqueda.py     GridSearchCV frente a RandomizedSearchCV para los mejores de cada paso
+  interpretabilidad.py  importancias, SHAP, LIME y calificación de los candidatos finales
 src/limpieza/
   limpiar.py      limpieza trazable: cada operación devuelve marco + registro
   grupos.py       limpieza de tablas desagregadas, un grupo cada vez
@@ -645,6 +657,7 @@ tests/
   test_modelado_clasificacion.py  umbral de alerta_pico sin fuga; clasificadores sin validación
   test_modelado_ensembles.py  el bosque no pasa del máximo sobre el nivel; diferenciado sí; sin fuga
   test_modelado_busqueda.py  selección de candidatos, mismo espacio en Grid y Random, sin fuga
+  test_modelado_interpretabilidad.py  SHAP suma la predicción; casos de LIME; selección y calificaciones
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
   test_datasets.py    escritor de CSV: escritura atómica, orden fijo, gzip

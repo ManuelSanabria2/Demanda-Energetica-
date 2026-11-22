@@ -6,6 +6,7 @@
     python scripts/entrenar.py --tabla r24  --familia clasificacion
     python scripts/entrenar.py --tabla r24  --familia ensembles
     python scripts/entrenar.py --tabla r24  --familia busqueda
+    python scripts/entrenar.py --tabla r24  --familia interpretabilidad
 
 Ajusta con el bloque de entrenamiento, evalua en validacion y escribe una
 entrada por tabla en docs/resultados (FAMILIAS: baseline ->
@@ -13,7 +14,9 @@ modelado_baselines.json, lineal -> modelado_regresion.json, clasificacion ->
 modelado_clasificacion.json, con su figura precision-recall en
 docs/figuras/modelado; ensembles -> modelado_ensembles.json; busqueda ->
 modelado_busqueda.json, que lee los resultados de lineal, ensembles y
-clasificacion para elegir sus candidatos): correr r24 y
+clasificacion para elegir sus candidatos; interpretabilidad ->
+modelado_interpretabilidad.json, que no entrena: explica los modelos ya
+guardados en models/, con sus figuras en docs/figuras/modelado): correr r24 y
 despues r120 deja las dos en el mismo archivo. La familia lineal busca sus
 hiperparametros con el TimeSeriesSplit del bloque de entrenamiento. Los modelos ajustados van a
 models/ (fuera de git) y su SHA-256 queda en el registro.
@@ -44,7 +47,7 @@ import pandas as pd
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))
 
-from modelado import busqueda  # noqa: E402
+from modelado import busqueda, interpretabilidad  # noqa: E402
 from modelado.clasificacion import MODELOS as MODELOS_CLASIFICACION  # noqa: E402
 from modelado.clasificacion import evaluar_baseline, evaluar_clasificador  # noqa: E402
 from modelado.baselines import (  # noqa: E402
@@ -73,6 +76,7 @@ FAMILIAS = {
     "clasificacion": "modelado_clasificacion.json",
     "ensembles": "modelado_ensembles.json",
     "busqueda": "modelado_busqueda.json",
+    "interpretabilidad": "modelado_interpretabilidad.json",
 }
 # Familias cuyos resultados lee la busqueda para elegir candidatos.
 ENTRADAS_BUSQUEDA = ("lineal", "ensembles", "clasificacion")
@@ -381,12 +385,65 @@ def evaluar_busquedas(
     }
 
 
+def _rutas_relativas(objeto: Any) -> Any:
+    """Las rutas de figuras del registro, relativas al repositorio."""
+    if isinstance(objeto, Path):
+        return _relativa(objeto)
+    if isinstance(objeto, dict):
+        return {k: _rutas_relativas(v) for k, v in objeto.items()}
+    if isinstance(objeto, list):
+        return [_rutas_relativas(v) for v in objeto]
+    return objeto
+
+
+def evaluar_interpretabilidad(
+    X: pd.DataFrame,
+    y: pd.Series,
+    fechas: pd.Series,
+    indices: dict,
+    clave: str,
+    dir_modelos: Path,
+    dir_figuras: Path | None = None,
+    dir_resultados: Path | None = None,
+) -> dict[str, Any]:
+    """Explica el mejor lineal y el mejor ensemble ya guardados; no entrena nada."""
+    entrena, valida = indices["entrenamiento"], indices["validacion"]
+    if fechas.iloc[valida].max() >= inicio_prueba() or fechas.iloc[entrena].max() >= inicio_prueba():
+        raise RuntimeError("Filas del bloque de prueba en el ajuste o la evaluacion.")  # defensa
+
+    carpeta = dir_resultados or RESULTADOS
+    previos = {}
+    for familia in ("lineal", "ensembles", "busqueda"):
+        ruta = carpeta / FAMILIAS[familia]
+        if ruta.exists():
+            previos[familia] = json.loads(ruta.read_text(encoding="utf-8"))
+        elif familia != "busqueda":  # la busqueda es opcional
+            raise FileNotFoundError(f"La interpretabilidad necesita {_relativa(ruta)}: corre antes --familia {familia}.")
+    ruta_eda = carpeta / "eda.json"
+    if not ruta_eda.exists():
+        raise FileNotFoundError(f"Falta {_relativa(ruta_eda)}: el contraste usa su autocorrelacion.")
+    acf = json.loads(ruta_eda.read_text(encoding="utf-8"))["acf"]
+
+    candidatos, registro_seleccion = interpretabilidad.seleccionar_candidatos(previos, clave)
+    modelos = {rol: interpretabilidad.cargar(c, dir_modelos) for rol, c in candidatos.items()}
+    carpeta_figuras = dir_figuras or FIGURAS
+    carpeta_figuras.mkdir(parents=True, exist_ok=True)
+    resultado = interpretabilidad.interpretar(modelos, candidatos, X, y, fechas, indices, acf, clave, carpeta_figuras)
+    return _rutas_relativas({
+        "seleccion": registro_seleccion,
+        "criterio_calificacion": interpretabilidad.CRITERIO_CALIFICACION,
+        "calificaciones": interpretabilidad.CALIFICACIONES,
+        **resultado,
+    })
+
+
 EVALUADORES = {
     "baseline": evaluar_baselines,
     "lineal": evaluar_lineales,
     "clasificacion": evaluar_clasificadores,
     "ensembles": evaluar_ensembles,
     "busqueda": evaluar_busquedas,
+    "interpretabilidad": evaluar_interpretabilidad,
 }
 
 
@@ -434,7 +491,7 @@ def main(argv: list[str] | None = None) -> int:
 
     (X, y, fechas), registro_datos = cargar_tabla(clave, args.datos)
     indices, registro_particion = particionar(fechas)
-    extra = {"dir_resultados": args.resultados} if args.familia == "busqueda" else {}
+    extra = {"dir_resultados": args.resultados} if args.familia in ("busqueda", "interpretabilidad") else {}
     evaluacion = EVALUADORES[args.familia](X, y, fechas, indices, clave, args.modelos, args.figuras, **extra)
 
     valida = indices["validacion"]
@@ -493,7 +550,20 @@ def main(argv: list[str] | None = None) -> int:
                   f"({c['ajustes_cv_random_hasta_alcanzar']} ajustes; grid llega a su mejor en "
                   f"{c['ajustes_cv_grid_hasta_su_mejor']})")
         print(f"  figura -> {evaluacion['figura']}")
-    for nombre, resultado in ({} if args.familia in ("clasificacion", "ensembles", "busqueda") else evaluacion["modelos"]).items():
+    if args.familia == "interpretabilidad":
+        for rol, registro in evaluacion["modelos"].items():
+            c = registro["candidato"]
+            print(f"  {rol:<9} {c['nombre']} ({c['forma']}, {c['origen']}) · MAPE {c['mape_validacion_pct']:.2f} % · "
+                  f"interpretabilidad {registro['calificacion']['calificacion']}")
+            for metodo, datos in registro["importancias"].items():
+                print(f"  {'':<9} {metodo:<12} {list(datos['por_variable'])[:4]}")
+            s = registro["shap"]
+            print(f"  {'':<9} shap         {list(s['media_abs_por_variable_mwh'])[:4]} · {s['filas_explicadas']} filas "
+                  f"· {s['segundos']:.0f} s")
+        print(f"  contraste: {evaluacion['contraste_eda']['conclusion']}")
+        print(f"  figuras -> {list(evaluacion['figuras'].values())}")
+    for nombre, resultado in ({} if args.familia in ("clasificacion", "ensembles", "busqueda", "interpretabilidad")
+                              else evaluacion["modelos"]).items():
         m = resultado["metricas_validacion"]
         mejora = "" if m["mejora_mape_pct"] is None else f" · mejora {m['mejora_mape_pct']:+.1f} %"
         print(
