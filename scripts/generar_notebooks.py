@@ -1029,6 +1029,176 @@ else:
 ])
 
 
+# --------------------------------------------------------------------------
+# 05: modelado supervisado
+# --------------------------------------------------------------------------
+# Solo llama a src/modelado (probado en tests/test_modelado_*.py) y lee los
+# resultados que escriben scripts/entrenar.py y scripts/evaluar_final.py: las
+# busquedas y el SHAP de Random Forest tardan minutos, el notebook no los repite.
+
+CARGA_RESULTADOS = """import json
+from IPython.display import Image, display
+
+RESULTADOS = RAIZ / "docs" / "resultados"
+FIGURAS = RAIZ / "docs" / "figuras" / "modelado"
+
+def resultado(nombre):
+    return json.loads((RESULTADOS / nombre).read_text(encoding="utf-8"))
+
+def figura(nombre, ancho=900):
+    # La figura del informe, reducida: el notebook no tiene que cargar el PNG a resolucion completa.
+    from io import BytesIO
+    from PIL import Image as Imagen
+    imagen = Imagen.open(FIGURAS / nombre)
+    imagen.thumbnail((ancho, ancho * 4))
+    destino = BytesIO()
+    imagen.convert("RGB").save(destino, format="PNG", optimize=True)
+    display(Image(data=destino.getvalue()))"""
+
+NB11 = cuaderno([
+    ("md", """# 05 · Modelado supervisado
+
+Pronóstico de la demanda horaria del SIN a 24 h, en las dos tablas de modelado:
+**r24** (la demanda se conoce hasta `t − 24 h`) y **r120** (hasta `t − 120 h`,
+el escenario con el rezago de publicación). Recorre el modelado en el orden en
+que se hizo:
+
+1. partición temporal y validación cruzada;
+2. baselines;
+3. modelos lineales;
+4. clasificación de `alerta_pico`;
+5. ensembles;
+6. búsqueda de hiperparámetros;
+7. interpretabilidad;
+8. selección del modelo final, el único paso que usa el bloque de prueba.
+
+Todo el cálculo vive en `src/modelado` (probado en `tests/test_modelado_*.py`).
+Aquí se llama a esas funciones cuando el cálculo es rápido y se leen los JSON de
+`docs/resultados` cuando es largo (las búsquedas tardan unos 30 minutos). Las
+reglas del modelado están en `CLAUDE.md`."""),
+    ("code", ARRANQUE),
+    ("code", CARGA_RESULTADOS),
+    ("md", "## 1. Datos y partición\n\nLa carga comprueba el SHA-256 de cada tabla contra su registro y que la lista de variables salga de la tabla."),
+    ("code", """from modelado.datos import cargar_tabla
+from modelado.particion import particionar, validacion_cruzada
+
+datos, particiones = {}, {}
+for clave in ("r24", "r120"):
+    (X, y, fechas), registro = cargar_tabla(clave)
+    indices, _ = particionar(fechas)
+    datos[clave], particiones[clave] = (X, y, fechas), indices
+    print(f"{clave}: {X.shape[0]:,} filas x {X.shape[1]} variables -> {list(X.columns)}")"""),
+    ("code", """X, y, fechas = datos["r24"]
+indices = particiones["r24"]
+pd.DataFrame({bloque: {"filas": len(pos), "desde": fechas.iloc[pos[0]], "hasta": fechas.iloc[pos[-1]]}
+              for bloque, pos in indices.items()}).T"""),
+    ("code", """tscv, registro_cv = validacion_cruzada("r24", fechas.iloc[indices["entrenamiento"]])
+pd.DataFrame([{"pliegue": p["pliegue"], "entrena_hasta": p["entrenamiento"]["hasta"],
+               "valida_desde": p["validacion"]["desde"], "gap_h": p["gap_h"]}
+              for p in registro_cv["detalle"]["pliegues"]])"""),
+    ("md", "## 2. Baselines\n\nEl estacional (`y = lag_168`) es la referencia de toda mejora. Se calcula aquí mismo en validación."),
+    ("code", """from modelado.baselines import baselines_disponibles
+from modelado.metricas import metricas_regresion
+
+filas = []
+for clave in ("r24", "r120"):
+    X, y, fechas = datos[clave]
+    entrena, valida = particiones[clave]["entrenamiento"], particiones[clave]["validacion"]
+    modelos, _ = baselines_disponibles(list(X.columns))
+    for nombre, modelo in modelos.items():
+        modelo.fit(X.iloc[entrena], y.iloc[entrena])
+        m = metricas_regresion(y.iloc[valida], modelo.predict(X.iloc[valida]), fechas.iloc[valida])
+        filas.append({"tabla": clave, "baseline": nombre, "MAPE %": m["mape_pct"], "MAPE pico %": m["mape_pico_pct"],
+                      "MAE MWh": m["mae_mwh"], "sesgo MWh": m["sesgo_medio_mwh"]})
+pd.DataFrame(filas).round(2)"""),
+    ("md", "## 3. Modelos lineales\n\nCada uno es un `Pipeline` con `StandardScaler`, ajustado en cada pliegue. La regresión lineal se reevalúa aquí; el resto se lee de `modelado_regresion.json`."),
+    ("code", """from modelado.regresion import evaluar_modelo
+from modelado.metricas import mape
+
+X, y, fechas = datos["r24"]
+indices = particiones["r24"]
+tscv, _ = validacion_cruzada("r24", fechas.iloc[indices["entrenamiento"]])
+mape_base = mape(y.iloc[indices["validacion"]], X["lag_168"].iloc[indices["validacion"]])
+_, registro = evaluar_modelo("lineal", X, y, fechas, indices, tscv, mape_base)
+print("lineal r24 en validacion: MAPE", round(registro["metricas_validacion"]["mape_pct"], 3),
+      "% · mejora", round(registro["metricas_validacion"]["mejora_mape_pct"], 1), "%")"""),
+    ("code", """regresion = resultado("modelado_regresion.json")
+pd.DataFrame([{"tabla": clave, "modelo": nombre, "MAPE %": r["metricas_validacion"]["mape_pct"],
+               "mejora %": r["metricas_validacion"]["mejora_mape_pct"], "hiperparametros": r["hiperparametros"],
+               "rango/columnas": f"{r['condicionamiento']['rango']}/{r['condicionamiento']['columnas']}",
+               "nulos (Lasso)": r["coeficientes"]["n_nulos"]}
+              for clave, t in regresion["tablas"].items() for nombre, r in t["modelos"].items()]).round(3)"""),
+    ("md", "La polinomial sin regularizar tiene rango incompleto: su solución no es única y su MAPE de CV se dispara. Con Ridge se estabiliza."),
+    ("md", "## 4. Clasificación: `alerta_pico`\n\n`alerta_pico = 1` si la demanda supera el percentil 90 de la ventana de `ma_168`, calculada por marca de tiempo (definición en `docs/diccionario_variables.md`)."),
+    ("code", """from modelado.objetivos import construir_alerta_pico
+
+X, y, fechas = datos["r24"]
+marco, registro = construir_alerta_pico(fechas, y, "r24", particiones["r24"])
+pd.DataFrame(registro["detalle"]["por_bloque"]).T"""),
+    ("code", """clasificacion = resultado("modelado_clasificacion.json")
+pd.DataFrame([{"tabla": clave, "modelo": nombre, **{k: r["metricas_validacion"][k] for k in ("pr_auc", "roc_auc", "f1", "precision", "recall")},
+               "hiperparametros": r.get("hiperparametros")}
+              for clave, t in clasificacion["tablas"].items()
+              for nombre, r in {**t["modelos"], "baseline": t["baseline"]}.items()]).round(3)"""),
+    ("code", 'figura("precision_recall_r24.png", 520)'),
+    ("md", "## 5. Ensembles: nivel frente a serie diferenciada\n\nUn árbol no predice por encima del máximo que vio. Por eso cada ensemble se entrena sobre `demanda_mwh` y sobre `demanda_mwh − lag_168`."),
+    ("code", """ensembles = resultado("modelado_ensembles.json")
+pd.DataFrame([{"tabla": clave, "modelo": nombre, "forma": forma, "MAPE %": r["metricas_validacion"]["mape_pct"],
+               "sesgo MWh": r["metricas_validacion"]["sesgo_medio_mwh"],
+               "pred > max": r["extrapolacion_validacion"]["predicciones_sobre_maximo"],
+               "reales > max": r["extrapolacion_validacion"]["reales_sobre_maximo"],
+               "ajuste s": r["tiempos"]["ajuste_s"]}
+              for clave, t in ensembles["tablas"].items() for nombre, formas in t["modelos"].items()
+              for forma, r in formas.items()]).round(2)"""),
+    ("md", "## 6. Búsqueda de hiperparámetros: Grid frente a Random\n\nSe aplica a los 3 mejores de regresión y al mejor clasificador, con el mismo espacio y el mismo presupuesto en los dos métodos."),
+    ("code", """busqueda = resultado("modelado_busqueda.json")
+pd.DataFrame([{"tabla": clave, "modelo": etiqueta, "metodo": metodo, "puntaje CV": r[metodo]["mejor_puntaje_cv"],
+               "ajustes": r[metodo]["n_ajustes"], "segundos": r[metodo]["segundos_total"],
+               "mejores": r[metodo]["mejores"],
+               "random alcanza a grid": r["comparacion"]["random_alcanza_grid"] if metodo == "random" else None}
+              for clave, t in busqueda["tablas"].items() for etiqueta, r in t["modelos"].items()
+              for metodo in ("grid", "random")]).round(3)"""),
+    ("code", 'figura("busqueda_puntaje_tiempo_r24.png")'),
+    ("md", "## 7. Interpretabilidad\n\nExplica el mejor lineal y el mejor ensemble en validación. El contraste con el EDA: la autocorrelación a 168 h (0,924) es mayor que a 24 h, ¿domina `lag_168`?"),
+    ("code", """interpretacion = resultado("modelado_interpretabilidad.json")
+for clave, t in interpretacion["tablas"].items():
+    print(clave, "->", t["contraste_eda"]["conclusion"])
+pd.DataFrame(interpretacion["tablas"]["r24"]["contraste_eda"]["medidas"])"""),
+    ("code", 'figura("importancias_r24.png")\nfigura("shap_temperatura_r24.png")'),
+    ("code", """pd.DataFrame(interpretacion["tablas"]["r24"]["calificaciones"]).T"""),
+    ("md", "## 8. Selección del modelo final (bloque de prueba)\n\n`scripts/evaluar_final.py` reentrena con entrenamiento + validación y evalúa una vez en prueba. La elección se hizo con validación; la prueba solo confirma. La justificación completa está en `docs/modelado/seleccion.md`."),
+    ("code", """seleccion = resultado("modelado_seleccion.json")
+pd.DataFrame([{"tabla": clave, "rol": f["rol"], "modelo": f["modelo"], "final": f["es_final"],
+               "MAPE val %": f["rendimiento"]["validacion"].get("mape_pct"),
+               "MAPE prueba %": f["rendimiento"]["prueba"].get("mape_pct"),
+               "MAPE pico %": f["rendimiento"]["prueba"].get("mape_pico_pct"),
+               "mejora %": f["rendimiento"]["prueba"].get("mejora_mape_pct"),
+               "PR-AUC": f["rendimiento"]["prueba"].get("pr_auc"),
+               "interpretabilidad": f["interpretabilidad"]["calificacion"],
+               "prediccion ms/1000": f["eficiencia"]["prediccion_ms_por_1000_filas"],
+               "MB": f["eficiencia"]["tamano_bytes"] / 1e6}
+              for clave, t in seleccion["tablas"].items() for f in t["tabla_seleccion"]]).round(3)"""),
+    ("code", """for clave, t in seleccion["tablas"].items():
+    c = t["final"]["criterio_exito_prueba"]
+    print(f"{clave}: {t['final']['etiqueta']} · mejora {c['mejora_mape_pct']:+.1f} % · pico {c['mape_pico_pct']:.2f} % "
+          f"frente a {c['mape_pico_baseline_pct']:.2f} % -> {'CUMPLE' if c['cumple'] else 'NO cumple'} el criterio")
+print("costo del rezago (modelo final):", {k: round(v, 2) for k, v in seleccion["costo_rezago"]["final"].items() if isinstance(v, float)})"""),
+    ("code", 'figura("mape_prueba.png")\nfigura("semana_prueba.png")\nfigura("residuales_r120.png")'),
+    ("md", "El modelo final se carga de `models/` comprobando su SHA-256, como en `scripts/predecir.py`, y reproduce las predicciones evaluadas:"),
+    ("code", """from modelado.tiempos import cargar_modelo
+
+predicciones = pd.read_parquet(RESULTADOS / "predicciones_prueba.parquet")
+for clave in ("r24", "r120"):
+    final = seleccion["tablas"][clave]["final"]
+    modelo = cargar_modelo(RAIZ / "models" / Path(final["modelo"]["ruta"]).name, final["modelo"]["sha256"])
+    X, y, fechas = datos[clave]
+    prueba = particiones[clave]["prueba"]
+    nuevas = modelo.predict(X.iloc[prueba].astype("float64"))
+    guardadas = predicciones.query("tabla == @clave and es_final")["prediccion_mwh"].to_numpy()
+    print(clave, final["etiqueta"], "-> identicas a las evaluadas:", bool(abs(nuevas - guardadas).max() < 1e-6))"""),
+])
+
+
 # Clave -> (ruta dentro de notebooks/ sin extension, notebook). Los de limpieza
 # van en una carpeta por dataset, con la fuente como prefijo para no confundir
 # la demanda real de XM con la de SIMEM.
@@ -1044,6 +1214,7 @@ NOTEBOOKS = {
     "simem_desagregado": ("limpieza/simem_desagregado/limpieza_simem_desagregado", NB08),
     "03_eda": ("03_eda", NB09),
     "04_mineria_no_supervisada": ("04_mineria_no_supervisada", NB10),
+    "05_modelado_supervisado": ("05_modelado_supervisado", NB11),
 }
 
 

@@ -1,0 +1,2013 @@
+{
+  "version_formato": 1,
+  "familia": "interpretabilidad",
+  "momento": "2026-11-21T20:48:07",
+  "bloque_ajuste": "entrenamiento",
+  "bloque_evaluacion": "validacion",
+  "nota": "El bloque de prueba no se usa: se evalua solo en la evaluacion final. Los tiempos dependen de la maquina (ver entorno de cada tabla).",
+  "tablas": {
+    "r24": {
+      "momento": "2026-11-21T20:44:14",
+      "entorno": {
+        "python": "3.12.10",
+        "numpy": "1.26.4",
+        "pandas": "2.3.3",
+        "scikit-learn": "1.5.2",
+        "joblib": "1.6.0",
+        "sistema": "Windows AMD64"
+      },
+      "datos": {
+        "version_formato": 1,
+        "momento": "2026-11-21T20:43:41",
+        "tabla": "r24",
+        "archivo": "tabla_modelado_r24.parquet",
+        "sha256": "6bb6260ce166b2dbeb72167fd3a4daad4c13755673873eecd7817f5fae3b847f",
+        "rezago_minimo_h": 24,
+        "filas": 49513,
+        "variables": [
+          "lag_24",
+          "lag_168",
+          "ma_168",
+          "std_168",
+          "temperatura_c",
+          "hora_sin",
+          "hora_cos",
+          "dia_semana_sin",
+          "dia_semana_cos",
+          "mes_sin",
+          "mes_cos",
+          "es_festivo",
+          "es_vispera_festivo",
+          "es_puente",
+          "es_semana_santa",
+          "es_ultima_semana_diciembre"
+        ],
+        "rango": [
+          "2021-01-08 23:00:00-05:00",
+          "2026-09-02 23:00:00-05:00"
+        ],
+        "operaciones": [
+          {
+            "operacion": "verificar_sha256",
+            "criterio": "SHA-256 del Parquet igual al anotado en registro_variables.json",
+            "momento": "2026-11-21T20:43:41",
+            "detalle": {
+              "archivo": "tabla_modelado_r24.parquet",
+              "sha256": "6bb6260ce166b2dbeb72167fd3a4daad4c13755673873eecd7817f5fae3b847f",
+              "coincide": true
+            }
+          },
+          {
+            "operacion": "separar",
+            "criterio": "X = columnas de la tabla menos fecha_hora y demanda_mwh, cada una reconocida por variables.construir",
+            "momento": "2026-11-21T20:43:41",
+            "detalle": {
+              "filas": 49513,
+              "variables": [
+                "lag_24",
+                "lag_168",
+                "ma_168",
+                "std_168",
+                "temperatura_c",
+                "hora_sin",
+                "hora_cos",
+                "dia_semana_sin",
+                "dia_semana_cos",
+                "mes_sin",
+                "mes_cos",
+                "es_festivo",
+                "es_vispera_festivo",
+                "es_puente",
+                "es_semana_santa",
+                "es_ultima_semana_diciembre"
+              ],
+              "n_variables": 16,
+              "objetivo": "demanda_mwh",
+              "rezago_minimo_h": 24,
+              "rango": [
+                "2021-01-08 23:00:00-05:00",
+                "2026-09-02 23:00:00-05:00"
+              ],
+              "zona_horaria": "America/Bogota",
+              "nan_por_variable": {},
+              "nan_objetivo": 0
+            }
+          }
+        ]
+      },
+      "particion": {
+        "operacion": "particionar",
+        "criterio": "tres bloques cronologicos consecutivos por fecha de corte (ultimo dia incluido, hora local), sin barajar",
+        "momento": "2026-11-21T20:43:41",
+        "detalle": {
+          "filas": 49513,
+          "zona_horaria": "America/Bogota",
+          "cortes": {
+            "entrenamiento": "2024-09-02",
+            "validacion": "2025-09-02",
+            "prueba": "2026-09-02"
+          },
+          "bloques": {
+            "entrenamiento": {
+              "filas": 31993,
+              "desde": "2021-01-08 23:00:00-05:00",
+              "hasta": "2024-09-02 23:00:00-05:00",
+              "fecha_corte": "2024-09-02"
+            },
+            "validacion": {
+              "filas": 8760,
+              "desde": "2024-09-03 00:00:00-05:00",
+              "hasta": "2025-09-02 23:00:00-05:00",
+              "fecha_corte": "2025-09-02"
+            },
+            "prueba": {
+              "filas": 8760,
+              "desde": "2025-09-03 00:00:00-05:00",
+              "hasta": "2026-09-02 23:00:00-05:00",
+              "fecha_corte": "2026-09-02",
+              "uso": "reservado para la evaluacion final: no se usa para seleccionar modelos, ajustar hiperparametros ni escalar"
+            }
+          }
+        }
+      },
+      "evaluacion": {
+        "filas_ajuste": 31993,
+        "filas_evaluacion": 8760,
+        "rango_evaluacion": [
+          "2024-09-03 00:00:00-05:00",
+          "2025-09-02 23:00:00-05:00"
+        ]
+      },
+      "seleccion": {
+        "operacion": "seleccionar_candidatos",
+        "criterio": "menor MAPE de validacion: entre los lineales en las variables originales, y entre los ensembles (dos formas) y sus versiones de la busqueda de hiperparametros",
+        "momento": "2026-11-21T20:43:41",
+        "detalle": {
+          "lineal": {
+            "rol": "lineal",
+            "familia": "lineal",
+            "nombre": "lineal",
+            "forma": "-",
+            "origen": "modelado_regresion.json",
+            "mape_validacion_pct": 2.7739101996384976,
+            "ruta": "models/lineal_lineal_r24.joblib",
+            "sha256": "43bf094323e00560d6cd90add1949df0397d4c06bd113d06744ec85086ad3f83"
+          },
+          "ensemble": {
+            "rol": "ensemble",
+            "familia": "ensembles",
+            "nombre": "hist_gradient",
+            "forma": "nivel",
+            "origen": "modelado_busqueda.json (grid)",
+            "mape_validacion_pct": 1.8644903878354961,
+            "ruta": "models/busqueda_hist_gradient_nivel_grid_r24.joblib",
+            "sha256": "79cc6ab7ef9e5dcd7d6d784ed494f9ada0dec7a40daaf231aca76aa5cd0bc3ed"
+          },
+          "lineales_excluidos": {
+            "polinomial": {
+              "mape_validacion_pct": 2.164727467184473,
+              "motivo": "no es lineal en las variables originales: LinearExplainer no la explica por variable"
+            },
+            "polinomial_ridge": {
+              "mape_validacion_pct": 2.179043705958018,
+              "motivo": "no es lineal en las variables originales: LinearExplainer no la explica por variable"
+            }
+          },
+          "ensembles_considerados": 14,
+          "busqueda_incluida": true
+        }
+      },
+      "criterio_calificacion": "alta: la prediccion se lee directamente del modelo (una columna o una suma de coeficientes por variable); media: el modelo tiene una estructura legible pero con muchos terminos, interacciones o explicaciones solo locales; baja: cientos de arboles o un kernel, sin forma cerrada; solo se explica a posteriori.",
+      "calificaciones": {
+        "baseline_estacional": {
+          "calificacion": "alta",
+          "motivo": "la prediccion es lag_168, sin parametros."
+        },
+        "baseline_diario": {
+          "calificacion": "alta",
+          "motivo": "la prediccion es lag_24, sin parametros."
+        },
+        "lineal": {
+          "calificacion": "alta",
+          "motivo": "un coeficiente por variable; SHAP coincide con coef * (x - media)."
+        },
+        "ridge": {
+          "calificacion": "alta",
+          "motivo": "como la lineal, con coeficientes contraidos y mas estables."
+        },
+        "lasso": {
+          "calificacion": "alta",
+          "motivo": "coeficientes por variable y ademas anula los irrelevantes."
+        },
+        "elasticnet": {
+          "calificacion": "alta",
+          "motivo": "coeficientes por variable con contraccion mixta L1/L2."
+        },
+        "polinomial": {
+          "calificacion": "media",
+          "motivo": "152 terminos con cuadrados e interacciones; matriz singular, coeficientes inestables."
+        },
+        "polinomial_ridge": {
+          "calificacion": "media",
+          "motivo": "152 terminos con interacciones; Ridge los estabiliza pero no se leen por variable."
+        },
+        "random_forest": {
+          "calificacion": "baja",
+          "motivo": "200 arboles profundos; se explica a posteriori con TreeSHAP exacto, pero es lento."
+        },
+        "adaboost": {
+          "calificacion": "baja",
+          "motivo": "100 arboles con mediana ponderada; TreeExplainer no lo soporta, solo metodos agnosticos."
+        },
+        "gradient_boosting": {
+          "calificacion": "baja",
+          "motivo": "cientos de arboles en serie; se explica a posteriori con TreeSHAP exacto y rapido."
+        },
+        "hist_gradient": {
+          "calificacion": "baja",
+          "motivo": "cientos de arboles sobre variables discretizadas; TreeSHAP exacto y rapido."
+        },
+        "logistica": {
+          "calificacion": "alta",
+          "motivo": "un coeficiente por variable en la escala de log-odds."
+        },
+        "svm_lineal": {
+          "calificacion": "alta",
+          "motivo": "hiperplano con un peso por variable."
+        },
+        "knn": {
+          "calificacion": "media",
+          "motivo": "cada prediccion se explica por sus vecinos, pero no hay una explicacion global."
+        },
+        "svm_rbf": {
+          "calificacion": "baja",
+          "motivo": "kernel RBF sobre ~1 800 vectores de soporte; sin pesos por variable."
+        }
+      },
+      "bloque": "validacion",
+      "motivos_diferencia_impureza_permutacion": [
+        "La importancia por impureza se mide en entrenamiento, sobre las divisiones del arbol; la de permutacion, en validacion, sobre el error. Una variable que ayuda a ajustar el pasado pero no generaliza pesa mas en la primera.",
+        "La impureza favorece variables continuas con muchos cortes posibles (lag_168, ma_168, temperatura_c) frente a binarias como es_festivo, que solo ofrecen un corte.",
+        "Con variables correlacionadas (lag_24, lag_168 y ma_168) la permutacion de una no rompe la informacion que siguen dando las otras: su importancia por permutacion se subestima, y el arbol reparte la impureza entre ellas de forma casi arbitraria.",
+        "Permutar crea filas imposibles (un festivo con la demanda de un dia laboral); el modelo las evalua fuera de lo que vio.",
+        "En la forma diferenciada la impureza explica y - lag_168 y la permutacion la prediccion completa."
+      ],
+      "modelos": {
+        "ensemble": {
+          "candidato": {
+            "rol": "ensemble",
+            "familia": "ensembles",
+            "nombre": "hist_gradient",
+            "forma": "nivel",
+            "origen": "modelado_busqueda.json (grid)",
+            "mape_validacion_pct": 1.8644903878354961,
+            "ruta": "models/busqueda_hist_gradient_nivel_grid_r24.joblib",
+            "sha256": "79cc6ab7ef9e5dcd7d6d784ed494f9ada0dec7a40daaf231aca76aa5cd0bc3ed"
+          },
+          "calificacion": {
+            "calificacion": "baja",
+            "motivo": "cientos de arboles sobre variables discretizadas; TreeSHAP exacto y rapido."
+          },
+          "importancias": {
+            "permutacion": {
+              "metodo": "sklearn.inspection.permutation_importance, scoring MAE, n_repeats=10",
+              "bloque": "validacion",
+              "unidad": "aumento del MAE en MWh",
+              "por_variable": {
+                "lag_24": {
+                  "media": 393.17290217041773,
+                  "desviacion": 2.4398801230827
+                },
+                "lag_168": {
+                  "media": 357.98744180294455,
+                  "desviacion": 3.9260097461794343
+                },
+                "dia_semana_sin": {
+                  "media": 118.57034873948393,
+                  "desviacion": 1.5301450535970305
+                },
+                "temperatura_c": {
+                  "media": 81.79052852041399,
+                  "desviacion": 1.9808653108870546
+                },
+                "dia_semana_cos": {
+                  "media": 52.13937860821117,
+                  "desviacion": 1.7649534087591947
+                },
+                "es_festivo": {
+                  "media": 51.88455519312167,
+                  "desviacion": 0.9453258359516009
+                },
+                "hora_cos": {
+                  "media": 25.4319180496039,
+                  "desviacion": 0.5143370837461054
+                },
+                "hora_sin": {
+                  "media": 21.62417006873411,
+                  "desviacion": 0.7347997367736147
+                },
+                "std_168": {
+                  "media": 4.616637242795036,
+                  "desviacion": 0.2783469772784676
+                },
+                "es_ultima_semana_diciembre": {
+                  "media": 3.931695546992637,
+                  "desviacion": 0.17676024576650473
+                },
+                "es_vispera_festivo": {
+                  "media": 3.317859092788794,
+                  "desviacion": 0.2757144297359297
+                },
+                "ma_168": {
+                  "media": 2.8728216114573373,
+                  "desviacion": 0.2961266647715602
+                },
+                "mes_cos": {
+                  "media": 1.833000978184009,
+                  "desviacion": 0.358856757953212
+                },
+                "es_semana_santa": {
+                  "media": 0.6240680644661893,
+                  "desviacion": 0.10568033426808976
+                },
+                "mes_sin": {
+                  "media": 0.18408667905437143,
+                  "desviacion": 0.23370334772905632
+                },
+                "es_puente": {
+                  "media": 0.1115622650076773,
+                  "desviacion": 0.06859737736989212
+                }
+              },
+              "filas": 8760,
+              "segundos": 10.083071400000335
+            },
+            "impureza": {
+              "metodo": "suma de la ganancia de cada division por variable (HistGradientBoosting), normalizada",
+              "bloque": "entrenamiento (se mide en los arboles ajustados)",
+              "objetivo": "y",
+              "por_variable": {
+                "lag_168": 0.8527586155352819,
+                "lag_24": 0.06078393321272989,
+                "es_festivo": 0.027936623957736575,
+                "dia_semana_sin": 0.013305603667683373,
+                "dia_semana_cos": 0.011829991921005053,
+                "temperatura_c": 0.009983012060217645,
+                "hora_cos": 0.007020600708923721,
+                "ma_168": 0.005005617186799206,
+                "hora_sin": 0.002529957163410291,
+                "std_168": 0.0021998149826785106,
+                "mes_sin": 0.0014720669998424926,
+                "mes_cos": 0.0013879682023115944,
+                "es_vispera_festivo": 0.0013460825780042224,
+                "es_semana_santa": 0.0012845136782772726,
+                "es_ultima_semana_diciembre": 0.0008130835881444124,
+                "es_puente": 0.0003425145569538149
+              }
+            }
+          },
+          "shap": {
+            "metodo": "shap.TreeExplainer(feature_perturbation='tree_path_dependent')",
+            "filas_validacion": 8760,
+            "filas_explicadas": 8760,
+            "muestra": false,
+            "motivo_muestra": "el piloto estima 12.6 s: toda la validacion",
+            "segundos_estimados_completo": 12.595106100021804,
+            "segundos": 12.587627699999757,
+            "valor_base_mwh": 8834.419548890774,
+            "error_aditividad_max_mwh": 3.092281986027956e-11,
+            "media_abs_por_variable_mwh": {
+              "lag_168": 602.5073567483129,
+              "lag_24": 326.3933077184905,
+              "dia_semana_sin": 150.66461065835384,
+              "temperatura_c": 77.32007693386065,
+              "dia_semana_cos": 76.96085032476326,
+              "es_festivo": 67.7601526139387,
+              "hora_sin": 33.08603365555684,
+              "ma_168": 28.377586427226785,
+              "hora_cos": 27.141176777477874,
+              "mes_cos": 23.607252372466412,
+              "std_168": 15.539591964933729,
+              "mes_sin": 13.230558923925164,
+              "es_vispera_festivo": 11.50666191138562,
+              "es_ultima_semana_diciembre": 6.533532908420296,
+              "es_semana_santa": 4.7568198198748775,
+              "es_puente": 1.9316752626325306
+            },
+            "temperatura": {
+              "disponible": true,
+              "pendiente_global_mwh_por_grado": 28.01284805518951,
+              "pendiente_por_franja_mwh_por_grado": {
+                "madrugada 0-5 h": 7.895514318098535,
+                "manana 6-11 h": 27.452519104687966,
+                "tarde 12-17 h": 39.020582853152476,
+                "noche 18-23 h": 36.206120640252614
+              },
+              "media_abs_mwh": 77.32007693386059,
+              "rango_shap_mwh": [
+                -160.23137012868787,
+                497.45337691845486
+              ]
+            },
+            "figura_resumen": "docs/figuras/modelado/shap_resumen_ensemble_r24.png"
+          }
+        },
+        "lineal": {
+          "candidato": {
+            "rol": "lineal",
+            "familia": "lineal",
+            "nombre": "lineal",
+            "forma": "-",
+            "origen": "modelado_regresion.json",
+            "mape_validacion_pct": 2.7739101996384976,
+            "ruta": "models/lineal_lineal_r24.joblib",
+            "sha256": "43bf094323e00560d6cd90add1949df0397d4c06bd113d06744ec85086ad3f83"
+          },
+          "calificacion": {
+            "calificacion": "alta",
+            "motivo": "un coeficiente por variable; SHAP coincide con coef * (x - media)."
+          },
+          "importancias": {
+            "permutacion": {
+              "metodo": "sklearn.inspection.permutation_importance, scoring MAE, n_repeats=10",
+              "bloque": "validacion",
+              "unidad": "aumento del MAE en MWh",
+              "por_variable": {
+                "lag_168": {
+                  "media": 647.6737048005023,
+                  "desviacion": 6.8256981595147055
+                },
+                "lag_24": {
+                  "media": 129.4648062391981,
+                  "desviacion": 1.9064413758765102
+                },
+                "es_festivo": {
+                  "media": 30.548521115458016,
+                  "desviacion": 0.8752248509310737
+                },
+                "dia_semana_sin": {
+                  "media": 17.33495931345862,
+                  "desviacion": 0.4267991788199777
+                },
+                "temperatura_c": {
+                  "media": 14.892669660993738,
+                  "desviacion": 0.9379701488081984
+                },
+                "es_vispera_festivo": {
+                  "media": 7.928708829376274,
+                  "desviacion": 0.4592353531614458
+                },
+                "es_ultima_semana_diciembre": {
+                  "media": 6.048400775953286,
+                  "desviacion": 0.3371015184079875
+                },
+                "hora_sin": {
+                  "media": 3.691502340122258,
+                  "desviacion": 0.3014162200863181
+                },
+                "es_semana_santa": {
+                  "media": 1.4646802259086542,
+                  "desviacion": 0.24422199958176807
+                },
+                "hora_cos": {
+                  "media": 0.7509990577006362,
+                  "desviacion": 0.11688767464262277
+                },
+                "std_168": {
+                  "media": 0.7326009418202488,
+                  "desviacion": 0.14914106588932355
+                },
+                "dia_semana_cos": {
+                  "media": 0.6745650101729097,
+                  "desviacion": 0.3660609826926171
+                },
+                "ma_168": {
+                  "media": 0.6203901357362043,
+                  "desviacion": 0.10096496856555359
+                },
+                "mes_sin": {
+                  "media": 0.18615955359955477,
+                  "desviacion": 0.05959695455416165
+                },
+                "mes_cos": {
+                  "media": 0.1423308532648207,
+                  "desviacion": 0.06730462765766156
+                },
+                "es_puente": {
+                  "media": 0.07363649349813954,
+                  "desviacion": 0.012338801606865476
+                }
+              },
+              "filas": 8760,
+              "segundos": 0.2149714999995922
+            }
+          },
+          "shap": {
+            "metodo": "shap.LinearExplainer sobre las variables estandarizadas, fondo Independent",
+            "filas_validacion": 8760,
+            "filas_explicadas": 8760,
+            "muestra": false,
+            "motivo_muestra": "el piloto estima 0.0 s: toda la validacion",
+            "segundos_estimados_completo": 0.033401880026212895,
+            "segundos": 0.0027360000003682217,
+            "valor_base_mwh": 8773.030740895934,
+            "error_aditividad_max_mwh": 1.8189894035458565e-12,
+            "media_abs_por_variable_mwh": {
+              "lag_168": 738.1510484831452,
+              "lag_24": 236.2387602348986,
+              "temperatura_c": 66.42318254096043,
+              "dia_semana_sin": 64.53333969214938,
+              "es_festivo": 60.12673526112614,
+              "dia_semana_cos": 31.432685910232223,
+              "hora_sin": 30.697867870453372,
+              "ma_168": 24.482151982565437,
+              "es_vispera_festivo": 21.893309036054177,
+              "std_168": 14.107346594025417,
+              "es_ultima_semana_diciembre": 11.062360857636099,
+              "hora_cos": 9.854255227523186,
+              "es_semana_santa": 8.465264466040608,
+              "mes_cos": 4.943417864112133,
+              "mes_sin": 4.286314545369601,
+              "es_puente": 0.5853596233181559
+            },
+            "temperatura": {
+              "disponible": true,
+              "pendiente_global_mwh_por_grado": 24.53080487197562,
+              "pendiente_por_franja_mwh_por_grado": {
+                "madrugada 0-5 h": 24.530804871975644,
+                "manana 6-11 h": 24.5308048719756,
+                "tarde 12-17 h": 24.53080487197565,
+                "noche 18-23 h": 24.53080487197565
+              },
+              "media_abs_mwh": 66.42318254096043,
+              "rango_shap_mwh": [
+                -152.35354341079366,
+                235.33129678590925
+              ]
+            },
+            "figura_resumen": "docs/figuras/modelado/shap_resumen_lineal_r24.png"
+          }
+        }
+      },
+      "lime": {
+        "configuracion": {
+          "explicador": "lime.lime_tabular.LimeTabularExplainer(mode='regression', discretize_continuous=True)",
+          "estadisticas": "bloque de entrenamiento",
+          "categoricas": [
+            "es_festivo",
+            "es_vispera_festivo",
+            "es_puente",
+            "es_semana_santa",
+            "es_ultima_semana_diciembre"
+          ],
+          "num_samples": 5000,
+          "num_features": 8,
+          "semilla": 42,
+          "segundos": 1.3875475999993796
+        },
+        "casos": {
+          "pico_laboral": {
+            "ensemble": {
+              "posicion": 4771,
+              "fecha_hora": "2025-03-20 19:00:00-05:00",
+              "regla": "dia laborable sin marca de calendario, 19:00 (hora pico [18, 19, 20]), demanda mediana entre esas horas",
+              "demanda_real_mwh": 11084.12,
+              "prediccion_mwh": 10830.015502855873,
+              "intercepto_local_mwh": 7509.552259066285,
+              "prediccion_local_mwh": 10731.729967460335,
+              "r2_local": 0.4930415955815135,
+              "pesos": [
+                {
+                  "regla": "lag_24 > 9771.58",
+                  "peso_mwh": 931.7764135304644
+                },
+                {
+                  "regla": "lag_168 > 9765.62",
+                  "peso_mwh": 875.7109158405076
+                },
+                {
+                  "regla": "es_festivo=0",
+                  "peso_mwh": 659.3640019469195
+                },
+                {
+                  "regla": "es_ultima_semana_diciembre=0",
+                  "peso_mwh": 237.66397817138875
+                },
+                {
+                  "regla": "0.00 < dia_semana_sin <= 0.78",
+                  "peso_mwh": 210.55505934691996
+                },
+                {
+                  "regla": "es_vispera_festivo=0",
+                  "peso_mwh": 148.053844181523
+                },
+                {
+                  "regla": "hora_sin <= -0.71",
+                  "peso_mwh": 81.84698188855074
+                },
+                {
+                  "regla": "es_semana_santa=0",
+                  "peso_mwh": 77.20651348777507
+                }
+              ]
+            },
+            "lineal": {
+              "posicion": 4771,
+              "fecha_hora": "2025-03-20 19:00:00-05:00",
+              "regla": "dia laborable sin marca de calendario, 19:00 (hora pico [18, 19, 20]), demanda mediana entre esas horas",
+              "demanda_real_mwh": 11084.12,
+              "prediccion_mwh": 10997.574774498831,
+              "intercepto_local_mwh": 6981.7975980251995,
+              "prediccion_local_mwh": 10242.659839451897,
+              "r2_local": 0.5752178791311602,
+              "pesos": [
+                {
+                  "regla": "lag_168 > 9765.62",
+                  "peso_mwh": 1392.6103562318497
+                },
+                {
+                  "regla": "es_festivo=0",
+                  "peso_mwh": 633.3908483065965
+                },
+                {
+                  "regla": "lag_24 > 9771.58",
+                  "peso_mwh": 414.07686086648965
+                },
+                {
+                  "regla": "es_ultima_semana_diciembre=0",
+                  "peso_mwh": 321.4984850167902
+                },
+                {
+                  "regla": "es_vispera_festivo=0",
+                  "peso_mwh": 265.1252254233639
+                },
+                {
+                  "regla": "es_semana_santa=0",
+                  "peso_mwh": 244.54270206211714
+                },
+                {
+                  "regla": "dia_semana_cos <= -0.90",
+                  "peso_mwh": -107.71897271430073
+                },
+                {
+                  "regla": "0.00 < dia_semana_sin <= 0.78",
+                  "peso_mwh": 97.33673623379104
+                }
+              ]
+            }
+          },
+          "festivo": {
+            "ensemble": {
+              "posicion": 1003,
+              "fecha_hora": "2024-10-14 19:00:00-05:00",
+              "regla": "primer festivo de validacion fuera de Semana Santa, 19:00",
+              "demanda_real_mwh": 9847.64881,
+              "prediccion_mwh": 9746.150986289662,
+              "intercepto_local_mwh": 8392.47037015681,
+              "prediccion_local_mwh": 9729.047526971393,
+              "r2_local": 0.27787610113976124,
+              "pesos": [
+                {
+                  "regla": "lag_168 > 9765.62",
+                  "peso_mwh": 821.6990021775458
+                },
+                {
+                  "regla": "es_festivo=1",
+                  "peso_mwh": -693.267752572186
+                },
+                {
+                  "regla": "dia_semana_cos > 0.62",
+                  "peso_mwh": 358.38952091473624
+                },
+                {
+                  "regla": "8890.26 < lag_24 <= 9771.58",
+                  "peso_mwh": 263.0746455038266
+                },
+                {
+                  "regla": "es_semana_santa=0",
+                  "peso_mwh": 188.51042456987832
+                },
+                {
+                  "regla": "-0.78 < dia_semana_sin <= 0.00",
+                  "peso_mwh": 153.2032456765606
+                },
+                {
+                  "regla": "es_vispera_festivo=0",
+                  "peso_mwh": 133.03113720414981
+                },
+                {
+                  "regla": "es_ultima_semana_diciembre=0",
+                  "peso_mwh": 111.93693334007092
+                }
+              ]
+            },
+            "lineal": {
+              "posicion": 1003,
+              "fecha_hora": "2024-10-14 19:00:00-05:00",
+              "regla": "primer festivo de validacion fuera de Semana Santa, 19:00",
+              "demanda_real_mwh": 9847.64881,
+              "prediccion_mwh": 9604.018899764484,
+              "intercepto_local_mwh": 7630.199072580707,
+              "prediccion_local_mwh": 9462.178763367592,
+              "r2_local": 0.5199290328684878,
+              "pesos": [
+                {
+                  "regla": "lag_168 > 9765.62",
+                  "peso_mwh": 1373.3698661251215
+                },
+                {
+                  "regla": "es_festivo=1",
+                  "peso_mwh": -650.0726983189252
+                },
+                {
+                  "regla": "es_ultima_semana_diciembre=0",
+                  "peso_mwh": 355.82332617392206
+                },
+                {
+                  "regla": "es_semana_santa=0",
+                  "peso_mwh": 297.4376409281213
+                },
+                {
+                  "regla": "es_vispera_festivo=0",
+                  "peso_mwh": 226.04292079535998
+                },
+                {
+                  "regla": "8890.26 < lag_24 <= 9771.58",
+                  "peso_mwh": 121.35337680661225
+                },
+                {
+                  "regla": "hora_sin <= -0.71",
+                  "peso_mwh": 54.17407097727986
+                },
+                {
+                  "regla": "dia_semana_cos > 0.62",
+                  "peso_mwh": 53.851187299394155
+                }
+              ]
+            }
+          },
+          "semana_santa": {
+            "ensemble": {
+              "posicion": 5371,
+              "fecha_hora": "2025-04-14 19:00:00-05:00",
+              "regla": "primer dia laborable no festivo de Semana Santa, 19:00",
+              "demanda_real_mwh": 11063.31348,
+              "prediccion_mwh": 10885.317441664694,
+              "intercepto_local_mwh": 7395.833751528117,
+              "prediccion_local_mwh": 10757.753326875467,
+              "r2_local": 0.5094774600477416,
+              "pesos": [
+                {
+                  "regla": "lag_24 > 9771.58",
+                  "peso_mwh": 885.3562650078205
+                },
+                {
+                  "regla": "lag_168 > 9765.62",
+                  "peso_mwh": 823.5527847345597
+                },
+                {
+                  "regla": "es_festivo=0",
+                  "peso_mwh": 718.4589741408673
+                },
+                {
+                  "regla": "es_ultima_semana_diciembre=0",
+                  "peso_mwh": 343.33450353581327
+                },
+                {
+                  "regla": "dia_semana_cos > 0.62",
+                  "peso_mwh": 337.1781333914153
+                },
+                {
+                  "regla": "es_vispera_festivo=0",
+                  "peso_mwh": 215.33260205577295
+                },
+                {
+                  "regla": "-0.78 < dia_semana_sin <= 0.00",
+                  "peso_mwh": 116.55664923887456
+                },
+                {
+                  "regla": "es_semana_santa=1",
+                  "peso_mwh": -77.85033675777397
+                }
+              ]
+            },
+            "lineal": {
+              "posicion": 5371,
+              "fecha_hora": "2025-04-14 19:00:00-05:00",
+              "regla": "primer dia laborable no festivo de Semana Santa, 19:00",
+              "demanda_real_mwh": 11063.31348,
+              "prediccion_mwh": 10383.862406793864,
+              "intercepto_local_mwh": 7247.398795109512,
+              "prediccion_local_mwh": 10104.863277357119,
+              "r2_local": 0.5586171894395409,
+              "pesos": [
+                {
+                  "regla": "lag_168 > 9765.62",
+                  "peso_mwh": 1387.0349170817733
+                },
+                {
+                  "regla": "es_festivo=0",
+                  "peso_mwh": 591.346370212453
+                },
+                {
+                  "regla": "lag_24 > 9771.58",
+                  "peso_mwh": 418.391898785531
+                },
+                {
+                  "regla": "es_ultima_semana_diciembre=0",
+                  "peso_mwh": 316.18580329427556
+                },
+                {
+                  "regla": "es_vispera_festivo=0",
+                  "peso_mwh": 260.0610944646022
+                },
+                {
+                  "regla": "es_semana_santa=1",
+                  "peso_mwh": -226.23641697030587
+                },
+                {
+                  "regla": "dia_semana_cos > 0.62",
+                  "peso_mwh": 67.81908887315619
+                },
+                {
+                  "regla": "hora_sin <= -0.71",
+                  "peso_mwh": 42.861726506121684
+                }
+              ]
+            }
+          },
+          "mayor_error_ensemble": {
+            "ensemble": {
+              "posicion": 2721,
+              "fecha_hora": "2024-12-25 09:00:00-05:00",
+              "regla": "hora de validacion con mayor error absoluto del modelo ensemble",
+              "demanda_real_mwh": 7069.08889,
+              "solo_para": "ensemble",
+              "prediccion_mwh": 8397.614607177968,
+              "intercepto_local_mwh": 8693.693839084835,
+              "prediccion_local_mwh": 9298.92638545982,
+              "r2_local": 0.27041225466190155,
+              "pesos": [
+                {
+                  "regla": "lag_168 > 9765.62",
+                  "peso_mwh": 868.3076516247398
+                },
+                {
+                  "regla": "es_festivo=1",
+                  "peso_mwh": -622.1678859295772
+                },
+                {
+                  "regla": "8890.26 < lag_24 <= 9771.58",
+                  "peso_mwh": 225.18009712151937
+                },
+                {
+                  "regla": "es_ultima_semana_diciembre=1",
+                  "peso_mwh": -147.85761425983245
+                },
+                {
+                  "regla": "es_vispera_festivo=0",
+                  "peso_mwh": 134.50607723246156
+                },
+                {
+                  "regla": "dia_semana_sin > 0.78",
+                  "peso_mwh": 130.6278291738501
+                },
+                {
+                  "regla": "es_puente=0",
+                  "peso_mwh": 68.77938395439887
+                },
+                {
+                  "regla": "0.00 < hora_sin <= 0.71",
+                  "peso_mwh": -52.14299254257547
+                }
+              ]
+            }
+          },
+          "mayor_error_lineal": {
+            "lineal": {
+              "posicion": 3063,
+              "fecha_hora": "2025-01-08 15:00:00-05:00",
+              "regla": "hora de validacion con mayor error absoluto del modelo lineal",
+              "demanda_real_mwh": 10788.35513,
+              "solo_para": "lineal",
+              "prediccion_mwh": 8458.354293957118,
+              "intercepto_local_mwh": 7502.471290696298,
+              "prediccion_local_mwh": 8339.550275835027,
+              "r2_local": 0.6055330738736528,
+              "pesos": [
+                {
+                  "regla": "lag_168 <= 7872.79",
+                  "peso_mwh": -1431.1342450357254
+                },
+                {
+                  "regla": "es_festivo=0",
+                  "peso_mwh": 645.7875670883285
+                },
+                {
+                  "regla": "lag_24 > 9771.58",
+                  "peso_mwh": 425.2542099633017
+                },
+                {
+                  "regla": "es_ultima_semana_diciembre=0",
+                  "peso_mwh": 379.11877887689866
+                },
+                {
+                  "regla": "es_semana_santa=0",
+                  "peso_mwh": 336.9640887919319
+                },
+                {
+                  "regla": "es_vispera_festivo=0",
+                  "peso_mwh": 219.31928106588086
+                },
+                {
+                  "regla": "temperatura_c > 21.28",
+                  "peso_mwh": 148.0814191110546
+                },
+                {
+                  "regla": "dia_semana_sin > 0.78",
+                  "peso_mwh": 113.68788527705792
+                }
+              ]
+            }
+          }
+        }
+      },
+      "contraste_eda": {
+        "acf_24": 0.8573641703804753,
+        "acf_168": 0.923761057397622,
+        "hipotesis": "si la autocorrelacion a 168 h es mayor que a 24 h, lag_168 deberia dominar",
+        "medidas": [
+          {
+            "modelo": "ensemble",
+            "medida": "permutacion",
+            "primera": "lag_24",
+            "tres_primeras": [
+              "lag_24",
+              "lag_168",
+              "dia_semana_sin"
+            ],
+            "puesto_lag_168": 2,
+            "puesto_lag_24": 1,
+            "lag_168_antes_que_lag_24": false
+          },
+          {
+            "modelo": "ensemble",
+            "medida": "impureza",
+            "primera": "lag_168",
+            "tres_primeras": [
+              "lag_168",
+              "lag_24",
+              "es_festivo"
+            ],
+            "puesto_lag_168": 1,
+            "puesto_lag_24": 2,
+            "lag_168_antes_que_lag_24": true
+          },
+          {
+            "modelo": "ensemble",
+            "medida": "shap",
+            "primera": "lag_168",
+            "tres_primeras": [
+              "lag_168",
+              "lag_24",
+              "dia_semana_sin"
+            ],
+            "puesto_lag_168": 1,
+            "puesto_lag_24": 2,
+            "lag_168_antes_que_lag_24": true
+          },
+          {
+            "modelo": "lineal",
+            "medida": "permutacion",
+            "primera": "lag_168",
+            "tres_primeras": [
+              "lag_168",
+              "lag_24",
+              "es_festivo"
+            ],
+            "puesto_lag_168": 1,
+            "puesto_lag_24": 2,
+            "lag_168_antes_que_lag_24": true
+          },
+          {
+            "modelo": "lineal",
+            "medida": "shap",
+            "primera": "lag_168",
+            "tres_primeras": [
+              "lag_168",
+              "lag_24",
+              "temperatura_c"
+            ],
+            "puesto_lag_168": 1,
+            "puesto_lag_24": 2,
+            "lag_168_antes_que_lag_24": true
+          }
+        ],
+        "lag_168_primera_en": 4,
+        "de": 5,
+        "lag_168_domina": false,
+        "conclusion": "lag_168 es la variable mas importante en 4 de 5 medidas; donde no lo es, la primera es lag_24."
+      },
+      "figuras": {
+        "importancias": "docs/figuras/modelado/importancias_r24.png",
+        "shap_temperatura": "docs/figuras/modelado/shap_temperatura_r24.png",
+        "lime": "docs/figuras/modelado/lime_r24.png"
+      }
+    },
+    "r120": {
+      "momento": "2026-11-21T20:48:07",
+      "entorno": {
+        "python": "3.12.10",
+        "numpy": "1.26.4",
+        "pandas": "2.3.3",
+        "scikit-learn": "1.5.2",
+        "joblib": "1.6.0",
+        "sistema": "Windows AMD64"
+      },
+      "datos": {
+        "version_formato": 1,
+        "momento": "2026-11-21T20:44:16",
+        "tabla": "r120",
+        "archivo": "tabla_modelado_r120.parquet",
+        "sha256": "9f7273d62c56838387a2106cbc99acf045a8b4dba57daf5ceb387ba5b061e6b0",
+        "rezago_minimo_h": 120,
+        "filas": 49417,
+        "variables": [
+          "lag_168",
+          "ma_168",
+          "std_168",
+          "temperatura_c",
+          "hora_sin",
+          "hora_cos",
+          "dia_semana_sin",
+          "dia_semana_cos",
+          "mes_sin",
+          "mes_cos",
+          "es_festivo",
+          "es_vispera_festivo",
+          "es_puente",
+          "es_semana_santa",
+          "es_ultima_semana_diciembre"
+        ],
+        "rango": [
+          "2021-01-12 23:00:00-05:00",
+          "2026-09-02 23:00:00-05:00"
+        ],
+        "operaciones": [
+          {
+            "operacion": "verificar_sha256",
+            "criterio": "SHA-256 del Parquet igual al anotado en registro_variables.json",
+            "momento": "2026-11-21T20:44:16",
+            "detalle": {
+              "archivo": "tabla_modelado_r120.parquet",
+              "sha256": "9f7273d62c56838387a2106cbc99acf045a8b4dba57daf5ceb387ba5b061e6b0",
+              "coincide": true
+            }
+          },
+          {
+            "operacion": "separar",
+            "criterio": "X = columnas de la tabla menos fecha_hora y demanda_mwh, cada una reconocida por variables.construir",
+            "momento": "2026-11-21T20:44:16",
+            "detalle": {
+              "filas": 49417,
+              "variables": [
+                "lag_168",
+                "ma_168",
+                "std_168",
+                "temperatura_c",
+                "hora_sin",
+                "hora_cos",
+                "dia_semana_sin",
+                "dia_semana_cos",
+                "mes_sin",
+                "mes_cos",
+                "es_festivo",
+                "es_vispera_festivo",
+                "es_puente",
+                "es_semana_santa",
+                "es_ultima_semana_diciembre"
+              ],
+              "n_variables": 15,
+              "objetivo": "demanda_mwh",
+              "rezago_minimo_h": 120,
+              "rango": [
+                "2021-01-12 23:00:00-05:00",
+                "2026-09-02 23:00:00-05:00"
+              ],
+              "zona_horaria": "America/Bogota",
+              "nan_por_variable": {},
+              "nan_objetivo": 0
+            }
+          }
+        ]
+      },
+      "particion": {
+        "operacion": "particionar",
+        "criterio": "tres bloques cronologicos consecutivos por fecha de corte (ultimo dia incluido, hora local), sin barajar",
+        "momento": "2026-11-21T20:44:16",
+        "detalle": {
+          "filas": 49417,
+          "zona_horaria": "America/Bogota",
+          "cortes": {
+            "entrenamiento": "2024-09-02",
+            "validacion": "2025-09-02",
+            "prueba": "2026-09-02"
+          },
+          "bloques": {
+            "entrenamiento": {
+              "filas": 31897,
+              "desde": "2021-01-12 23:00:00-05:00",
+              "hasta": "2024-09-02 23:00:00-05:00",
+              "fecha_corte": "2024-09-02"
+            },
+            "validacion": {
+              "filas": 8760,
+              "desde": "2024-09-03 00:00:00-05:00",
+              "hasta": "2025-09-02 23:00:00-05:00",
+              "fecha_corte": "2025-09-02"
+            },
+            "prueba": {
+              "filas": 8760,
+              "desde": "2025-09-03 00:00:00-05:00",
+              "hasta": "2026-09-02 23:00:00-05:00",
+              "fecha_corte": "2026-09-02",
+              "uso": "reservado para la evaluacion final: no se usa para seleccionar modelos, ajustar hiperparametros ni escalar"
+            }
+          }
+        }
+      },
+      "evaluacion": {
+        "filas_ajuste": 31897,
+        "filas_evaluacion": 8760,
+        "rango_evaluacion": [
+          "2024-09-03 00:00:00-05:00",
+          "2025-09-02 23:00:00-05:00"
+        ]
+      },
+      "seleccion": {
+        "operacion": "seleccionar_candidatos",
+        "criterio": "menor MAPE de validacion: entre los lineales en las variables originales, y entre los ensembles (dos formas) y sus versiones de la busqueda de hiperparametros",
+        "momento": "2026-11-21T20:44:16",
+        "detalle": {
+          "lineal": {
+            "rol": "lineal",
+            "familia": "lineal",
+            "nombre": "lineal",
+            "forma": "-",
+            "origen": "modelado_regresion.json",
+            "mape_validacion_pct": 3.038748518776242,
+            "ruta": "models/lineal_lineal_r120.joblib",
+            "sha256": "0f5f2b099a6e97b991cfca9f59d6e84aad0f22317f005d0cace0a3d3f72df59f"
+          },
+          "ensemble": {
+            "rol": "ensemble",
+            "familia": "ensembles",
+            "nombre": "random_forest",
+            "forma": "nivel",
+            "origen": "modelado_ensembles.json",
+            "mape_validacion_pct": 2.6570194612833355,
+            "ruta": "models/ensemble_random_forest_nivel_r120.joblib",
+            "sha256": "41d4c5f7ae952966379e24c4ba147ebc9483903574864eecf8db5724b20f39b0"
+          },
+          "lineales_excluidos": {
+            "polinomial": {
+              "mape_validacion_pct": 2.776579434861256,
+              "motivo": "no es lineal en las variables originales: LinearExplainer no la explica por variable"
+            },
+            "polinomial_ridge": {
+              "mape_validacion_pct": 2.8694146799914244,
+              "motivo": "no es lineal en las variables originales: LinearExplainer no la explica por variable"
+            }
+          },
+          "ensembles_considerados": 14,
+          "busqueda_incluida": true
+        }
+      },
+      "criterio_calificacion": "alta: la prediccion se lee directamente del modelo (una columna o una suma de coeficientes por variable); media: el modelo tiene una estructura legible pero con muchos terminos, interacciones o explicaciones solo locales; baja: cientos de arboles o un kernel, sin forma cerrada; solo se explica a posteriori.",
+      "calificaciones": {
+        "baseline_estacional": {
+          "calificacion": "alta",
+          "motivo": "la prediccion es lag_168, sin parametros."
+        },
+        "baseline_diario": {
+          "calificacion": "alta",
+          "motivo": "la prediccion es lag_24, sin parametros."
+        },
+        "lineal": {
+          "calificacion": "alta",
+          "motivo": "un coeficiente por variable; SHAP coincide con coef * (x - media)."
+        },
+        "ridge": {
+          "calificacion": "alta",
+          "motivo": "como la lineal, con coeficientes contraidos y mas estables."
+        },
+        "lasso": {
+          "calificacion": "alta",
+          "motivo": "coeficientes por variable y ademas anula los irrelevantes."
+        },
+        "elasticnet": {
+          "calificacion": "alta",
+          "motivo": "coeficientes por variable con contraccion mixta L1/L2."
+        },
+        "polinomial": {
+          "calificacion": "media",
+          "motivo": "152 terminos con cuadrados e interacciones; matriz singular, coeficientes inestables."
+        },
+        "polinomial_ridge": {
+          "calificacion": "media",
+          "motivo": "152 terminos con interacciones; Ridge los estabiliza pero no se leen por variable."
+        },
+        "random_forest": {
+          "calificacion": "baja",
+          "motivo": "200 arboles profundos; se explica a posteriori con TreeSHAP exacto, pero es lento."
+        },
+        "adaboost": {
+          "calificacion": "baja",
+          "motivo": "100 arboles con mediana ponderada; TreeExplainer no lo soporta, solo metodos agnosticos."
+        },
+        "gradient_boosting": {
+          "calificacion": "baja",
+          "motivo": "cientos de arboles en serie; se explica a posteriori con TreeSHAP exacto y rapido."
+        },
+        "hist_gradient": {
+          "calificacion": "baja",
+          "motivo": "cientos de arboles sobre variables discretizadas; TreeSHAP exacto y rapido."
+        },
+        "logistica": {
+          "calificacion": "alta",
+          "motivo": "un coeficiente por variable en la escala de log-odds."
+        },
+        "svm_lineal": {
+          "calificacion": "alta",
+          "motivo": "hiperplano con un peso por variable."
+        },
+        "knn": {
+          "calificacion": "media",
+          "motivo": "cada prediccion se explica por sus vecinos, pero no hay una explicacion global."
+        },
+        "svm_rbf": {
+          "calificacion": "baja",
+          "motivo": "kernel RBF sobre ~1 800 vectores de soporte; sin pesos por variable."
+        }
+      },
+      "bloque": "validacion",
+      "motivos_diferencia_impureza_permutacion": [
+        "La importancia por impureza se mide en entrenamiento, sobre las divisiones del arbol; la de permutacion, en validacion, sobre el error. Una variable que ayuda a ajustar el pasado pero no generaliza pesa mas en la primera.",
+        "La impureza favorece variables continuas con muchos cortes posibles (lag_168, ma_168, temperatura_c) frente a binarias como es_festivo, que solo ofrecen un corte.",
+        "Con variables correlacionadas (lag_24, lag_168 y ma_168) la permutacion de una no rompe la informacion que siguen dando las otras: su importancia por permutacion se subestima, y el arbol reparte la impureza entre ellas de forma casi arbitraria.",
+        "Permutar crea filas imposibles (un festivo con la demanda de un dia laboral); el modelo las evalua fuera de lo que vio.",
+        "En la forma diferenciada la impureza explica y - lag_168 y la permutacion la prediccion completa."
+      ],
+      "modelos": {
+        "ensemble": {
+          "candidato": {
+            "rol": "ensemble",
+            "familia": "ensembles",
+            "nombre": "random_forest",
+            "forma": "nivel",
+            "origen": "modelado_ensembles.json",
+            "mape_validacion_pct": 2.6570194612833355,
+            "ruta": "models/ensemble_random_forest_nivel_r120.joblib",
+            "sha256": "41d4c5f7ae952966379e24c4ba147ebc9483903574864eecf8db5724b20f39b0"
+          },
+          "calificacion": {
+            "calificacion": "baja",
+            "motivo": "200 arboles profundos; se explica a posteriori con TreeSHAP exacto, pero es lento."
+          },
+          "importancias": {
+            "permutacion": {
+              "metodo": "sklearn.inspection.permutation_importance, scoring MAE, n_repeats=10",
+              "bloque": "validacion",
+              "unidad": "aumento del MAE en MWh",
+              "por_variable": {
+                "lag_168": {
+                  "media": 540.0071021754468,
+                  "desviacion": 4.2145034518930515
+                },
+                "temperatura_c": {
+                  "media": 87.64679780049093,
+                  "desviacion": 1.7664761230300026
+                },
+                "hora_sin": {
+                  "media": 75.92974816275226,
+                  "desviacion": 1.882259278620095
+                },
+                "dia_semana_sin": {
+                  "media": 49.593031731722874,
+                  "desviacion": 0.9068839252980706
+                },
+                "es_festivo": {
+                  "media": 47.49118711214229,
+                  "desviacion": 1.3283281331972738
+                },
+                "hora_cos": {
+                  "media": 26.319821428418543,
+                  "desviacion": 0.5454285854559918
+                },
+                "mes_sin": {
+                  "media": 5.338330177689102,
+                  "desviacion": 0.43522205225313615
+                },
+                "es_puente": {
+                  "media": 5.251678282024576,
+                  "desviacion": 0.5602220394440734
+                },
+                "dia_semana_cos": {
+                  "media": 5.1106361796309185,
+                  "desviacion": 0.46212932588657013
+                },
+                "std_168": {
+                  "media": 2.8880537539531956,
+                  "desviacion": 0.21008786811195
+                },
+                "ma_168": {
+                  "media": 2.5724706350543984,
+                  "desviacion": 0.3802310222101989
+                },
+                "mes_cos": {
+                  "media": 2.3989288088087135,
+                  "desviacion": 0.2750668441412826
+                },
+                "es_semana_santa": {
+                  "media": 1.4280624605835328,
+                  "desviacion": 0.0931525870964808
+                },
+                "es_ultima_semana_diciembre": {
+                  "media": 0.9910084253485933,
+                  "desviacion": 0.0757920907420702
+                },
+                "es_vispera_festivo": {
+                  "media": 0.10588923158166494,
+                  "desviacion": 0.08871284005356216
+                }
+              },
+              "filas": 8760,
+              "segundos": 8.864783300000454
+            },
+            "impureza": {
+              "metodo": "feature_importances_ de sklearn",
+              "bloque": "entrenamiento (se mide en los arboles ajustados)",
+              "objetivo": "y",
+              "por_variable": {
+                "lag_168": 0.6124330932116988,
+                "temperatura_c": 0.16764329165142966,
+                "hora_sin": 0.07548328828437868,
+                "hora_cos": 0.040966201596663816,
+                "dia_semana_sin": 0.026667293956088006,
+                "ma_168": 0.026503227141205586,
+                "es_festivo": 0.025208641109732408,
+                "dia_semana_cos": 0.006877125162007645,
+                "std_168": 0.005721817915588634,
+                "es_puente": 0.004964620493983117,
+                "mes_sin": 0.002981243759103733,
+                "mes_cos": 0.00204461372031248,
+                "es_semana_santa": 0.0015221352090563757,
+                "es_vispera_festivo": 0.0005998497986800345,
+                "es_ultima_semana_diciembre": 0.0003835569900711288
+              }
+            }
+          },
+          "shap": {
+            "metodo": "shap.TreeExplainer(feature_perturbation='tree_path_dependent')",
+            "filas_validacion": 8760,
+            "filas_explicadas": 2000,
+            "muestra": true,
+            "motivo_muestra": "el piloto de 200 filas estima 900 s para las 8760 filas (> 60 s): muestra aleatoria de 2000 filas, semilla 42",
+            "segundos_estimados_completo": 899.9524110600213,
+            "segundos": 194.00249090000034,
+            "valor_base_mwh": 8838.713614059983,
+            "error_aditividad_max_mwh": 5.911715561524034e-11,
+            "media_abs_por_variable_mwh": {
+              "lag_168": 623.3755767194907,
+              "temperatura_c": 191.95520746061726,
+              "hora_sin": 148.8977631217524,
+              "ma_168": 103.41601876621549,
+              "dia_semana_sin": 95.98519504031132,
+              "es_festivo": 69.74640251145277,
+              "hora_cos": 66.75407069115559,
+              "dia_semana_cos": 22.901916663973957,
+              "mes_sin": 17.81479229272724,
+              "es_puente": 14.702770138548196,
+              "mes_cos": 14.203370697071813,
+              "std_168": 13.24334760595145,
+              "es_semana_santa": 5.025816859217042,
+              "es_vispera_festivo": 3.0721690477418164,
+              "es_ultima_semana_diciembre": 1.6714773745107947
+            },
+            "temperatura": {
+              "disponible": true,
+              "pendiente_global_mwh_por_grado": 60.68074299626534,
+              "pendiente_por_franja_mwh_por_grado": {
+                "madrugada 0-5 h": 80.69943658265854,
+                "manana 6-11 h": 68.60359402166229,
+                "tarde 12-17 h": 54.02141894897316,
+                "noche 18-23 h": 76.99413076490677
+              },
+              "media_abs_mwh": 191.95520746061757,
+              "rango_shap_mwh": [
+                -325.88904530021665,
+                583.4875154006245
+              ]
+            },
+            "figura_resumen": "docs/figuras/modelado/shap_resumen_ensemble_r120.png"
+          }
+        },
+        "lineal": {
+          "candidato": {
+            "rol": "lineal",
+            "familia": "lineal",
+            "nombre": "lineal",
+            "forma": "-",
+            "origen": "modelado_regresion.json",
+            "mape_validacion_pct": 3.038748518776242,
+            "ruta": "models/lineal_lineal_r120.joblib",
+            "sha256": "0f5f2b099a6e97b991cfca9f59d6e84aad0f22317f005d0cace0a3d3f72df59f"
+          },
+          "calificacion": {
+            "calificacion": "alta",
+            "motivo": "un coeficiente por variable; SHAP coincide con coef * (x - media)."
+          },
+          "importancias": {
+            "permutacion": {
+              "metodo": "sklearn.inspection.permutation_importance, scoring MAE, n_repeats=10",
+              "bloque": "validacion",
+              "unidad": "aumento del MAE en MWh",
+              "por_variable": {
+                "lag_168": {
+                  "media": 765.8042029196062,
+                  "desviacion": 7.698577379151246
+                },
+                "es_festivo": {
+                  "media": 35.54842576653307,
+                  "desviacion": 1.102664346642053
+                },
+                "temperatura_c": {
+                  "media": 23.19977348371369,
+                  "desviacion": 0.9302121468014606
+                },
+                "hora_sin": {
+                  "media": 22.861832969503944,
+                  "desviacion": 0.709763622988053
+                },
+                "es_ultima_semana_diciembre": {
+                  "media": 8.893345251648942,
+                  "desviacion": 0.45929676127528263
+                },
+                "dia_semana_sin": {
+                  "media": 6.832378469959627,
+                  "desviacion": 0.2900812579704146
+                },
+                "es_vispera_festivo": {
+                  "media": 4.065160090634322,
+                  "desviacion": 0.37991813119459844
+                },
+                "es_semana_santa": {
+                  "media": 2.789663577860574,
+                  "desviacion": 0.3194961508665917
+                },
+                "hora_cos": {
+                  "media": 1.179524320589087,
+                  "desviacion": 0.22841416177227972
+                },
+                "mes_sin": {
+                  "media": 1.1686768543479218,
+                  "desviacion": 0.19586892984053056
+                },
+                "dia_semana_cos": {
+                  "media": 0.7616828334463832,
+                  "desviacion": 0.1554179452813208
+                },
+                "mes_cos": {
+                  "media": 0.15193317510682505,
+                  "desviacion": 0.04740439873352212
+                },
+                "std_168": {
+                  "media": -0.014216513664530339,
+                  "desviacion": 0.008278071068939425
+                },
+                "es_puente": {
+                  "media": -0.05473869972529997,
+                  "desviacion": 0.00995272227881075
+                },
+                "ma_168": {
+                  "media": -0.5054966788544618,
+                  "desviacion": 0.02829316522186037
+                }
+              },
+              "filas": 8760,
+              "segundos": 0.13769299999967188
+            }
+          },
+          "shap": {
+            "metodo": "shap.LinearExplainer sobre las variables estandarizadas, fondo Independent",
+            "filas_validacion": 8760,
+            "filas_explicadas": 8760,
+            "muestra": false,
+            "motivo_muestra": "el piloto estima 0.0 s: toda la validacion",
+            "segundos_estimados_completo": 0.038732339982379925,
+            "segundos": 0.0028250000004845788,
+            "valor_base_mwh": 8835.133743410519,
+            "error_aditividad_max_mwh": 1.8189894035458565e-12,
+            "media_abs_por_variable_mwh": {
+              "lag_168": 852.366062902203,
+              "temperatura_c": 85.53499613108745,
+              "hora_sin": 82.2858412010171,
+              "es_festivo": 67.79972699144892,
+              "dia_semana_sin": 39.7500085739594,
+              "hora_cos": 22.45390167905775,
+              "es_vispera_festivo": 16.260581627893327,
+              "mes_sin": 15.472672060931538,
+              "es_ultima_semana_diciembre": 13.948391929080907,
+              "es_semana_santa": 10.670137657568299,
+              "dia_semana_cos": 10.522950497446924,
+              "ma_168": 8.629084919787097,
+              "mes_cos": 5.335077672008243,
+              "std_168": 1.2622074957596514,
+              "es_puente": 0.5514652130933752
+            },
+            "temperatura": {
+              "disponible": true,
+              "pendiente_global_mwh_por_grado": 31.512107332019138,
+              "pendiente_por_franja_mwh_por_grado": {
+                "madrugada 0-5 h": 31.51210733201915,
+                "manana 6-11 h": 31.512107332019134,
+                "tarde 12-17 h": 31.512107332019163,
+                "noche 18-23 h": 31.512107332019163
+              },
+              "media_abs_mwh": 85.53499613108745,
+              "rango_shap_mwh": [
+                -201.95495102998098,
+                296.0623932452497
+              ]
+            },
+            "figura_resumen": "docs/figuras/modelado/shap_resumen_lineal_r120.png"
+          }
+        }
+      },
+      "lime": {
+        "configuracion": {
+          "explicador": "lime.lime_tabular.LimeTabularExplainer(mode='regression', discretize_continuous=True)",
+          "estadisticas": "bloque de entrenamiento",
+          "categoricas": [
+            "es_festivo",
+            "es_vispera_festivo",
+            "es_puente",
+            "es_semana_santa",
+            "es_ultima_semana_diciembre"
+          ],
+          "num_samples": 5000,
+          "num_features": 8,
+          "semilla": 42,
+          "segundos": 0.6858683000000383
+        },
+        "casos": {
+          "pico_laboral": {
+            "ensemble": {
+              "posicion": 4771,
+              "fecha_hora": "2025-03-20 19:00:00-05:00",
+              "regla": "dia laborable sin marca de calendario, 19:00 (hora pico [18, 19, 20]), demanda mediana entre esas horas",
+              "demanda_real_mwh": 11084.12,
+              "prediccion_mwh": 10968.025591909223,
+              "intercepto_local_mwh": 7888.8521065938885,
+              "prediccion_local_mwh": 10396.596524059427,
+              "r2_local": 0.4934909477161743,
+              "pesos": [
+                {
+                  "regla": "lag_168 > 9767.23",
+                  "peso_mwh": 1151.0726873678932
+                },
+                {
+                  "regla": "es_festivo=0",
+                  "peso_mwh": 627.7872770341525
+                },
+                {
+                  "regla": "hora_sin <= -0.71",
+                  "peso_mwh": 282.08452914171534
+                },
+                {
+                  "regla": "17.56 < temperatura_c <= 21.28",
+                  "peso_mwh": 143.70144430305504
+                },
+                {
+                  "regla": "0.00 < dia_semana_sin <= 0.78",
+                  "peso_mwh": 118.73024129135295
+                },
+                {
+                  "regla": "es_puente=0",
+                  "peso_mwh": 74.85531225969582
+                },
+                {
+                  "regla": "ma_168 > 9124.14",
+                  "peso_mwh": 69.1186710058789
+                },
+                {
+                  "regla": "dia_semana_cos <= -0.90",
+                  "peso_mwh": 40.39425506179466
+                }
+              ]
+            },
+            "lineal": {
+              "posicion": 4771,
+              "fecha_hora": "2025-03-20 19:00:00-05:00",
+              "regla": "dia laborable sin marca de calendario, 19:00 (hora pico [18, 19, 20]), demanda mediana entre esas horas",
+              "demanda_real_mwh": 11084.12,
+              "prediccion_mwh": 10959.502691212947,
+              "intercepto_local_mwh": 6626.434173830194,
+              "prediccion_local_mwh": 10262.117993913926,
+              "r2_local": 0.568888680498272,
+              "pesos": [
+                {
+                  "regla": "lag_168 > 9767.23",
+                  "peso_mwh": 1618.3527435878348
+                },
+                {
+                  "regla": "es_festivo=0",
+                  "peso_mwh": 733.9324105101033
+                },
+                {
+                  "regla": "es_ultima_semana_diciembre=0",
+                  "peso_mwh": 509.52919272846464
+                },
+                {
+                  "regla": "es_semana_santa=0",
+                  "peso_mwh": 384.4501022239912
+                },
+                {
+                  "regla": "es_vispera_festivo=0",
+                  "peso_mwh": 207.18475293106474
+                },
+                {
+                  "regla": "hora_sin <= -0.71",
+                  "peso_mwh": 169.5217117846805
+                },
+                {
+                  "regla": "0.00 < dia_semana_sin <= 0.78",
+                  "peso_mwh": 42.484717642682284
+                },
+                {
+                  "regla": "es_puente=0",
+                  "peso_mwh": -29.771811325090244
+                }
+              ]
+            }
+          },
+          "festivo": {
+            "ensemble": {
+              "posicion": 1003,
+              "fecha_hora": "2024-10-14 19:00:00-05:00",
+              "regla": "primer festivo de validacion fuera de Semana Santa, 19:00",
+              "demanda_real_mwh": 9847.64881,
+              "prediccion_mwh": 9539.7251745761,
+              "intercepto_local_mwh": 8495.68193613561,
+              "prediccion_local_mwh": 9597.523782839029,
+              "r2_local": 0.49343653110563734,
+              "pesos": [
+                {
+                  "regla": "lag_168 > 9767.23",
+                  "peso_mwh": 1133.855747356196
+                },
+                {
+                  "regla": "es_festivo=1",
+                  "peso_mwh": -660.424238159815
+                },
+                {
+                  "regla": "hora_sin <= -0.71",
+                  "peso_mwh": 283.57825809956233
+                },
+                {
+                  "regla": "-0.78 < dia_semana_sin <= 0.00",
+                  "peso_mwh": 138.51672003982662
+                },
+                {
+                  "regla": "es_semana_santa=0",
+                  "peso_mwh": 114.15215737354154
+                },
+                {
+                  "regla": "17.56 < temperatura_c <= 21.28",
+                  "peso_mwh": 102.65708085911955
+                },
+                {
+                  "regla": "es_puente=1",
+                  "peso_mwh": -90.06096234243242
+                },
+                {
+                  "regla": "ma_168 > 9124.14",
+                  "peso_mwh": 79.56708347742018
+                }
+              ]
+            },
+            "lineal": {
+              "posicion": 1003,
+              "fecha_hora": "2024-10-14 19:00:00-05:00",
+              "regla": "primer festivo de validacion fuera de Semana Santa, 19:00",
+              "demanda_real_mwh": 9847.64881,
+              "prediccion_mwh": 9609.691156917634,
+              "intercepto_local_mwh": 7427.373150990876,
+              "prediccion_local_mwh": 9416.831360865108,
+              "r2_local": 0.5795888851846325,
+              "pesos": [
+                {
+                  "regla": "lag_168 > 9767.23",
+                  "peso_mwh": 1628.5073712754856
+                },
+                {
+                  "regla": "es_festivo=1",
+                  "peso_mwh": -829.8549902320194
+                },
+                {
+                  "regla": "es_ultima_semana_diciembre=0",
+                  "peso_mwh": 413.2278924691229
+                },
+                {
+                  "regla": "es_semana_santa=0",
+                  "peso_mwh": 406.38835114081985
+                },
+                {
+                  "regla": "es_vispera_festivo=0",
+                  "peso_mwh": 205.7018651766849
+                },
+                {
+                  "regla": "hora_sin <= -0.71",
+                  "peso_mwh": 186.00874493304548
+                },
+                {
+                  "regla": "-0.78 < dia_semana_sin <= 0.00",
+                  "peso_mwh": -66.49615607503867
+                },
+                {
+                  "regla": "mes_sin <= -0.50",
+                  "peso_mwh": 45.97513118613127
+                }
+              ]
+            }
+          },
+          "semana_santa": {
+            "ensemble": {
+              "posicion": 5371,
+              "fecha_hora": "2025-04-14 19:00:00-05:00",
+              "regla": "primer dia laborable no festivo de Semana Santa, 19:00",
+              "demanda_real_mwh": 11063.31348,
+              "prediccion_mwh": 10662.687035668418,
+              "intercepto_local_mwh": 7854.429108062458,
+              "prediccion_local_mwh": 10315.820033484903,
+              "r2_local": 0.4999190487932953,
+              "pesos": [
+                {
+                  "regla": "lag_168 > 9767.23",
+                  "peso_mwh": 1135.5286588738968
+                },
+                {
+                  "regla": "es_festivo=0",
+                  "peso_mwh": 627.87266827987
+                },
+                {
+                  "regla": "hora_sin <= -0.71",
+                  "peso_mwh": 284.98419301893506
+                },
+                {
+                  "regla": "17.56 < temperatura_c <= 21.28",
+                  "peso_mwh": 162.8878927826763
+                },
+                {
+                  "regla": "es_puente=0",
+                  "peso_mwh": 124.82368434477773
+                },
+                {
+                  "regla": "ma_168 > 9124.14",
+                  "peso_mwh": 104.47760764080883
+                },
+                {
+                  "regla": "-0.78 < dia_semana_sin <= 0.00",
+                  "peso_mwh": 92.45826848606545
+                },
+                {
+                  "regla": "es_semana_santa=1",
+                  "peso_mwh": -71.64204800458599
+                }
+              ]
+            },
+            "lineal": {
+              "posicion": 5371,
+              "fecha_hora": "2025-04-14 19:00:00-05:00",
+              "regla": "primer dia laborable no festivo de Semana Santa, 19:00",
+              "demanda_real_mwh": 11063.31348,
+              "prediccion_mwh": 10308.803743666022,
+              "intercepto_local_mwh": 7032.885741537823,
+              "prediccion_local_mwh": 9935.553775341446,
+              "r2_local": 0.5784681887785574,
+              "pesos": [
+                {
+                  "regla": "lag_168 > 9767.23",
+                  "peso_mwh": 1628.5965369416397
+                },
+                {
+                  "regla": "es_festivo=0",
+                  "peso_mwh": 743.8747866094391
+                },
+                {
+                  "regla": "es_ultima_semana_diciembre=0",
+                  "peso_mwh": 425.58847100373674
+                },
+                {
+                  "regla": "es_semana_santa=1",
+                  "peso_mwh": -352.2840220671525
+                },
+                {
+                  "regla": "es_vispera_festivo=0",
+                  "peso_mwh": 231.11964355772528
+                },
+                {
+                  "regla": "hora_sin <= -0.71",
+                  "peso_mwh": 136.05394102710133
+                },
+                {
+                  "regla": "17.56 < temperatura_c <= 21.28",
+                  "peso_mwh": 53.85611229869774
+                },
+                {
+                  "regla": "ma_168 > 9124.14",
+                  "peso_mwh": 35.86256443243491
+                }
+              ]
+            }
+          },
+          "mayor_error_ensemble": {
+            "ensemble": {
+              "posicion": 2721,
+              "fecha_hora": "2024-12-25 09:00:00-05:00",
+              "regla": "hora de validacion con mayor error absoluto del modelo ensemble",
+              "demanda_real_mwh": 7069.08889,
+              "solo_para": "ensemble",
+              "prediccion_mwh": 8990.833731143703,
+              "intercepto_local_mwh": 8602.662343319556,
+              "prediccion_local_mwh": 9559.728682676128,
+              "r2_local": 0.4814113315397738,
+              "pesos": [
+                {
+                  "regla": "lag_168 > 9767.23",
+                  "peso_mwh": 1145.3183956330183
+                },
+                {
+                  "regla": "es_festivo=1",
+                  "peso_mwh": -583.3414176842351
+                },
+                {
+                  "regla": "0.00 < hora_sin <= 0.71",
+                  "peso_mwh": -166.68511284059622
+                },
+                {
+                  "regla": "es_puente=0",
+                  "peso_mwh": 124.52009983062219
+                },
+                {
+                  "regla": "dia_semana_sin > 0.78",
+                  "peso_mwh": 122.30532173657974
+                },
+                {
+                  "regla": "hora_cos <= -0.71",
+                  "peso_mwh": 119.99236583881539
+                },
+                {
+                  "regla": "ma_168 > 9124.14",
+                  "peso_mwh": 109.0852659009503
+                },
+                {
+                  "regla": "17.56 < temperatura_c <= 21.28",
+                  "peso_mwh": 85.87142094141782
+                }
+              ]
+            }
+          },
+          "mayor_error_lineal": {
+            "lineal": {
+              "posicion": 3063,
+              "fecha_hora": "2025-01-08 15:00:00-05:00",
+              "regla": "hora de validacion con mayor error absoluto del modelo lineal",
+              "demanda_real_mwh": 10788.35513,
+              "solo_para": "lineal",
+              "prediccion_mwh": 8007.627998455896,
+              "intercepto_local_mwh": 7411.180729497727,
+              "prediccion_local_mwh": 8002.952109385672,
+              "r2_local": 0.61477325576005,
+              "pesos": [
+                {
+                  "regla": "lag_168 <= 7877.60",
+                  "peso_mwh": -1664.6666606139281
+                },
+                {
+                  "regla": "es_festivo=0",
+                  "peso_mwh": 760.7267307444544
+                },
+                {
+                  "regla": "es_semana_santa=0",
+                  "peso_mwh": 481.7449114972783
+                },
+                {
+                  "regla": "es_ultima_semana_diciembre=0",
+                  "peso_mwh": 315.4927008675302
+                },
+                {
+                  "regla": "temperatura_c > 21.28",
+                  "peso_mwh": 235.208260614332
+                },
+                {
+                  "regla": "es_vispera_festivo=0",
+                  "peso_mwh": 230.04706210583421
+                },
+                {
+                  "regla": "hora_sin <= -0.71",
+                  "peso_mwh": 165.01683210468656
+                },
+                {
+                  "regla": "dia_semana_sin > 0.78",
+                  "peso_mwh": 68.2015425677578
+                }
+              ]
+            }
+          }
+        }
+      },
+      "contraste_eda": {
+        "acf_24": 0.8573641703804753,
+        "acf_168": 0.923761057397622,
+        "hipotesis": "si la autocorrelacion a 168 h es mayor que a 24 h, lag_168 deberia dominar",
+        "medidas": [
+          {
+            "modelo": "ensemble",
+            "medida": "permutacion",
+            "primera": "lag_168",
+            "tres_primeras": [
+              "lag_168",
+              "temperatura_c",
+              "hora_sin"
+            ],
+            "puesto_lag_168": 1,
+            "puesto_lag_24": null,
+            "lag_168_antes_que_lag_24": null
+          },
+          {
+            "modelo": "ensemble",
+            "medida": "impureza",
+            "primera": "lag_168",
+            "tres_primeras": [
+              "lag_168",
+              "temperatura_c",
+              "hora_sin"
+            ],
+            "puesto_lag_168": 1,
+            "puesto_lag_24": null,
+            "lag_168_antes_que_lag_24": null
+          },
+          {
+            "modelo": "ensemble",
+            "medida": "shap",
+            "primera": "lag_168",
+            "tres_primeras": [
+              "lag_168",
+              "temperatura_c",
+              "hora_sin"
+            ],
+            "puesto_lag_168": 1,
+            "puesto_lag_24": null,
+            "lag_168_antes_que_lag_24": null
+          },
+          {
+            "modelo": "lineal",
+            "medida": "permutacion",
+            "primera": "lag_168",
+            "tres_primeras": [
+              "lag_168",
+              "es_festivo",
+              "temperatura_c"
+            ],
+            "puesto_lag_168": 1,
+            "puesto_lag_24": null,
+            "lag_168_antes_que_lag_24": null
+          },
+          {
+            "modelo": "lineal",
+            "medida": "shap",
+            "primera": "lag_168",
+            "tres_primeras": [
+              "lag_168",
+              "temperatura_c",
+              "hora_sin"
+            ],
+            "puesto_lag_168": 1,
+            "puesto_lag_24": null,
+            "lag_168_antes_que_lag_24": null
+          }
+        ],
+        "lag_168_primera_en": 5,
+        "de": 5,
+        "lag_168_domina": true,
+        "conclusion": "lag_168 es la variable mas importante en 5 de 5 medidas."
+      },
+      "figuras": {
+        "importancias": "docs/figuras/modelado/importancias_r120.png",
+        "shap_temperatura": "docs/figuras/modelado/shap_temperatura_r120.png",
+        "lime": "docs/figuras/modelado/lime_r120.png"
+      }
+    }
+  }
+}

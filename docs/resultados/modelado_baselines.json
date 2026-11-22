@@ -1,0 +1,422 @@
+{
+  "version_formato": 1,
+  "familia": "baseline",
+  "momento": "2026-11-20T23:55:08",
+  "bloque_ajuste": "entrenamiento",
+  "bloque_evaluacion": "validacion",
+  "nota": "El bloque de prueba no se usa: se evalua solo en la evaluacion final. Los tiempos dependen de la maquina (ver entorno de cada tabla).",
+  "tablas": {
+    "r24": {
+      "momento": "2026-11-20T23:55:07",
+      "entorno": {
+        "python": "3.12.10",
+        "numpy": "1.26.4",
+        "pandas": "2.3.3",
+        "scikit-learn": "1.5.2",
+        "joblib": "1.6.0",
+        "sistema": "Windows AMD64"
+      },
+      "datos": {
+        "version_formato": 1,
+        "momento": "2026-11-20T23:55:07",
+        "tabla": "r24",
+        "archivo": "tabla_modelado_r24.parquet",
+        "sha256": "6bb6260ce166b2dbeb72167fd3a4daad4c13755673873eecd7817f5fae3b847f",
+        "rezago_minimo_h": 24,
+        "filas": 49513,
+        "variables": [
+          "lag_24",
+          "lag_168",
+          "ma_168",
+          "std_168",
+          "temperatura_c",
+          "hora_sin",
+          "hora_cos",
+          "dia_semana_sin",
+          "dia_semana_cos",
+          "mes_sin",
+          "mes_cos",
+          "es_festivo",
+          "es_vispera_festivo",
+          "es_puente",
+          "es_semana_santa",
+          "es_ultima_semana_diciembre"
+        ],
+        "rango": [
+          "2021-01-08 23:00:00-05:00",
+          "2026-09-02 23:00:00-05:00"
+        ],
+        "operaciones": [
+          {
+            "operacion": "verificar_sha256",
+            "criterio": "SHA-256 del Parquet igual al anotado en registro_variables.json",
+            "momento": "2026-11-20T23:55:07",
+            "detalle": {
+              "archivo": "tabla_modelado_r24.parquet",
+              "sha256": "6bb6260ce166b2dbeb72167fd3a4daad4c13755673873eecd7817f5fae3b847f",
+              "coincide": true
+            }
+          },
+          {
+            "operacion": "separar",
+            "criterio": "X = columnas de la tabla menos fecha_hora y demanda_mwh, cada una reconocida por variables.construir",
+            "momento": "2026-11-20T23:55:07",
+            "detalle": {
+              "filas": 49513,
+              "variables": [
+                "lag_24",
+                "lag_168",
+                "ma_168",
+                "std_168",
+                "temperatura_c",
+                "hora_sin",
+                "hora_cos",
+                "dia_semana_sin",
+                "dia_semana_cos",
+                "mes_sin",
+                "mes_cos",
+                "es_festivo",
+                "es_vispera_festivo",
+                "es_puente",
+                "es_semana_santa",
+                "es_ultima_semana_diciembre"
+              ],
+              "n_variables": 16,
+              "objetivo": "demanda_mwh",
+              "rezago_minimo_h": 24,
+              "rango": [
+                "2021-01-08 23:00:00-05:00",
+                "2026-09-02 23:00:00-05:00"
+              ],
+              "zona_horaria": "America/Bogota",
+              "nan_por_variable": {},
+              "nan_objetivo": 0
+            }
+          }
+        ]
+      },
+      "particion": {
+        "operacion": "particionar",
+        "criterio": "tres bloques cronologicos consecutivos por fecha de corte (ultimo dia incluido, hora local), sin barajar",
+        "momento": "2026-11-20T23:55:07",
+        "detalle": {
+          "filas": 49513,
+          "zona_horaria": "America/Bogota",
+          "cortes": {
+            "entrenamiento": "2024-09-02",
+            "validacion": "2025-09-02",
+            "prueba": "2026-09-02"
+          },
+          "bloques": {
+            "entrenamiento": {
+              "filas": 31993,
+              "desde": "2021-01-08 23:00:00-05:00",
+              "hasta": "2024-09-02 23:00:00-05:00",
+              "fecha_corte": "2024-09-02"
+            },
+            "validacion": {
+              "filas": 8760,
+              "desde": "2024-09-03 00:00:00-05:00",
+              "hasta": "2025-09-02 23:00:00-05:00",
+              "fecha_corte": "2025-09-02"
+            },
+            "prueba": {
+              "filas": 8760,
+              "desde": "2025-09-03 00:00:00-05:00",
+              "hasta": "2026-09-02 23:00:00-05:00",
+              "fecha_corte": "2026-09-02",
+              "uso": "reservado para la evaluacion final: no se usa para seleccionar modelos, ajustar hiperparametros ni escalar"
+            }
+          }
+        }
+      },
+      "evaluacion": {
+        "filas_ajuste": 31993,
+        "filas_evaluacion": 8760,
+        "rango_evaluacion": [
+          "2024-09-03 00:00:00-05:00",
+          "2025-09-02 23:00:00-05:00"
+        ]
+      },
+      "baselines": {
+        "operacion": "baselines_disponibles",
+        "criterio": "un baseline por cada rezago de BASELINES presente en X",
+        "momento": "2026-11-20T23:55:07",
+        "detalle": {
+          "disponibles": {
+            "estacional": {
+              "columna": "lag_168",
+              "descripcion": "y_pred(t) = demanda(t - 168 h): la misma hora de la semana anterior"
+            },
+            "diario": {
+              "columna": "lag_24",
+              "descripcion": "y_pred(t) = demanda(t - 24 h): la misma hora del dia anterior"
+            }
+          },
+          "omitidos": {},
+          "referencia": "estacional"
+        }
+      },
+      "modelos": {
+        "estacional": {
+          "descripcion": "y_pred(t) = demanda(t - 168 h): la misma hora de la semana anterior",
+          "columna": "lag_168",
+          "metricas_validacion": {
+            "n": 8760,
+            "mae_mwh": 310.2691535091325,
+            "rmse_mwh": 471.36337183615655,
+            "mape_pct": 3.3498378211977715,
+            "mape_pico_pct": 2.886333907690682,
+            "horas_pico": [
+              18,
+              19,
+              20
+            ],
+            "n_pico": 1095,
+            "error_maximo_diario_mwh": 295.7638935068493,
+            "error_maximo_diario_pct": 2.790736268664339,
+            "n_dias": 365,
+            "sesgo_medio_mwh": -1.432660520547943,
+            "sesgo_medio_pct": -0.015186426274609484,
+            "mejora_mape_pct": null
+          },
+          "mejora_frente_a": null,
+          "tiempos": {
+            "ajuste_s": 6.659999780822545e-05,
+            "prediccion_ms_por_1000_filas": 0.0009703195478967029,
+            "repeticiones_prediccion": 5
+          },
+          "modelo": {
+            "archivo": "baseline_estacional_r24.joblib",
+            "formato": "joblib",
+            "bytes": 708,
+            "sha256": "78bdc15f4074051d5ca83cad644bbdc54794317494ed1bb69c638de51c88cc1b",
+            "ruta": "models/baseline_estacional_r24.joblib"
+          }
+        },
+        "diario": {
+          "descripcion": "y_pred(t) = demanda(t - 24 h): la misma hora del dia anterior",
+          "columna": "lag_24",
+          "metricas_validacion": {
+            "n": 8760,
+            "mae_mwh": 448.76321417579913,
+            "rmse_mwh": 662.5535814763051,
+            "mape_pct": 4.826883140356036,
+            "mape_pico_pct": 4.12535561321622,
+            "horas_pico": [
+              18,
+              19,
+              20
+            ],
+            "n_pico": 1095,
+            "error_maximo_diario_mwh": 435.98223460273965,
+            "error_maximo_diario_pct": 4.120727040734848,
+            "n_dias": 365,
+            "sesgo_medio_mwh": -0.8922309086757989,
+            "sesgo_medio_pct": -0.009457787605782924,
+            "mejora_mape_pct": -44.09303966333899
+          },
+          "mejora_frente_a": "estacional",
+          "tiempos": {
+            "ajuste_s": 5.0099999498343095e-05,
+            "prediccion_ms_por_1000_filas": 0.0010502280015711031,
+            "repeticiones_prediccion": 5
+          },
+          "modelo": {
+            "archivo": "baseline_diario_r24.joblib",
+            "formato": "joblib",
+            "bytes": 707,
+            "sha256": "d7fda2c5e6b2797e398029fc488779038d4a620641128d4d07d7010dac1583c4",
+            "ruta": "models/baseline_diario_r24.joblib"
+          }
+        }
+      }
+    },
+    "r120": {
+      "momento": "2026-11-20T23:55:08",
+      "entorno": {
+        "python": "3.12.10",
+        "numpy": "1.26.4",
+        "pandas": "2.3.3",
+        "scikit-learn": "1.5.2",
+        "joblib": "1.6.0",
+        "sistema": "Windows AMD64"
+      },
+      "datos": {
+        "version_formato": 1,
+        "momento": "2026-11-20T23:55:08",
+        "tabla": "r120",
+        "archivo": "tabla_modelado_r120.parquet",
+        "sha256": "9f7273d62c56838387a2106cbc99acf045a8b4dba57daf5ceb387ba5b061e6b0",
+        "rezago_minimo_h": 120,
+        "filas": 49417,
+        "variables": [
+          "lag_168",
+          "ma_168",
+          "std_168",
+          "temperatura_c",
+          "hora_sin",
+          "hora_cos",
+          "dia_semana_sin",
+          "dia_semana_cos",
+          "mes_sin",
+          "mes_cos",
+          "es_festivo",
+          "es_vispera_festivo",
+          "es_puente",
+          "es_semana_santa",
+          "es_ultima_semana_diciembre"
+        ],
+        "rango": [
+          "2021-01-12 23:00:00-05:00",
+          "2026-09-02 23:00:00-05:00"
+        ],
+        "operaciones": [
+          {
+            "operacion": "verificar_sha256",
+            "criterio": "SHA-256 del Parquet igual al anotado en registro_variables.json",
+            "momento": "2026-11-20T23:55:08",
+            "detalle": {
+              "archivo": "tabla_modelado_r120.parquet",
+              "sha256": "9f7273d62c56838387a2106cbc99acf045a8b4dba57daf5ceb387ba5b061e6b0",
+              "coincide": true
+            }
+          },
+          {
+            "operacion": "separar",
+            "criterio": "X = columnas de la tabla menos fecha_hora y demanda_mwh, cada una reconocida por variables.construir",
+            "momento": "2026-11-20T23:55:08",
+            "detalle": {
+              "filas": 49417,
+              "variables": [
+                "lag_168",
+                "ma_168",
+                "std_168",
+                "temperatura_c",
+                "hora_sin",
+                "hora_cos",
+                "dia_semana_sin",
+                "dia_semana_cos",
+                "mes_sin",
+                "mes_cos",
+                "es_festivo",
+                "es_vispera_festivo",
+                "es_puente",
+                "es_semana_santa",
+                "es_ultima_semana_diciembre"
+              ],
+              "n_variables": 15,
+              "objetivo": "demanda_mwh",
+              "rezago_minimo_h": 120,
+              "rango": [
+                "2021-01-12 23:00:00-05:00",
+                "2026-09-02 23:00:00-05:00"
+              ],
+              "zona_horaria": "America/Bogota",
+              "nan_por_variable": {},
+              "nan_objetivo": 0
+            }
+          }
+        ]
+      },
+      "particion": {
+        "operacion": "particionar",
+        "criterio": "tres bloques cronologicos consecutivos por fecha de corte (ultimo dia incluido, hora local), sin barajar",
+        "momento": "2026-11-20T23:55:08",
+        "detalle": {
+          "filas": 49417,
+          "zona_horaria": "America/Bogota",
+          "cortes": {
+            "entrenamiento": "2024-09-02",
+            "validacion": "2025-09-02",
+            "prueba": "2026-09-02"
+          },
+          "bloques": {
+            "entrenamiento": {
+              "filas": 31897,
+              "desde": "2021-01-12 23:00:00-05:00",
+              "hasta": "2024-09-02 23:00:00-05:00",
+              "fecha_corte": "2024-09-02"
+            },
+            "validacion": {
+              "filas": 8760,
+              "desde": "2024-09-03 00:00:00-05:00",
+              "hasta": "2025-09-02 23:00:00-05:00",
+              "fecha_corte": "2025-09-02"
+            },
+            "prueba": {
+              "filas": 8760,
+              "desde": "2025-09-03 00:00:00-05:00",
+              "hasta": "2026-09-02 23:00:00-05:00",
+              "fecha_corte": "2026-09-02",
+              "uso": "reservado para la evaluacion final: no se usa para seleccionar modelos, ajustar hiperparametros ni escalar"
+            }
+          }
+        }
+      },
+      "evaluacion": {
+        "filas_ajuste": 31897,
+        "filas_evaluacion": 8760,
+        "rango_evaluacion": [
+          "2024-09-03 00:00:00-05:00",
+          "2025-09-02 23:00:00-05:00"
+        ]
+      },
+      "baselines": {
+        "operacion": "baselines_disponibles",
+        "criterio": "un baseline por cada rezago de BASELINES presente en X",
+        "momento": "2026-11-20T23:55:08",
+        "detalle": {
+          "disponibles": {
+            "estacional": {
+              "columna": "lag_168",
+              "descripcion": "y_pred(t) = demanda(t - 168 h): la misma hora de la semana anterior"
+            }
+          },
+          "omitidos": {
+            "diario": "lag_24 no esta entre las variables de la tabla: con un rezago_minimo_h mayor que el de lag_24 esa demanda aun no se conoce al predecir"
+          },
+          "referencia": "estacional"
+        }
+      },
+      "modelos": {
+        "estacional": {
+          "descripcion": "y_pred(t) = demanda(t - 168 h): la misma hora de la semana anterior",
+          "columna": "lag_168",
+          "metricas_validacion": {
+            "n": 8760,
+            "mae_mwh": 310.2691535091325,
+            "rmse_mwh": 471.36337183615655,
+            "mape_pct": 3.3498378211977715,
+            "mape_pico_pct": 2.886333907690682,
+            "horas_pico": [
+              18,
+              19,
+              20
+            ],
+            "n_pico": 1095,
+            "error_maximo_diario_mwh": 295.7638935068493,
+            "error_maximo_diario_pct": 2.790736268664339,
+            "n_dias": 365,
+            "sesgo_medio_mwh": -1.432660520547943,
+            "sesgo_medio_pct": -0.015186426274609484,
+            "mejora_mape_pct": null
+          },
+          "mejora_frente_a": null,
+          "tiempos": {
+            "ajuste_s": 7.049999840091914e-05,
+            "prediccion_ms_por_1000_filas": 0.0009931507719718941,
+            "repeticiones_prediccion": 5
+          },
+          "modelo": {
+            "archivo": "baseline_estacional_r120.joblib",
+            "formato": "joblib",
+            "bytes": 699,
+            "sha256": "46e9171ffcb01c0a64b5551d4ec1198d8416852eaf4f7aa0670eca3e7153764d",
+            "ruta": "models/baseline_estacional_r120.joblib"
+          }
+        }
+      }
+    }
+  }
+}

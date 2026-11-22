@@ -1,8 +1,10 @@
 # Ingesta de demanda energética horaria — SIN Colombia
 
 > **Avance del proyecto integrador (Minería de Datos y Cloud Computing):**
-> índice de entregables en [`docs/ENTREGA_AVANCE.md`](docs/ENTREGA_AVANCE.md),
-> reporte IEEE en [`docs/informe/`](docs/informe/), infraestructura en
+> índice de entregables en [`docs/ENTREGA_AVANCE.md`](docs/ENTREGA_AVANCE.md);
+> el modelado supervisado, requisito por requisito, en
+> [`docs/ENTREGA_FINAL.md`](docs/ENTREGA_FINAL.md); reporte IEEE en
+> [`docs/informe/`](docs/informe/), infraestructura en
 > [`infra/`](infra/README.md). Todo se regenera con `python scripts/generar_entrega.py`.
 
 Capa de ingesta para un modelo predictivo de demanda energética horaria del
@@ -53,7 +55,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 292 pruebas, ninguna toca la red
+python -m pytest tests -q          # 445 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -175,6 +177,9 @@ notebooks/
   00_configuracion.ipynb          comprueba entorno, paquete y datasets
   01_carga_y_exploracion.ipynb    columnas, perfiles, la trampa de las versiones de SIMEM
   02_diagnostico_calidad.ipynb    huecos, días incompletos, atípicos por dos criterios
+  03_eda.ipynb                    tendencia, estacionalidad, calendario y temperatura
+  04_mineria_no_supervisada.ipynb K-means sobre la forma del día, reglas y sectores CIIU
+  05_modelado_supervisado.ipynb   de la partición a la selección del modelo final
   limpieza/
     xm_demanda_real/        DemaReal/Sistema, la serie objetivo
     xm_demanda_comercial/   DemaCome/Sistema y coherencia con la real
@@ -282,6 +287,125 @@ completo. Eso va en el modelado, después de la partición temporal.
 exactamente la demanda de esa marca de tiempo, la media y la desviación
 recalculadas a mano coinciden, y alterar la demanda futura no cambia ninguna
 variable anterior.
+
+## Modelado supervisado
+
+Las reglas están en [`CLAUDE.md`](CLAUDE.md). `src/modelado/` carga las dos
+tablas, las parte y mide; `scripts/entrenar.py` ajusta una familia de modelos y
+la evalúa en validación, siempre en r24 y en r120:
+
+```bash
+python scripts/entrenar.py --tabla r24  --familia baseline
+python scripts/entrenar.py --tabla r120 --familia baseline
+python scripts/entrenar.py --tabla r24  --familia lineal          # y lo mismo con r120
+python scripts/entrenar.py --tabla r24  --familia clasificacion   # y lo mismo con r120
+python scripts/entrenar.py --tabla r24  --familia ensembles       # y lo mismo con r120
+python scripts/entrenar.py --tabla r24  --familia busqueda        # después de las anteriores
+python scripts/entrenar.py --tabla r24  --familia interpretabilidad  # explica los modelos guardados
+python scripts/evaluar_final.py                                   # el único paso que usa la prueba
+python scripts/predecir.py --tabla r120                           # predice con el modelo final
+```
+
+`python scripts/generar_entrega.py` encadena todas las familias en r24 y r120 y
+la evaluación final (~1 h; `--sin-busqueda` reutiliza la búsqueda guardada y la
+evaluación en prueba no se repite sin `--reevaluar-prueba`). El recorrido
+completo, llamando a `src/modelado` y leyendo estos JSON, está en
+[`notebooks/05_modelado_supervisado.ipynb`](notebooks/05_modelado_supervisado.ipynb),
+y el resultado y su justificación en
+[`docs/modelado/seleccion.md`](docs/modelado/seleccion.md). Las cifras del
+informe salen de los JSON como macros (`docs/informe/valores_modelado.py`).
+
+| bloque | rango (hora local) | uso |
+|---|---|---|
+| entrenamiento | inicio de la tabla → 2024-09-02 23:00 | ajuste; dentro, `TimeSeriesSplit` (5 pliegues, `gap` = 24 h en r24 y 120 h en r120) |
+| validación | 2024-09-03 → 2025-09-02 23:00 | selección de modelos e hiperparámetros |
+| prueba | 2025-09-03 → 2026-09-02 23:00 | **reservado** para la evaluación final |
+
+`X` son las columnas de la tabla menos `fecha_hora` y `demanda_mwh`; una columna
+que `variables.construir` no reconoce, o que excluye por fuga, hace fallar la
+carga, igual que una tabla cuyo SHA-256 no coincide con su registro. Un MAPE por
+debajo del 1 % lanza `AlertaFuga`.
+
+Resultados en `docs/resultados/modelado_baselines.json`,
+`modelado_regresion.json`, `modelado_clasificacion.json`,
+`modelado_ensembles.json`, `modelado_busqueda.json` y
+`modelado_interpretabilidad.json` (una entrada por
+tabla, con la partición, el entorno,
+las métricas de validación y los tiempos); modelos en `models/`, fuera de git,
+con su SHA-256 anotado en ese JSON.
+
+La familia **lineal** (`src/modelado/regresion.py`) son seis Pipelines
+`StandardScaler` + modelo: `LinearRegression`, polinomial de grado 2 con
+`LinearRegression` y con `Ridge`, `Ridge`, `Lasso` y `ElasticNet`. Los
+hiperparámetros se eligen con `GridSearchCV` sobre el Pipeline completo y el
+`TimeSeriesSplit` del entrenamiento (no con `RidgeCV`/`LassoCV` dentro del
+Pipeline: ahí el escalado vería las filas de validación de cada pliegue). Por
+modelo quedan las métricas por pliegue, las de validación, los tiempos, los
+coeficientes (los que anula Lasso) y el número de condición de la matriz de
+diseño.
+
+La familia **clasificacion** predice `alerta_pico`: si la hora `t` supera el
+percentil 90 de la demanda en la ventana de `ma_168` (definición en el
+[diccionario](docs/diccionario_variables.md#objetivo-de-clasificación-alerta_pico)).
+Pipelines `StandardScaler` + `LogisticRegression(class_weight="balanced")`,
+`KNeighborsClassifier`, `LinearSVC` y `SVC` RBF (una de cada 5 horas del
+entrenamiento, porque su ajuste crece entre cuadrática y cúbicamente con las
+filas), más el baseline «`lag_168` supera el umbral». Se eligen por PR-AUC, no
+por accuracy, y las curvas precisión-recall de validación van a
+`docs/figuras/modelado/precision_recall_r24.png` y `_r120.png`.
+
+La familia **ensembles** (`src/modelado/ensembles.py`) son `RandomForestRegressor`,
+`AdaBoostRegressor` sobre un árbol de profundidad 6, `GradientBoostingRegressor`
+y `HistGradientBoostingRegressor`, con hiperparámetros por defecto razonables.
+Un árbol no predice por encima del máximo que vio, y la demanda crece de un año
+a otro: cada ensemble se entrena sobre el **nivel** (`y = demanda_mwh`) y sobre
+la serie **diferenciada** (`y = demanda_mwh - lag_168`, y a la predicción se le
+suma `lag_168`). Por cada uno quedan el sesgo medio, cuántas predicciones y
+cuántos valores reales de validación superan el máximo de entrenamiento, y el
+sesgo en esas horas. No se usa el error *out-of-bag* de Random Forest (el
+bootstrap mezcla momentos distintos), ni la parada temprana de
+`HistGradientBoosting`, que separaría al azar parte del entrenamiento.
+
+La **busqueda** (`src/modelado/busqueda.py`) lee esos resultados y toma, por
+tabla, los 3 mejores modelos de regresión en validación por MAPE y el mejor
+clasificador por PR-AUC. A cada uno le pasa `GridSearchCV` con una rejilla
+acotada y `RandomizedSearchCV` con distribuciones de `scipy.stats` sobre el
+mismo rango y tantas iteraciones como combinaciones tiene la rejilla: el
+`TimeSeriesSplit` del entrenamiento, `neg_mean_absolute_error` (F1 en
+clasificación), `n_jobs=-1` y `random_state=42`. El mejor de cada búsqueda se
+reentrena con todo el entrenamiento y se evalúa en validación, frente a la
+configuración del paso anterior. La figura
+`docs/figuras/modelado/busqueda_puntaje_tiempo_r24.png` (y `_r120`) traza el
+mejor puntaje de CV acumulado frente al cómputo acumulado de cada método.
+
+La **interpretabilidad** (`src/modelado/interpretabilidad.py`) no entrena: lee
+de `models/` (comprobando su SHA-256) el mejor lineal en las variables
+originales y el mejor ensemble en validación, y los explica sobre la
+validación: importancia por impureza y por permutación, SHAP (`TreeExplainer`
+y `LinearExplainer`; resumen y dependencia de `temperatura_c` por hora), LIME
+en una hora pico laboral, un festivo, un día de Semana Santa y la hora de mayor
+error, y el contraste con la autocorrelación del EDA. Cada modelo del proyecto
+lleva una calificación de interpretabilidad (alta, media o baja) con su motivo.
+
+La **evaluación final** (`scripts/evaluar_final.py`, `src/modelado/final.py`)
+es el único paso que usa el bloque de prueba. Reentrena con entrenamiento +
+validación el baseline estacional, el mejor lineal, el mejor ensemble tras la
+búsqueda y el mejor clasificador, con los hiperparámetros ya elegidos, y los
+evalúa una vez en prueba (no se repite sin `--forzar`). El modelo final se
+elige con una regla fijada sobre validación; la prueba dice si se cumple el
+criterio de éxito (−20 % de MAPE frente al baseline estacional y ventaja en
+horas pico). Escribe la tabla de selección con sus tres ejes (rendimiento,
+interpretabilidad, eficiencia) en `docs/resultados/modelado_seleccion.json`, la
+justificación generada en [`docs/modelado/seleccion.md`](docs/modelado/seleccion.md),
+las predicciones de prueba en `docs/resultados/predicciones_prueba.parquet` y
+`probabilidades_alerta.parquet`, y el modelo final en `models/final_r24.joblib`
+y `final_r120.joblib` con su SHA-256. `scripts/predecir.py` carga ese modelo,
+comprueba su huella y predice a partir de una tabla de modelado.
+
+Métricas de regresión: MAE, RMSE, MAPE, MAPE en horas pico (18–20 h), error
+sobre el máximo diario, sesgo medio (negativo si subestima) y mejora de MAPE
+frente al baseline estacional. Baselines: **estacional**, `y_pred = lag_168`,
+en las dos tablas, y **diario**, `y_pred = lag_24`, solo en r24.
 
 ## Ausencia de fuga temporal
 
@@ -510,6 +634,19 @@ src/mineria/
   estilo.py       paleta y estilo comun de las figuras
 src/variables/
   construir.py    tabla de modelado: rezagos por marca de tiempo, cíclicas, selección
+src/modelado/
+  datos.py        tabla de modelado -> X, y, fechas; SHA-256 y variables de la tabla
+  particion.py    entrenamiento / validación / prueba por fecha; TimeSeriesSplit con gap
+  metricas.py     regresión (MAPE, pico, máximo diario, sesgo), clasificación, alarma de fuga
+  baselines.py    estacional (lag_168) y diario (lag_24) como estimadores de sklearn
+  tiempos.py      tiempo de ajuste y predicción, tamaño serializado, models/ con SHA-256
+  regresion.py    lineal, polinomial (+Ridge), Ridge, Lasso, ElasticNet; GridSearchCV temporal
+  objetivos.py    alerta_pico: demanda(t) > percentil 90 de la ventana de ma_168
+  clasificacion.py  logística, KNN, LinearSVC, SVC RBF submuestreada, baseline; PR-AUC
+  ensembles.py    RF, AdaBoost, GB e HistGB sobre el nivel y sobre y - lag_168
+  busqueda.py     GridSearchCV frente a RandomizedSearchCV para los mejores de cada paso
+  interpretabilidad.py  importancias, SHAP, LIME y calificación de los candidatos finales
+  final.py        reentreno con entrenamiento + validación, evaluación en prueba, elección, residuales
 src/limpieza/
   limpiar.py      limpieza trazable: cada operación devuelve marco + registro
   grupos.py       limpieza de tablas desagregadas, un grupo cada vez
@@ -529,11 +666,14 @@ src/ingesta/
 scripts/
   eda.py                 EDA: figuras en docs/figuras/eda, cifras en docs/resultados/eda.json
   mineria_no_supervisada.py  clustering, reglas y sectores -> docs/figuras/mineria
-  generar_entrega.py     encadena panel, EDA, mineria, costos y el PDF del informe
+  generar_entrega.py     encadena panel, EDA, mineria, modelado, evaluacion final, costos, notebooks y el PDF
   descargar_datasets.py  genera datasets/ en CSV, tramo a tramo
   generar_notebooks.py   define y regenera los notebooks
   construir_panel.py  demanda limpia + clima + calendario -> panel de modelado
   construir_variables.py  panel -> tablas de modelado r24 y r120 + registro
+  entrenar.py         ajusta y evalúa una familia en validación -> docs/resultados/modelado_*.json
+  evaluar_final.py    evaluación única en prueba, tabla de selección y docs/modelado/seleccion.md
+  predecir.py         predicciones del modelo final a partir de una tabla de modelado
   explorar_apis.py    vuelca el JSON crudo y describe su estructura
   verificar_apis.py   comprueba los invariantes de los que depende el código
   reconciliar.py      XM vs SIMEM; resuelve empíricamente la convención HourNN
@@ -546,6 +686,13 @@ tests/
   test_complementarias.py pesos, ponderación, Ley Emiliani, validación del merge
   test_criticos.py    lo que falla en silencio + ausencia de fuga temporal
   test_variables.py   fuga temporal de la tabla de modelado, en r24 y en r120
+  test_modelado_base.py  partición, TimeSeriesSplit, métricas a mano, baselines, sin fuga
+  test_modelado_regresion.py  la validación no entra en el ajuste; reproducibilidad
+  test_modelado_clasificacion.py  umbral de alerta_pico sin fuga; clasificadores sin validación
+  test_modelado_ensembles.py  el bosque no pasa del máximo sobre el nivel; diferenciado sí; sin fuga
+  test_modelado_busqueda.py  selección de candidatos, mismo espacio en Grid y Random, sin fuga
+  test_modelado_interpretabilidad.py  SHAP suma la predicción; casos de LIME; selección y calificaciones
+  test_modelado_final.py  el ajuste final no ve la prueba; regla de elección; alarma de fuga; predecir.py
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
   test_datasets.py    escritor de CSV: escritura atómica, orden fijo, gzip
@@ -554,8 +701,15 @@ tests/
 descargar.py          CLI de la capa cruda
 docs/
   diccionario_variables.md  una fila por columna de la tabla de modelado
+  ENTREGA_AVANCE.md   entregables del avance (minería y cloud)
+  ENTREGA_FINAL.md    requisitos de machine learning -> evidencia en el repo
+  modelado/seleccion.md  elección del modelo final, generada desde modelado_seleccion.json
+  resultados/         JSON de cada paso (eda, mineria, modelado_*) y predicciones de prueba
+  figuras/            eda/, mineria/, modelado/, cloud/
+  informe/            reporte IEEE; generar_valores.py y valores_modelado.py -> macros
+models/               modelos entrenados (fuera de git), con su SHA-256 en los JSON
 datasets/             CSV de trabajo (fuera de git salvo README, manifiesto y registros)
   limpios/            salidas de los notebooks de limpieza
-notebooks/            00–02 exploración y diagnóstico
+notebooks/            00–02 exploración y diagnóstico, 03 EDA, 04 minería, 05 modelado supervisado
   limpieza/           una carpeta por dataset: xm_* y simem_*
 ```

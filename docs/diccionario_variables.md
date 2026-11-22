@@ -122,6 +122,34 @@ El número de filas solo cambia por dos motivos, y el registro los cuadra en
 
 ---
 
+## Objetivo de clasificación: `alerta_pico`
+
+No es una columna de la tabla: lo construye el modelado a partir de
+`demanda_mwh` y `fecha_hora` (`src/modelado/objetivos.py`,
+`construir_alerta_pico`), y su registro va en
+`docs/resultados/modelado_clasificacion.json`. Ninguna variable de `X` lo usa.
+
+| columna | descripción | unidad | cálculo | disponible desde | ¿apta como variable? |
+|---|---|---|---|---|---|
+| `umbral_alerta_mwh` | percentil 90 de la demanda reciente | MWh | percentil 90 (interpolación lineal, como `numpy.percentile`) de las 168 horas `t − r − 167 h` … `t − r`, la misma ventana que `ma_168`; por marca de tiempo, desplazando la serie `r` horas **antes** de la ventana y exigiendo la ventana completa | `t − r` | **no**: define el objetivo |
+| `alerta_pico` | **objetivo de clasificación**: la hora `t` supera el umbral | 0/1 | `1` si `demanda_mwh(t) > umbral_alerta_mwh(t)` (comparación estricta), `0` si no | igual que `demanda_mwh` | **no**: es el objetivo |
+
+`r` es el `rezago_minimo_h` de la tabla: 24 en r24 y 120 en r120, así que el
+umbral cambia de una versión a otra igual que `ma_168`. Al predecir `t` el
+umbral ya se conoce; lo que se predice es si la hora lo superará.
+
+- **Sin fuga temporal.** Alterar la demanda posterior a `t − r` no cambia el
+  umbral de la fila `t` (`tests/test_modelado_clasificacion.py`).
+- **Arranque.** El umbral se calcula con la demanda de la propia tabla, así que
+  sus primeras `r + 167` filas (191 en r24, 287 en r120) no tienen ventana
+  completa: quedan sin objetivo y no entran en el entrenamiento.
+- **Proporción de positivos.** El registro la da para entrenamiento y
+  validación. La del bloque de prueba no se calcula: es el objetivo del bloque
+  reservado para la evaluación final.
+- **Baseline.** Alerta si `lag_168` supera el mismo umbral.
+
+---
+
 ## Qué no se hace aquí
 
 - **No se normaliza, escala ni imputa** con estadísticos del conjunto completo.
