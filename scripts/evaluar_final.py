@@ -125,11 +125,14 @@ def evaluar_tabla(clave: str, previos: dict[str, Any], dir_datos: Path) -> dict[
         modelos[rol], ajustes[rol] = final.reentrenar(candidato, X, y, objetivo, fechas, indices)
     calibrador, registro_calibrador = final.calibrador_platt(candidatos["clasificador"], X, objetivo, indices)
 
+    # La eleccion se hace antes de tocar la prueba: metricas de validacion de cada paso y, para
+    # desempatar, el tiempo de prediccion medido sobre las filas de validacion.
+    calificaciones = previos["interpretabilidad"]["tablas"][clave]["calificaciones"]
+    ms_validacion = final.tiempos_prediccion(modelos, X.iloc[indices["validacion"]])
+    rol_final, eleccion = final.elegir_final(candidatos, calificaciones, ms_validacion)
+
     log.info("%s: evaluacion en prueba", clave)
     evaluacion = final.evaluar_prueba(candidatos, modelos, calibrador, X, y, objetivo, fechas, indices)
-
-    calificaciones = previos["interpretabilidad"]["tablas"][clave]["calificaciones"]
-    rol_final, eleccion = final.elegir_final(candidatos, calificaciones, evaluacion["prediccion_ms"])
 
     prueba = indices["prueba"]
     return {

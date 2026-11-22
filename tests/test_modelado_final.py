@@ -189,6 +189,26 @@ def test_la_regla_de_eleccion(lineal, ensemble, esperado, nota):
     assert "validacion" in registro["bloque"]
 
 
+def test_la_eleccion_no_depende_del_bloque_de_prueba(carpeta_tablas, panel, tmp_path):
+    """Con la prueba alterada por completo, el modelo final elegido y sus razones son los mismos."""
+    evaluar_final = _script("evaluar_final")
+    alterado = panel.copy()
+    en_prueba = alterado["fecha_hora"] >= pd.Timestamp("2025-09-03", tz="America/Bogota")
+    alterado.loc[en_prueba, "valor_kwh"] *= 3.0
+    alterado.loc[en_prueba, "temperatura_c"] += 15.0
+    carpeta_alterada = guardar_tablas(alterado, tmp_path / "alterado")
+    contenido = previos(claves=("r24",))
+    original = evaluar_final.evaluar_tabla("r24", contenido, carpeta_tablas)
+    otro = evaluar_final.evaluar_tabla("r24", contenido, carpeta_alterada)
+
+    assert original["rol_final"] == otro["rol_final"]
+    for rol, evaluado in original["eleccion"]["evaluados"].items():
+        assert evaluado["criterio_validacion"] == otro["eleccion"]["evaluados"][rol]["criterio_validacion"]
+    assert "validacion" in original["eleccion"]["desempate_tiempo"]
+    # Control: la prueba si cambio, y sus metricas lo notan.
+    assert original["evaluacion"]["metricas"]["baseline"] != otro["evaluacion"]["metricas"]["baseline"]
+
+
 def test_cumple_criterio_a_mano():
     c = final.cumple_criterio({"mape_pct": 2.68, "mape_pico_pct": 2.0}, {"mape_pct": 3.35, "mape_pico_pct": 2.9})
     assert c["mejora_mape_pct"] == pytest.approx(20.0) and c["mejora_suficiente"] and c["cumple"]

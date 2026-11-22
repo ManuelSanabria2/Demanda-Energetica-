@@ -6,7 +6,7 @@ Este es el único paso que usa el bloque de prueba (2025-09-03 → 2026-09-02). 
 
 ## Regla de elección
 
-La elección se hizo **con validación, antes de mirar la prueba**: elegibles: mejora de MAPE >= 20 % y MAPE en horas pico menor que el del baseline, en validacion; gana el menor MAPE de validacion; empate a menos de 0.05 puntos: mas interpretable y despues mas rapido al predecir. La prueba solo dice si el criterio de éxito se sostiene fuera de la muestra con la que se eligió.
+La elección se hizo **con validación, antes de mirar la prueba**: elegibles: mejora de MAPE >= 20 % y MAPE en horas pico menor que el del baseline, en validacion; gana el menor MAPE de validacion; empate a menos de 0.05 puntos: mas interpretable y despues mas rapido al predecir (medido en validacion). La prueba solo dice si el criterio de éxito se sostiene fuera de la muestra con la que se eligió.
 
 Criterio de éxito del proyecto: reducir al menos un 20 % el MAPE del baseline estacional (`lag_168`) y mantener la ventaja en las horas pico (18:00, 19:00, 20:00).
 
@@ -17,8 +17,8 @@ Criterio de éxito del proyecto: reducir al menos un 20 % el MAPE del baseline e
 | rol | modelo | MAPE val. | MAPE prueba | MAPE pico prueba | mejora prueba | sesgo prueba | interpretabilidad | ajuste | predicción / 1000 filas | tamaño |
 |---|---|---|---|---|---|---|---|---|---|---|
 | baseline | baseline estacional (lag_168) | 3,35 % | 3,54 % | 3,12 % | — | -15 MWh | alta | 0,0 s | 0,00 ms | 0,7 KB |
-| lineal | polinomial_ridge | 2,18 % | 2,28 % | 2,40 % | +35,7 % | -126 MWh | media | 0,1 s | 0,90 ms | 3,3 KB |
-| ensemble | hist_gradient (nivel) **(final)** | 1,86 % | 2,21 % | 2,87 % | +37,7 % | -115 MWh | baja | 1,0 s | 8,19 ms | 1,1 MB |
+| lineal | polinomial_ridge | 2,18 % | 2,28 % | 2,40 % | +35,7 % | -126 MWh | media | 0,1 s | 1,26 ms | 3,3 KB |
+| ensemble | hist_gradient (nivel) **(final)** | 1,86 % | 2,21 % | 2,87 % | +37,7 % | -115 MWh | baja | 1,4 s | 9,11 ms | 1,1 MB |
 
 MAE, RMSE y error sobre el máximo diario de cada candidato están en el JSON (`metricas_prueba`).
 
@@ -29,7 +29,7 @@ MAE, RMSE y error sobre el máximo diario de cada candidato están en el JSON (`
 - `lineal` (polinomial_ridge): MAPE de validación 2,18 %, cumple el criterio en validación; interpretabilidad media.
 - `ensemble` (hist_gradient (nivel)): MAPE de validación 1,86 %, cumple el criterio en validación; interpretabilidad baja.
 
-Frente a polinomial_ridge: el final tiene 1,86 % de MAPE de validación contra 2,18 %; a cambio, su interpretabilidad es baja (la del otro, media) y predice en 8,19 ms por 1000 filas frente a 0,90 ms.
+Frente a polinomial_ridge: el final tiene 1,86 % de MAPE de validación contra 2,18 %; a cambio, su interpretabilidad es baja (la del otro, media) y predice en 9,11 ms por 1000 filas frente a 1,26 ms.
 
 El baseline estacional se queda como referencia: no tiene parámetros y es la cota que cualquier modelo tiene que superar.
 
@@ -73,8 +73,8 @@ svm_rbf: PR-AUC 0,800 (prevalencia 11,4 %), ROC-AUC 0,972, F1 0,725, precisión 
 | rol | modelo | MAPE val. | MAPE prueba | MAPE pico prueba | mejora prueba | sesgo prueba | interpretabilidad | ajuste | predicción / 1000 filas | tamaño |
 |---|---|---|---|---|---|---|---|---|---|---|
 | baseline | baseline estacional (lag_168) | 3,35 % | 3,54 % | 3,12 % | — | -15 MWh | alta | 0,0 s | 0,00 ms | 0,7 KB |
-| lineal | polinomial_ridge | 2,87 % | 3,10 % | 3,64 % | +12,4 % | -208 MWh | media | 0,1 s | 0,87 ms | 3,1 KB |
-| ensemble | random_forest (nivel) **(final)** | 2,66 % | 3,28 % | 3,83 % | +7,4 % | -237 MWh | baja | 3,1 s | 14,32 ms | 57,6 MB |
+| lineal | polinomial_ridge | 2,87 % | 3,10 % | 3,64 % | +12,4 % | -208 MWh | media | 0,1 s | 1,19 ms | 3,1 KB |
+| ensemble | random_forest (nivel) **(final)** | 2,66 % | 3,28 % | 3,83 % | +7,4 % | -237 MWh | baja | 3,7 s | 19,73 ms | 57,6 MB |
 
 MAE, RMSE y error sobre el máximo diario de cada candidato están en el JSON (`metricas_prueba`).
 
@@ -85,7 +85,7 @@ MAE, RMSE y error sobre el máximo diario de cada candidato están en el JSON (`
 - `lineal` (polinomial_ridge): MAPE de validación 2,87 %, no cumple el criterio en validación (mejora de +14,3 %, por debajo del 20 %; MAPE pico de 3,11 % frente a 2,89 % del baseline); interpretabilidad media.
 - `ensemble` (random_forest (nivel)): MAPE de validación 2,66 %, cumple el criterio en validación; interpretabilidad baja.
 
-Frente a polinomial_ridge: el final tiene 2,66 % de MAPE de validación contra 2,87 %; a cambio, su interpretabilidad es baja (la del otro, media) y predice en 14,32 ms por 1000 filas frente a 0,87 ms.
+Frente a polinomial_ridge: el final tiene 2,66 % de MAPE de validación contra 2,87 %; a cambio, su interpretabilidad es baja (la del otro, media) y predice en 19,73 ms por 1000 filas frente a 1,19 ms.
 
 El baseline estacional se queda como referencia: no tiene parámetros y es la cota que cualquier modelo tiene que superar.
 

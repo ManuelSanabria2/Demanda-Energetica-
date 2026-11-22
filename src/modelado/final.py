@@ -264,10 +264,19 @@ def cumple_criterio(metricas: dict[str, Any], baseline: dict[str, Any]) -> dict[
     }
 
 
+def tiempos_prediccion(modelos: dict[str, BaseEstimator], X_validacion: pd.DataFrame) -> dict[str, float]:
+    """ms por 1000 filas de cada modelo de regresion, medidos en validacion (para desempatar sin mirar la prueba)."""
+    return {rol: medir_prediccion(modelos[rol], X_validacion)[1]["detalle"]["ms_por_1000_filas"]
+            for rol in ROLES_REGRESION if rol in modelos}
+
+
 def elegir_final(
     candidatos: dict[str, Candidato], calificaciones: dict[str, dict[str, str]], prediccion_ms: dict[str, float]
 ) -> tuple[str, dict[str, Any]]:
-    """Rol del modelo final segun la regla del modulo, solo con metricas de validacion."""
+    """Rol del modelo final segun la regla del modulo, solo con metricas de validacion.
+
+    `prediccion_ms` (solo para desempatar) tiene que medirse en validacion: ver `tiempos_prediccion`.
+    """
     base = candidatos["baseline"].validacion
     evaluados = {}
     for rol in ROLES_REGRESION:
@@ -303,9 +312,10 @@ def elegir_final(
         "regla": (
             f"elegibles: mejora de MAPE >= {CRITERIO_MEJORA_PCT:.0f} % y MAPE en horas pico menor que el "
             f"del baseline, en validacion; gana el menor MAPE de validacion; empate a menos de "
-            f"{UMBRAL_EMPATE_PUNTOS} puntos: mas interpretable y despues mas rapido al predecir"
+            f"{UMBRAL_EMPATE_PUNTOS} puntos: mas interpretable y despues mas rapido al predecir (medido en validacion)"
         ),
         "bloque": "validacion (la prueba no interviene en la eleccion)",
+        "desempate_tiempo": "ms por 1000 filas medidos en validacion",
         "evaluados": evaluados,
         "elegibles": elegibles,
         "elegido": mejor,
@@ -456,5 +466,6 @@ __all__ = [
     "residuales",
     "seleccionar_candidatos",
     "tamano_serializado",
+    "tiempos_prediccion",
     "tipo_de_dia",
 ]

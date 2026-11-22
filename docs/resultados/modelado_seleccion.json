@@ -1,6 +1,6 @@
 {
   "version_formato": 1,
-  "momento": "2026-11-21T21:04:43",
+  "momento": "2026-11-21T21:39:54",
   "entorno": {
     "python": "3.12.10",
     "numpy": "1.26.4",
@@ -15,7 +15,7 @@
     "2025-09-03 00:00:00-05:00",
     "2026-09-02 23:00:00-05:00"
   ],
-  "regla_eleccion": "elegibles: mejora de MAPE >= 20 % y MAPE en horas pico menor que el del baseline, en validacion; gana el menor MAPE de validacion; empate a menos de 0.05 puntos: mas interpretable y despues mas rapido al predecir",
+  "regla_eleccion": "elegibles: mejora de MAPE >= 20 % y MAPE en horas pico menor que el del baseline, en validacion; gana el menor MAPE de validacion; empate a menos de 0.05 puntos: mas interpretable y despues mas rapido al predecir (medido en validacion)",
   "criterio_exito": {
     "mejora_mape_minima_pct": 20.0,
     "ventaja_en_pico": "MAPE en horas pico menor que el del baseline estacional"
@@ -33,7 +33,7 @@
     "r24": {
       "datos": {
         "version_formato": 1,
-        "momento": "2026-11-21T21:04:14",
+        "momento": "2026-11-21T21:39:12",
         "tabla": "r24",
         "archivo": "tabla_modelado_r24.parquet",
         "sha256": "6bb6260ce166b2dbeb72167fd3a4daad4c13755673873eecd7817f5fae3b847f",
@@ -65,7 +65,7 @@
           {
             "operacion": "verificar_sha256",
             "criterio": "SHA-256 del Parquet igual al anotado en registro_variables.json",
-            "momento": "2026-11-21T21:04:14",
+            "momento": "2026-11-21T21:39:12",
             "detalle": {
               "archivo": "tabla_modelado_r24.parquet",
               "sha256": "6bb6260ce166b2dbeb72167fd3a4daad4c13755673873eecd7817f5fae3b847f",
@@ -75,7 +75,7 @@
           {
             "operacion": "separar",
             "criterio": "X = columnas de la tabla menos fecha_hora y demanda_mwh, cada una reconocida por variables.construir",
-            "momento": "2026-11-21T21:04:14",
+            "momento": "2026-11-21T21:39:12",
             "detalle": {
               "filas": 49513,
               "variables": [
@@ -113,7 +113,7 @@
       "particion": {
         "operacion": "particionar",
         "criterio": "tres bloques cronologicos consecutivos por fecha de corte (ultimo dia incluido, hora local), sin barajar",
-        "momento": "2026-11-21T21:04:14",
+        "momento": "2026-11-21T21:39:12",
         "detalle": {
           "filas": 49513,
           "zona_horaria": "America/Bogota",
@@ -148,7 +148,7 @@
       "objetivo_alerta": {
         "operacion": "construir_alerta_pico",
         "criterio": "alerta_pico(t) = 1 si demanda_mwh(t) > percentil 90 de demanda_mwh en las 168 h que acaban en t - 24 h; 0 si no",
-        "momento": "2026-11-21T21:04:14",
+        "momento": "2026-11-21T21:39:12",
         "detalle": {
           "rezago_minimo_h": 24,
           "percentil": 90,
@@ -185,7 +185,7 @@
       "seleccion_candidatos": {
         "operacion": "seleccionar_candidatos",
         "criterio": "lineal y ensemble por menor MAPE de validacion; clasificador por mayor PR-AUC de validacion; sin volver a buscar hiperparametros",
-        "momento": "2026-11-21T21:04:14",
+        "momento": "2026-11-21T21:39:12",
         "detalle": {
           "candidatos": {
             "baseline": {
@@ -367,8 +367,8 @@
             "motivo": "la prediccion es lag_168, sin parametros."
           },
           "eficiencia": {
-            "ajuste_s": 0.00018809999983204762,
-            "prediccion_ms_por_1000_filas": 0.0008447488537191129,
+            "ajuste_s": 0.00011750000157917384,
+            "prediccion_ms_por_1000_filas": 0.0009817351599342985,
             "tamano_bytes": 708
           },
           "ajuste": {
@@ -376,7 +376,7 @@
             "desde": "2021-01-08 23:00:00-05:00",
             "hasta": "2025-09-02 23:00:00-05:00",
             "submuestra_paso_h": 1,
-            "ajuste_s": 0.00018809999983204762
+            "ajuste_s": 0.00011750000157917384
           },
           "modelo_guardado": {
             "archivo": "prueba_baseline_r24.joblib",
@@ -430,8 +430,8 @@
             "motivo": "152 terminos con interacciones; Ridge los estabiliza pero no se leen por variable."
           },
           "eficiencia": {
-            "ajuste_s": 0.09547010000005685,
-            "prediccion_ms_por_1000_filas": 0.9044292237916677,
+            "ajuste_s": 0.14793439999994007,
+            "prediccion_ms_por_1000_filas": 1.2642123287873366,
             "tamano_bytes": 3294
           },
           "ajuste": {
@@ -439,7 +439,7 @@
             "desde": "2021-01-08 23:00:00-05:00",
             "hasta": "2025-09-02 23:00:00-05:00",
             "submuestra_paso_h": 1,
-            "ajuste_s": 0.09547010000005685
+            "ajuste_s": 0.14793439999994007
           },
           "modelo_guardado": {
             "archivo": "prueba_lineal_r24.joblib",
@@ -495,8 +495,8 @@
             "motivo": "cientos de arboles sobre variables discretizadas; TreeSHAP exacto y rapido."
           },
           "eficiencia": {
-            "ajuste_s": 1.0442980999996507,
-            "prediccion_ms_por_1000_filas": 8.186894977113202,
+            "ajuste_s": 1.3776651000007405,
+            "prediccion_ms_por_1000_filas": 9.110045661992906,
             "tamano_bytes": 1094896
           },
           "ajuste": {
@@ -504,7 +504,7 @@
             "desde": "2021-01-08 23:00:00-05:00",
             "hasta": "2025-09-02 23:00:00-05:00",
             "submuestra_paso_h": 1,
-            "ajuste_s": 1.0442980999996507
+            "ajuste_s": 1.3776651000007405
           },
           "modelo_guardado": {
             "archivo": "final_r24.joblib",
@@ -572,8 +572,8 @@
             "motivo": "kernel RBF sobre ~1 800 vectores de soporte; sin pesos por variable."
           },
           "eficiencia": {
-            "ajuste_s": 0.670197399999779,
-            "prediccion_ms_por_1000_filas": 131.2077853881793,
+            "ajuste_s": 0.8193818999989162,
+            "prediccion_ms_por_1000_filas": 198.79083333326477,
             "tamano_bytes": 286058
           },
           "ajuste": {
@@ -581,7 +581,7 @@
             "desde": "2021-01-16 22:00:00-05:00",
             "hasta": "2025-09-02 22:00:00-05:00",
             "submuestra_paso_h": 5,
-            "ajuste_s": 0.670197399999779
+            "ajuste_s": 0.8193818999989162
           },
           "modelo_guardado": {
             "archivo": "prueba_clasificador_r24.joblib",
@@ -593,8 +593,9 @@
         }
       ],
       "eleccion": {
-        "regla": "elegibles: mejora de MAPE >= 20 % y MAPE en horas pico menor que el del baseline, en validacion; gana el menor MAPE de validacion; empate a menos de 0.05 puntos: mas interpretable y despues mas rapido al predecir",
+        "regla": "elegibles: mejora de MAPE >= 20 % y MAPE en horas pico menor que el del baseline, en validacion; gana el menor MAPE de validacion; empate a menos de 0.05 puntos: mas interpretable y despues mas rapido al predecir (medido en validacion)",
         "bloque": "validacion (la prueba no interviene en la eleccion)",
+        "desempate_tiempo": "ms por 1000 filas medidos en validacion",
         "evaluados": {
           "lineal": {
             "mape_validacion_pct": 2.179043705958018,
@@ -607,7 +608,7 @@
               "cumple": true
             },
             "interpretabilidad": "media",
-            "prediccion_ms_por_1000_filas": 0.9044292237916677
+            "prediccion_ms_por_1000_filas": 1.2722374430014918
           },
           "ensemble": {
             "mape_validacion_pct": 1.8644903878354961,
@@ -620,7 +621,7 @@
               "cumple": true
             },
             "interpretabilidad": "baja",
-            "prediccion_ms_por_1000_filas": 8.186894977113202
+            "prediccion_ms_por_1000_filas": 8.95163242017738
           }
         },
         "elegibles": [
@@ -1098,7 +1099,7 @@
     "r120": {
       "datos": {
         "version_formato": 1,
-        "momento": "2026-11-21T21:04:25",
+        "momento": "2026-11-21T21:39:28",
         "tabla": "r120",
         "archivo": "tabla_modelado_r120.parquet",
         "sha256": "9f7273d62c56838387a2106cbc99acf045a8b4dba57daf5ceb387ba5b061e6b0",
@@ -1129,7 +1130,7 @@
           {
             "operacion": "verificar_sha256",
             "criterio": "SHA-256 del Parquet igual al anotado en registro_variables.json",
-            "momento": "2026-11-21T21:04:25",
+            "momento": "2026-11-21T21:39:28",
             "detalle": {
               "archivo": "tabla_modelado_r120.parquet",
               "sha256": "9f7273d62c56838387a2106cbc99acf045a8b4dba57daf5ceb387ba5b061e6b0",
@@ -1139,7 +1140,7 @@
           {
             "operacion": "separar",
             "criterio": "X = columnas de la tabla menos fecha_hora y demanda_mwh, cada una reconocida por variables.construir",
-            "momento": "2026-11-21T21:04:25",
+            "momento": "2026-11-21T21:39:28",
             "detalle": {
               "filas": 49417,
               "variables": [
@@ -1176,7 +1177,7 @@
       "particion": {
         "operacion": "particionar",
         "criterio": "tres bloques cronologicos consecutivos por fecha de corte (ultimo dia incluido, hora local), sin barajar",
-        "momento": "2026-11-21T21:04:25",
+        "momento": "2026-11-21T21:39:28",
         "detalle": {
           "filas": 49417,
           "zona_horaria": "America/Bogota",
@@ -1211,7 +1212,7 @@
       "objetivo_alerta": {
         "operacion": "construir_alerta_pico",
         "criterio": "alerta_pico(t) = 1 si demanda_mwh(t) > percentil 90 de demanda_mwh en las 168 h que acaban en t - 120 h; 0 si no",
-        "momento": "2026-11-21T21:04:25",
+        "momento": "2026-11-21T21:39:28",
         "detalle": {
           "rezago_minimo_h": 120,
           "percentil": 90,
@@ -1248,7 +1249,7 @@
       "seleccion_candidatos": {
         "operacion": "seleccionar_candidatos",
         "criterio": "lineal y ensemble por menor MAPE de validacion; clasificador por mayor PR-AUC de validacion; sin volver a buscar hiperparametros",
-        "momento": "2026-11-21T21:04:25",
+        "momento": "2026-11-21T21:39:28",
         "detalle": {
           "candidatos": {
             "baseline": {
@@ -1425,8 +1426,8 @@
             "motivo": "la prediccion es lag_168, sin parametros."
           },
           "eficiencia": {
-            "ajuste_s": 0.00016869999944901792,
-            "prediccion_ms_por_1000_filas": 0.0008105022252535184,
+            "ajuste_s": 0.00013760000001639128,
+            "prediccion_ms_por_1000_filas": 0.0014497717234734488,
             "tamano_bytes": 699
           },
           "ajuste": {
@@ -1434,7 +1435,7 @@
             "desde": "2021-01-12 23:00:00-05:00",
             "hasta": "2025-09-02 23:00:00-05:00",
             "submuestra_paso_h": 1,
-            "ajuste_s": 0.00016869999944901792
+            "ajuste_s": 0.00013760000001639128
           },
           "modelo_guardado": {
             "archivo": "prueba_baseline_r120.joblib",
@@ -1488,8 +1489,8 @@
             "motivo": "152 terminos con interacciones; Ridge los estabiliza pero no se leen por variable."
           },
           "eficiencia": {
-            "ajuste_s": 0.0908104000000094,
-            "prediccion_ms_por_1000_filas": 0.8651255707658302,
+            "ajuste_s": 0.10590140000022075,
+            "prediccion_ms_por_1000_filas": 1.1879223745369292,
             "tamano_bytes": 3110
           },
           "ajuste": {
@@ -1497,7 +1498,7 @@
             "desde": "2021-01-12 23:00:00-05:00",
             "hasta": "2025-09-02 23:00:00-05:00",
             "submuestra_paso_h": 1,
-            "ajuste_s": 0.0908104000000094
+            "ajuste_s": 0.10590140000022075
           },
           "modelo_guardado": {
             "archivo": "prueba_lineal_r120.joblib",
@@ -1549,8 +1550,8 @@
             "motivo": "200 arboles profundos; se explica a posteriori con TreeSHAP exacto, pero es lento."
           },
           "eficiencia": {
-            "ajuste_s": 3.068047700000534,
-            "prediccion_ms_por_1000_filas": 14.323105022861592,
+            "ajuste_s": 3.7196231999987504,
+            "prediccion_ms_por_1000_filas": 19.734771689458217,
             "tamano_bytes": 57591585
           },
           "ajuste": {
@@ -1558,7 +1559,7 @@
             "desde": "2021-01-12 23:00:00-05:00",
             "hasta": "2025-09-02 23:00:00-05:00",
             "submuestra_paso_h": 1,
-            "ajuste_s": 3.068047700000534
+            "ajuste_s": 3.7196231999987504
           },
           "modelo_guardado": {
             "archivo": "final_r120.joblib",
@@ -1625,8 +1626,8 @@
             "motivo": "kernel RBF sobre ~1 800 vectores de soporte; sin pesos por variable."
           },
           "eficiencia": {
-            "ajuste_s": 0.7188611000001401,
-            "prediccion_ms_por_1000_filas": 167.3266210046224,
+            "ajuste_s": 0.9078608999989228,
+            "prediccion_ms_por_1000_filas": 240.74843607311644,
             "tamano_bytes": 325738
           },
           "ajuste": {
@@ -1634,7 +1635,7 @@
             "desde": "2021-01-24 22:00:00-05:00",
             "hasta": "2025-09-02 19:00:00-05:00",
             "submuestra_paso_h": 5,
-            "ajuste_s": 0.7188611000001401
+            "ajuste_s": 0.9078608999989228
           },
           "modelo_guardado": {
             "archivo": "prueba_clasificador_r120.joblib",
@@ -1646,8 +1647,9 @@
         }
       ],
       "eleccion": {
-        "regla": "elegibles: mejora de MAPE >= 20 % y MAPE en horas pico menor que el del baseline, en validacion; gana el menor MAPE de validacion; empate a menos de 0.05 puntos: mas interpretable y despues mas rapido al predecir",
+        "regla": "elegibles: mejora de MAPE >= 20 % y MAPE en horas pico menor que el del baseline, en validacion; gana el menor MAPE de validacion; empate a menos de 0.05 puntos: mas interpretable y despues mas rapido al predecir (medido en validacion)",
         "bloque": "validacion (la prueba no interviene en la eleccion)",
+        "desempate_tiempo": "ms por 1000 filas medidos en validacion",
         "evaluados": {
           "lineal": {
             "mape_validacion_pct": 2.8694146799914244,
@@ -1660,7 +1662,7 @@
               "cumple": false
             },
             "interpretabilidad": "media",
-            "prediccion_ms_por_1000_filas": 0.8651255707658302
+            "prediccion_ms_por_1000_filas": 1.2198059360107187
           },
           "ensemble": {
             "mape_validacion_pct": 2.6570194612833355,
@@ -1673,7 +1675,7 @@
               "cumple": true
             },
             "interpretabilidad": "baja",
-            "prediccion_ms_por_1000_filas": 14.323105022861592
+            "prediccion_ms_por_1000_filas": 20.33837899549517
           }
         },
         "elegibles": [
