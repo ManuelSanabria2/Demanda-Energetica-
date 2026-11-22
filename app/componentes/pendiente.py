@@ -55,16 +55,3 @@ def requerir(*relativas: str) -> bool:
         aviso(relativa)
     return not faltan
 
-
-def en_construccion(paso: str, artefactos: list[str]) -> None:
-    """Pagina creada pero sin contenido todavia: dice que leera y si ya esta disponible."""
-    st.info(
-        f"**Página en construcción** ({paso}). Leerá los artefactos de abajo; los que ya existen "
-        "están marcados y los demás muestran el comando que los genera.",
-        icon=":material/construction:",
-    )
-    for relativa in artefactos:
-        if carga.existe(relativa):
-            st.markdown(f":material/check_circle: `{relativa}` disponible")
-        else:
-            aviso(relativa)

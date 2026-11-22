@@ -31,10 +31,10 @@ sys.path.insert(0, str(RAIZ / "src"))
 sys.path.insert(0, str(APP))
 
 import conftest  # noqa: E402
+from componentes.formato import num, pct  # noqa: E402
 from test_scripts_entrega import panel_dos_anios  # noqa: E402
 
 PAGINAS = sorted(p.stem for p in (APP / "paginas").glob("*.py"))
-PAGINAS_MODELADO = {"modelos", "prediccion", "alertas", "interpretabilidad", "seleccion"}
 
 
 @pytest.fixture(autouse=True)
@@ -121,7 +121,6 @@ def test_cada_artefacto_tiene_un_generador_conocido():
 
 
 def test_formato_espanol():
-    from componentes.formato import num, pct
 
     assert num(49824) == "49 824"
     assert pct(2.2050064, 2) == "2,21 %"
@@ -139,9 +138,8 @@ def test_pagina_con_los_artefactos_reales(pagina, monkeypatch):
     app = _ejecutar(pagina)
     assert not app.exception, [e.value for e in app.exception]
     assert app.title, f"{pagina}: sin titulo"
-    if pagina not in PAGINAS_MODELADO:
-        avisos = [w.value for w in app.warning if "Pendiente" in w.value]
-        assert not avisos, f"{pagina} tiene artefactos pendientes con el repo completo: {avisos}"
+    avisos = [w.value for w in app.warning if "Pendiente" in w.value]
+    assert not avisos, f"{pagina} tiene artefactos pendientes con el repo completo: {avisos}"
 
 
 @pytest.mark.parametrize("pagina", PAGINAS)
@@ -158,8 +156,6 @@ def test_inicio_lee_las_cifras_del_json(monkeypatch):
     """Las cifras clave salen de modelado_seleccion.json, no estan escritas en la pagina."""
     monkeypatch.delenv("SIEM_INTERFAZ_RAIZ", raising=False)
     seleccion = json.loads((RAIZ / "docs" / "resultados" / "modelado_seleccion.json").read_text(encoding="utf-8"))
-    from componentes.formato import pct
-
     app = _ejecutar("inicio")
     valores = {m.label: m.value for m in app.metric}
     mape = seleccion["tablas"]["r24"]["final"]["metricas_prueba"]["mape_pct"]
@@ -179,6 +175,87 @@ def test_filtro_de_reglas(monkeypatch):
     lift.set_value(float(reglas["lift"].quantile(0.5))).run()
     esperadas = int((reglas["lift"] >= lift.value).sum())
     assert any(c.value.startswith(f"{esperadas} de {len(reglas)} reglas") for c in app.caption)
+
+
+@pytest.mark.parametrize("pagina", ["modelos", "prediccion", "alertas", "interpretabilidad", "seleccion"])
+def test_pagina_de_modelado_en_r120(pagina, monkeypatch):
+    """Cada pagina de modelado tiene su selector de version; con r120 tampoco falla."""
+    monkeypatch.delenv("SIEM_INTERFAZ_RAIZ", raising=False)
+    app = _ejecutar(pagina)
+    app.radio[0].set_value("r120").run()
+    assert not app.exception, [e.value for e in app.exception]
+
+
+def test_alertas_con_el_umbral_del_modelo_reproduce_la_evaluacion(monkeypatch):
+    monkeypatch.delenv("SIEM_INTERFAZ_RAIZ", raising=False)
+    seleccion = _leer_json("docs/resultados/modelado_seleccion.json")
+    app = _ejecutar("alertas")
+    registrada = seleccion["tablas"]["r24"]["clasificador_prueba"]["matriz_confusion"]
+    valores = {m.label: m.value for m in app.metric}
+    assert valores["Alertas emitidas"] == num(registrada["vp"] + registrada["fp"])
+    app.slider[0].set_value(0.9).run()
+    assert {m.label: m.value for m in app.metric}["Alertas emitidas"] != valores["Alertas emitidas"]
+
+
+# --------------------------------------------------------------------------
+# componentes.modelado: lo que la app calcula coincide con los JSON
+# --------------------------------------------------------------------------
+
+
+def _leer_json(relativa: str) -> dict:
+    return json.loads((RAIZ / relativa).read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("version", ["r24", "r120"])
+def test_matriz_y_pr_auc_reproducen_la_evaluacion_final(version):
+    from componentes import modelado
+
+    seleccion = _leer_json("docs/resultados/modelado_seleccion.json")["tablas"][version]
+    datos = pd.read_parquet(APP / "datos" / "probabilidades_alerta.parquet")
+    datos = datos[datos["tabla"] == version]
+    real = datos["alerta_real"].to_numpy()
+    umbral = modelado.probabilidad_de_puntaje(0.0, seleccion["calibracion_alerta"])
+    m = modelado.matriz_confusion(real, datos["probabilidad"].to_numpy(), umbral)
+    registro = seleccion["clasificador_prueba"]
+    assert {k: m[k] for k in ("vn", "fp", "fn", "vp")} == {k: registro["matriz_confusion"][k] for k in ("vn", "fp", "fn", "vp")}
+    assert m["f1"] == pytest.approx(registro["f1"])
+    curva = modelado.curva_precision_recall(real, datos["puntaje"].to_numpy())
+    precision_media = float((curva["recall"].diff().fillna(curva["recall"].iloc[0]) * curva["precision"]).sum())
+    assert precision_media == pytest.approx(registro["pr_auc"])
+
+
+def test_mape_de_las_predicciones_coincide_con_el_registro():
+    from componentes import modelado
+
+    seleccion = _leer_json("docs/resultados/modelado_seleccion.json")["tablas"]
+    datos = pd.read_parquet(APP / "datos" / "predicciones_prueba.parquet")
+    for version, tabla in seleccion.items():
+        for rol, metricas in tabla["metricas_prueba"].items():
+            filas = datos[(datos["tabla"] == version) & (datos["rol"] == rol)]
+            assert modelado.mape(filas["real_mwh"], filas["prediccion_mwh"]) == pytest.approx(metricas["mape_pct"]), (version, rol)
+
+
+def test_tablas_de_modelos():
+    from componentes import modelado
+
+    resultados = {f: _leer_json(f"docs/resultados/{a}") for f, a in (
+        ("baseline", "modelado_baselines.json"), ("lineal", "modelado_regresion.json"),
+        ("ensembles", "modelado_ensembles.json"), ("busqueda", "modelado_busqueda.json"))}
+    tabla = modelado.tabla_regresion(resultados, "r24")
+    estacional = tabla[(tabla["familia"] == "Baseline") & (tabla["modelo"] == "estacional")]
+    assert estacional["mape_pct"].iloc[0] == pytest.approx(
+        resultados["baseline"]["tablas"]["r24"]["modelos"]["estacional"]["metricas_validacion"]["mape_pct"])
+    assert {"Baseline", "Lineal", "Ensemble", "Búsqueda"} <= set(tabla["familia"])
+    assert tabla["mape_pct"].notna().all()
+    # r120 no tiene lag_24: no hay baseline diario
+    assert "diario" not in set(modelado.tabla_regresion(resultados, "r120")["modelo"])
+
+    pliegues = modelado.pliegues(resultados, "r24")
+    assert (pliegues.groupby("modelo")["pliegue"].max() == 5).all()
+    trayectorias = modelado.trayectorias_busqueda(resultados["busqueda"], "r24")
+    # el mejor acumulado nunca empeora (MAE: nunca sube)
+    for (_, metodo), serie in trayectorias[trayectorias["candidato"].str.contains("nivel")].groupby(["candidato", "metodo"]):
+        assert serie["mejor_cv"].is_monotonic_decreasing, metodo
 
 
 # --------------------------------------------------------------------------

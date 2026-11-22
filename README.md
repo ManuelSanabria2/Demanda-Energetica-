@@ -439,8 +439,13 @@ de días, una copia de las predicciones y probabilidades del año de prueba, y
 | evaluación | Predicción frente a real, Alertas de pico, Interpretabilidad, Selección y costo |
 | despliegue | Nube: arquitectura y costos |
 
-Las páginas de Modelos, Predicción, Alertas, Interpretabilidad y Selección están
-creadas y por ahora listan los artefactos que van a leer.
+Las páginas de modelado leen `docs/resultados/modelado_*.json` y las
+predicciones del año de prueba: todos los modelos con su error por pliegue y
+Grid frente a Random Search; una semana de prueba con las curvas real, baseline
+y modelo; la alerta de pico con un umbral ajustable que recalcula la matriz de
+confusión y la curva precisión-recall (con el umbral del modelo reproduce la
+evaluación registrada); importancias, SHAP y LIME; y la elección del modelo,
+el costo del rezago (r24 frente a r120) y la evaluación económica.
 
 `app/requirements.txt` fija las versiones (las mismas de `requirements.txt`,
 lo vigila `tests/test_requisitos.py`); **usa Python 3.12**: pyarrow 14 no tiene
