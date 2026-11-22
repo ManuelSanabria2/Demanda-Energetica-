@@ -6,6 +6,9 @@
 > [`docs/ENTREGA_FINAL.md`](docs/ENTREGA_FINAL.md); reporte IEEE en
 > [`docs/informe/`](docs/informe/), infraestructura en
 > [`infra/`](infra/README.md). Todo se regenera con `python scripts/generar_entrega.py`.
+>
+> **Interfaz para la sustentación:** <https://demanda-sin-colombia.streamlit.app>
+> (despliegue, guion y lista de verificación en [`docs/interfaz.md`](docs/interfaz.md)).
 
 Capa de ingesta para un modelo predictivo de demanda energética horaria del
 Sistema Interconectado Nacional colombiano, horizonte 24 h.
@@ -410,7 +413,10 @@ en las dos tablas, y **diario**, `y_pred = lag_24`, solo en r24.
 ## Interfaz para la sustentación
 
 Una aplicación de Streamlit recorre el proyecto en el orden de CRISP-DM, del
-problema al despliegue, con gráficas interactivas de Plotly:
+problema al despliegue, con gráficas interactivas de Plotly. En línea:
+<https://demanda-sin-colombia.streamlit.app>; cómo desplegarla, el guion de la
+sustentación y la lista de verificación del día están en
+[`docs/interfaz.md`](docs/interfaz.md).
 
 ```bash
 pip install -r requirements.txt          # o solo app/requirements.txt para la app
@@ -774,6 +780,7 @@ tests/
 descargar.py          CLI de la capa cruda
 docs/
   diccionario_variables.md  una fila por columna de la tabla de modelado
+  interfaz.md         despliegue de la interfaz, guion de la sustentación y lista del día
   ENTREGA_AVANCE.md   entregables del avance (minería y cloud)
   ENTREGA_FINAL.md    requisitos de machine learning -> evidencia en el repo
   modelado/seleccion.md  elección del modelo final, generada desde modelado_seleccion.json
