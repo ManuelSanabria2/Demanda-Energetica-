@@ -13,6 +13,8 @@ from componentes.formato import num, pct
 SELECCION = "docs/resultados/modelado_seleccion.json"
 COSTOS = "infra/costos/costos.json"
 PREDICCIONES = "app/datos/predicciones_prueba.parquet"
+DOCUMENTO = "docs/modelado/seleccion.md"
+ECONOMICA = "docs/resultados/evaluacion_economica.json"
 NOMBRE_ROL = {"baseline": "Baseline", "lineal": "Lineal", "ensemble": "Ensemble", "clasificador": "Clasificador", "final": "Final"}
 NOMBRE_TIPO = {"laboral": "Laboral", "fin_de_semana": "Fin de semana", "festivo": "Festivo", "semana_santa": "Semana Santa"}
 
@@ -83,6 +85,18 @@ if evaluados:
             )
     if eleccion.get("nota"):
         st.caption(eleccion["nota"])
+
+documento = carga.texto(DOCUMENTO)
+if documento:
+    por_version = carga.secciones(carga.secciones(documento, 2).get(version, ""), 3)
+    if por_version.get("Por qué este modelo"):
+        st.markdown("**Justificación** (de `docs/modelado/seleccion.md`)")
+        with st.container(border=True):
+            st.markdown(por_version["Por qué este modelo"])
+    with st.expander("Documento de selección completo"):
+        st.markdown(documento)
+else:
+    pendiente.aviso(DOCUMENTO)
 
 # --- Prueba -----------------------------------------------------------------
 st.subheader("Resultado en el año de prueba")
@@ -173,6 +187,21 @@ if costo:
 
 # --- Evaluacion economica ---------------------------------------------------
 st.subheader("Evaluación económica")
+economica = carga.json_(ECONOMICA)
+if economica:
+    st.markdown("**Resultado de la evaluación económica**")
+    escalares = {k: v for k, v in economica.items() if not isinstance(v, (dict, list))}
+    if escalares:
+        st.dataframe(pd.Series(escalares, name="valor").astype(str).rename_axis("concepto"))
+    for clave, valor in economica.items():
+        if isinstance(valor, (dict, list)):
+            with st.expander(clave.replace("_", " ")):
+                st.json(valor)
+else:
+    st.info(f"El resultado de la evaluación económica todavía no existe (`{ECONOMICA}`): lo entrega el frente de "
+            "Evaluación Económica de Soluciones de IA. Abajo, los insumos que ya salen de este proyecto.",
+            icon=":material/pending:")
+
 izquierda, derecha = st.columns(2)
 with izquierda:
     st.markdown("**Costo de operar la solución en la nube**")
@@ -195,11 +224,11 @@ with derecha:
     st.markdown("**El error no cuesta lo mismo en las dos direcciones**")
     predicciones = carga.parquet(PREDICCIONES)
     if predicciones is not None:
-        datos = predicciones[(predicciones["tabla"] == version) & predicciones["es_final"]]
+        datos = predicciones[predicciones["tabla"] == version]
         horas = pd.to_datetime(datos["fecha_hora"]).dt.hour
         pico = horas.isin(seleccion.get("horas_pico") or [])
-        subestima = datos["prediccion_mwh"] < datos["real_mwh"]
-        deficit = (datos["real_mwh"] - datos["prediccion_mwh"]).clip(lower=0)
+        subestima = datos["final_mwh"] < datos["real_mwh"]
+        deficit = (datos["real_mwh"] - datos["final_mwh"]).clip(lower=0)
         c1, c2 = st.columns(2)
         c1.metric("Horas subestimadas", pct(100 * subestima.mean(), 1), border=True,
                   help="Horas del año de prueba en que el modelo final predijo menos que la demanda real.")

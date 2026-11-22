@@ -14,9 +14,15 @@ manifiesto (fecha y SHA-256 de cada archivo):
 | perfil_horario.parquet        | demanda media por dia de la semana y hora (168 filas)        |
 | autocorrelacion.parquet       | ACF hasta 336 h y PACF hasta 48 h de la serie horaria        |
 | centroides_grupos.parquet     | forma media de cada grupo de dias del K-means, hora a hora   |
-| predicciones_prueba.parquet   | copia de docs/resultados/ (si existe: evaluar_final.py)      |
-| probabilidades_alerta.parquet | copia de docs/resultados/ (si existe: evaluar_final.py)      |
+| predicciones_prueba.parquet   | por hora de prueba y version: real, baseline, cada candidato |
+|                               | y el final, mas las banderas del calendario                  |
+| probabilidades_alerta.parquet | probabilidad y etiqueta de alerta_pico del clasificador      |
 | manifiesto_interfaz.json      | momento, origen y SHA-256 de cada archivo; lo que falto      |
+
+Las predicciones salen de docs/resultados/predicciones_prueba.parquet, que
+escribe scripts/evaluar_final.py. Si no esta, se calculan cargando los modelos
+guardados en models/ que anota modelado_seleccion.json (comprobando su SHA-256 y
+el de la tabla de modelado): no se reentrena nada.
 
 Si falta una entrada opcional (las etiquetas de la mineria o las predicciones
 del modelado), se anota en `faltantes` del manifiesto y se sigue: la pagina que
@@ -30,14 +36,12 @@ import argparse
 import datetime as dt
 import hashlib
 import json
-import shutil
 import sys
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
-import pyarrow.parquet as pq
 
 RAIZ = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(RAIZ / "src"))
@@ -49,11 +53,9 @@ VERSION_FORMATO = 1
 DIAS_PARCIALES = 5
 TIPOS_DIA = ("laboral", "sabado", "domingo", "festivo", "semana_santa")
 
-# Copias directas de artefactos del modelado: archivo -> script que lo genera.
-COPIAS = {
-    "predicciones_prueba.parquet": "python scripts/evaluar_final.py",
-    "probabilidades_alerta.parquet": "python scripts/evaluar_final.py",
-}
+ROLES_REGRESION = ("baseline", "lineal", "ensemble")
+BANDERAS = ("es_festivo", "es_vispera_festivo", "es_puente", "es_semana_santa", "es_ultima_semana_diciembre")
+GENERA_MODELADO = "python scripts/evaluar_final.py"
 
 
 # --------------------------------------------------------------------------
@@ -79,12 +81,6 @@ def _escribir_json(datos: dict, ruta: Path) -> None:
     temporal = ruta.with_suffix(ruta.suffix + ".tmp")
     temporal.write_text(json.dumps(datos, ensure_ascii=False, indent=2, default=str) + "\n", encoding="utf-8")
     temporal.replace(ruta)
-
-
-def _copiar(origen: Path, destino: Path) -> None:
-    temporal = destino.with_suffix(destino.suffix + ".tmp")
-    shutil.copyfile(origen, temporal)
-    temporal.replace(destino)
 
 
 def _relativa(ruta: Path) -> str:
@@ -234,53 +230,149 @@ def centroides_grupos(
     return marco, registro
 
 
+def predicciones_desde_modelos(
+    seleccion: dict[str, Any], procesado: Path, modelos: Path
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Predicciones de prueba con los modelos ya guardados, en el formato largo de evaluar_final.py.
+
+    Solo carga y predice: cada modelo se lee con su SHA-256 (el de
+    modelado_seleccion.json) y la tabla de modelado con el suyo (el de
+    registro_variables.json). El bloque de prueba es el registrado.
+    """
+    from modelado.datos import cargar_tabla
+    from modelado.tiempos import cargar_modelo
+
+    desde, hasta = (pd.Timestamp(m) for m in seleccion["bloque_prueba"])
+    partes, cargados = [], {}
+    for clave, tabla in seleccion["tablas"].items():
+        datos, _ = cargar_tabla(clave, procesado)
+        fechas = pd.to_datetime(datos.fechas)
+        filas = ((fechas >= desde) & (fechas <= hasta)).to_numpy()
+        final = (tabla.get("final") or {}).get("rol")
+        for fila in tabla.get("tabla_seleccion", []):
+            if fila.get("rol") not in ROLES_REGRESION:
+                continue
+            guardado = fila["modelo_guardado"]
+            modelo = cargar_modelo(modelos / Path(guardado["ruta"]).name, guardado["sha256"])
+            partes.append(pd.DataFrame({
+                "fecha_hora": fechas[filas].to_numpy(),
+                "tabla": clave,
+                "rol": fila["rol"],
+                "modelo": fila.get("modelo"),
+                "es_final": fila["rol"] == final,
+                "real_mwh": datos.y[filas].to_numpy(dtype="float64"),
+                "prediccion_mwh": np.asarray(modelo.predict(datos.X[filas].astype("float64")), dtype="float64"),
+            }))
+            cargados[f"{clave}/{fila['rol']}"] = guardado["sha256"]
+    registro = {"operacion": "predecir_con_modelos_guardados",
+                "criterio": "modelos de models/ con el SHA-256 de modelado_seleccion.json sobre el bloque de prueba; sin reentrenar",
+                "modelos": cargados}
+    return pd.concat(partes, ignore_index=True), registro
+
+
+def predicciones_ancho(largo: pd.DataFrame, panel: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """Una fila por hora de prueba y version: real, una columna por rol, la del final y el calendario."""
+    largo = largo.assign(fecha_hora=pd.to_datetime(largo["fecha_hora"]))
+    ancho = largo.pivot_table(index=["fecha_hora", "tabla"], columns="rol", values="prediccion_mwh", aggfunc="first")
+    ancho.columns = [f"{rol}_mwh" for rol in ancho.columns]
+    real = largo.groupby(["fecha_hora", "tabla"])["real_mwh"].first()
+    finales = largo[largo["es_final"]].set_index(["fecha_hora", "tabla"])["prediccion_mwh"].rename("final_mwh")
+    marco = pd.concat([real, ancho, finales], axis=1).reset_index().sort_values(["tabla", "fecha_hora"])
+
+    calendario = panel.assign(fecha_hora=pd.to_datetime(panel["fecha_hora"]))
+    columnas = [c for c in (*BANDERAS, "nombre_festivo") if c in calendario]
+    calendario = calendario[["fecha_hora", *columnas]]
+    if calendario["fecha_hora"].dt.tz is None and marco["fecha_hora"].dt.tz is not None:
+        calendario["fecha_hora"] = calendario["fecha_hora"].dt.tz_localize(marco["fecha_hora"].dt.tz)
+    elif calendario["fecha_hora"].dt.tz is not None and marco["fecha_hora"].dt.tz is not None:
+        calendario["fecha_hora"] = calendario["fecha_hora"].dt.tz_convert(marco["fecha_hora"].dt.tz)
+    marco = marco.merge(calendario, on="fecha_hora", how="left")
+    sin_calendario = int(marco[BANDERAS[0]].isna().sum()) if BANDERAS[0] in marco else len(marco)
+    for bandera in BANDERAS:
+        if bandera in marco:
+            marco[bandera] = marco[bandera].fillna(False).astype(bool)
+    marco = marco.reset_index(drop=True)
+
+    modelos = largo.groupby(["tabla", "rol"])["modelo"].first()
+    registro = {
+        "operacion": "predicciones_ancho",
+        "criterio": "pivote de las predicciones de prueba por rol; final_mwh = el rol con es_final; calendario del panel por marca de tiempo",
+        "filas_por_tabla": {t: int(n) for t, n in marco.groupby("tabla").size().items()},
+        "modelos": {t: {r: m for (tt, r), m in modelos.items() if tt == t} for t in sorted(largo["tabla"].unique())},
+        "final": {t: str(g.loc[g["es_final"], "rol"].iloc[0]) for t, g in largo.groupby("tabla") if g["es_final"].any()},
+        "horas_sin_calendario": sin_calendario,
+    }
+    return marco, registro
+
+
 # --------------------------------------------------------------------------
 # Orquestacion
 # --------------------------------------------------------------------------
 
 
-def exportar(panel_ruta: Path, resultados: Path, destino: Path, dias_parciales: int = DIAS_PARCIALES) -> dict[str, Any]:
+def exportar(
+    panel_ruta: Path, resultados: Path, destino: Path, dias_parciales: int = DIAS_PARCIALES,
+    procesado: Path | None = None, modelos: Path | None = None,
+) -> dict[str, Any]:
     if not panel_ruta.exists():
         raise FileNotFoundError(
             f"No existe {panel_ruta}. Ejecuta antes: python scripts/construir_panel.py --imputacion causal"
         )
     destino.mkdir(parents=True, exist_ok=True)
+    procesado = procesado or panel_ruta.parent
+    modelos = modelos or RAIZ / "models"
     panel = pd.read_parquet(panel_ruta)
 
-    tablas: dict[str, tuple[pd.DataFrame, dict[str, Any]]] = {
-        "serie_diaria.parquet": serie_diaria(panel, dias_parciales),
-        "perfil_horario.parquet": perfil_horario(panel, dias_parciales),
-        "autocorrelacion.parquet": autocorrelacion(panel, dias_parciales),
+    tablas: dict[str, tuple[pd.DataFrame, dict[str, Any], str]] = {
+        "serie_diaria.parquet": (*serie_diaria(panel, dias_parciales), _relativa(panel_ruta)),
+        "perfil_horario.parquet": (*perfil_horario(panel, dias_parciales), _relativa(panel_ruta)),
+        "autocorrelacion.parquet": (*autocorrelacion(panel, dias_parciales), _relativa(panel_ruta)),
     }
     faltantes: list[dict[str, str]] = []
 
     ruta_etiquetas = resultados / "mineria_etiquetas_dia.csv"
     if ruta_etiquetas.exists():
-        tablas["centroides_grupos.parquet"] = centroides_grupos(panel, pd.read_csv(ruta_etiquetas), dias_parciales)
+        tablas["centroides_grupos.parquet"] = (
+            *centroides_grupos(panel, pd.read_csv(ruta_etiquetas), dias_parciales), _relativa(ruta_etiquetas))
     else:
         faltantes.append({"archivo": "centroides_grupos.parquet", "falta": _relativa(ruta_etiquetas),
                           "script": "python scripts/mineria_no_supervisada.py"})
 
+    # Predicciones de prueba: las de evaluar_final.py o, si no estan, las de los modelos guardados.
+    ruta_largas = resultados / "predicciones_prueba.parquet"
+    ruta_seleccion = resultados / "modelado_seleccion.json"
+    largas = origen = None
+    if ruta_largas.exists():
+        largas, origen = pd.read_parquet(ruta_largas), _relativa(ruta_largas)
+    elif ruta_seleccion.exists():
+        try:
+            largas, paso = predicciones_desde_modelos(json.loads(ruta_seleccion.read_text(encoding="utf-8")), procesado, modelos)
+            origen = f"{_relativa(modelos)} ({paso['operacion']})"
+        except Exception as error:  # noqa: BLE001 -- se anota y se sigue: la pagina muestra el aviso
+            faltantes.append({"archivo": "predicciones_prueba.parquet", "falta": f"{_relativa(ruta_largas)} y los modelos guardados ({error})",
+                              "script": GENERA_MODELADO})
+    else:
+        faltantes.append({"archivo": "predicciones_prueba.parquet", "falta": _relativa(ruta_largas), "script": GENERA_MODELADO})
+    if largas is not None:
+        tablas["predicciones_prueba.parquet"] = (*predicciones_ancho(largas, panel), origen)
+
+    ruta_probabilidades = resultados / "probabilidades_alerta.parquet"
+    if ruta_probabilidades.exists():
+        probabilidades = pd.read_parquet(ruta_probabilidades)
+        tablas["probabilidades_alerta.parquet"] = (probabilidades, {
+            "operacion": "copiar", "criterio": "probabilidad calibrada y etiqueta real de alerta_pico del clasificador final, por hora de prueba",
+            "filas_por_tabla": {t: int(n) for t, n in probabilidades.groupby("tabla").size().items()},
+        }, _relativa(ruta_probabilidades))
+    else:
+        faltantes.append({"archivo": "probabilidades_alerta.parquet", "falta": _relativa(ruta_probabilidades),
+                          "script": GENERA_MODELADO})
+
     archivos: dict[str, dict[str, Any]] = {}
-    for nombre, (marco, registro) in tablas.items():
+    for nombre, (marco, registro, origen_archivo) in tablas.items():
         ruta = destino / nombre
         _escribir_parquet(marco, ruta)
         archivos[nombre] = {"sha256": sha256(ruta), "bytes": ruta.stat().st_size, "filas": int(len(marco)),
-                            "columnas": list(marco.columns), "origen": _relativa(panel_ruta), "registro": registro}
-
-    for nombre, script in COPIAS.items():
-        origen = resultados / nombre
-        if not origen.exists():
-            faltantes.append({"archivo": nombre, "falta": _relativa(origen), "script": script})
-            continue
-        ruta = destino / nombre
-        _copiar(origen, ruta)
-        huella = sha256(ruta)
-        if huella != sha256(origen):
-            raise RuntimeError(f"La copia de {origen} no coincide con el original")
-        archivos[nombre] = {"sha256": huella, "bytes": ruta.stat().st_size,
-                            "filas": int(pq.ParquetFile(ruta).metadata.num_rows),
-                            "origen": _relativa(origen), "registro": {"operacion": "copiar", "criterio": "copia byte a byte"}}
+                            "columnas": list(marco.columns), "origen": origen_archivo, "registro": registro}
 
     manifiesto = {
         "version_formato": VERSION_FORMATO,

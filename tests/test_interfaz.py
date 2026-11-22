@@ -225,14 +225,49 @@ def test_matriz_y_pr_auc_reproducen_la_evaluacion_final(version):
 
 
 def test_mape_de_las_predicciones_coincide_con_el_registro():
+    """El formato ancho de app/datos conserva cada prediccion: su MAPE es el registrado en la evaluacion final."""
     from componentes import modelado
 
     seleccion = _leer_json("docs/resultados/modelado_seleccion.json")["tablas"]
     datos = pd.read_parquet(APP / "datos" / "predicciones_prueba.parquet")
     for version, tabla in seleccion.items():
+        filas = datos[datos["tabla"] == version]
+        assert len(filas) == tabla["metricas_prueba"]["baseline"]["n"]
         for rol, metricas in tabla["metricas_prueba"].items():
-            filas = datos[(datos["tabla"] == version) & (datos["rol"] == rol)]
-            assert modelado.mape(filas["real_mwh"], filas["prediccion_mwh"]) == pytest.approx(metricas["mape_pct"]), (version, rol)
+            assert modelado.mape(filas["real_mwh"], filas[f"{rol}_mwh"]) == pytest.approx(metricas["mape_pct"]), (version, rol)
+        assert modelado.mape(filas["real_mwh"], filas["final_mwh"]) == pytest.approx(
+            tabla["final"]["metricas_prueba"]["mape_pct"])
+    # las banderas del calendario vienen del panel: hay festivos y Semana Santa en el ano de prueba
+    assert datos["es_festivo"].any() and datos["es_semana_santa"].any()
+    assert datos.loc[datos["es_festivo"], "nombre_festivo"].notna().all()
+
+
+def test_prediccion_atajo_a_las_peores_semanas(monkeypatch):
+    monkeypatch.delenv("SIEM_INTERFAZ_RAIZ", raising=False)
+    app = _ejecutar("prediccion")
+    atajos = [b for b in app.button if "MAPE" in str(b.label)]
+    assert len(atajos) == 3
+    atajos[1].click().run()
+    assert not app.exception
+    assert str(app.select_slider[0].value)[:10] == str(atajos[1].label)[:10]
+
+
+def test_seleccion_e_interpretabilidad_muestran_los_textos(monkeypatch):
+    monkeypatch.delenv("SIEM_INTERFAZ_RAIZ", raising=False)
+    app = _ejecutar("seleccion")
+    assert any("Modelo final en r24" in m.value for m in app.markdown), "falta la justificacion de seleccion.md"
+    app = _ejecutar("interpretabilidad")
+    lecturas = [m.value for m in app.markdown if "R² local" in m.value]
+    assert len(lecturas) == 4, lecturas
+
+
+def test_lectura_lime():
+    from componentes import modelado
+
+    frase = modelado.lectura_lime({"demanda_real_mwh": 1000.0, "prediccion_mwh": 950.0, "r2_local": 0.6,
+                                   "pesos": [{"regla": "a > 1", "peso_mwh": 30.0}, {"regla": "b=1", "peso_mwh": -80.0}]})
+    assert "subestima 50 MWh" in frase and "`a > 1` (+30 MWh)" in frase and "`b=1` (-80 MWh)" in frase
+    assert "buena" in frase
 
 
 def test_tablas_de_modelos():
@@ -311,7 +346,18 @@ def test_exportador_manifiesto(exportado):
     assert not list(destino.glob("*.tmp"))
 
 
-def test_exportador_centroides_y_copias(tmp_path):
+def _predicciones_largas(panel: pd.DataFrame, desde: str = "2025-12-01") -> pd.DataFrame:
+    """Predicciones de prueba sinteticas en el formato largo que escribe evaluar_final.py."""
+    horas = pd.to_datetime(panel["fecha_hora"])
+    horas = horas[horas >= pd.Timestamp(desde, tz="America/Bogota")]
+    real = panel.set_index("fecha_hora").loc[horas, "valor_kwh"].to_numpy() / 1000
+    partes = [pd.DataFrame({"fecha_hora": horas.to_numpy(), "tabla": "r24", "rol": rol, "modelo": f"modelo {rol}",
+                            "es_final": rol == "ensemble", "real_mwh": real, "prediccion_mwh": real * factor})
+              for rol, factor in (("baseline", 1.03), ("lineal", 0.98), ("ensemble", 1.01))]
+    return pd.concat(partes, ignore_index=True)
+
+
+def test_exportador_centroides_y_predicciones(tmp_path):
     exportador = _cargar_exportador()
     panel = panel_dos_anios()
     ruta_panel = tmp_path / "panel.parquet"
@@ -322,7 +368,8 @@ def test_exportador_centroides_y_copias(tmp_path):
     pd.DataFrame({"fecha": fechas.strftime("%Y-%m-%d"),
                   "grupo": ["G2" if d.dayofweek == 6 else "G1" for d in fechas]}).to_csv(
         resultados / "mineria_etiquetas_dia.csv", index=False)
-    pd.DataFrame({"a": [1, 2, 3]}).to_parquet(resultados / "predicciones_prueba.parquet")
+    largas = _predicciones_largas(panel)
+    largas.to_parquet(resultados / "predicciones_prueba.parquet")
 
     manifiesto = exportador.exportar(ruta_panel, resultados, tmp_path / "datos")
     centroides = pd.read_parquet(tmp_path / "datos" / "centroides_grupos.parquet")
@@ -330,8 +377,69 @@ def test_exportador_centroides_y_copias(tmp_path):
     # la forma de cada dia tiene media 1, y la media de formas tambien
     assert centroides.groupby("grupo")["forma_media"].mean().to_numpy() == pytest.approx([1.0, 1.0])
     assert (centroides["p10"] <= centroides["forma_media"]).all() and (centroides["forma_media"] <= centroides["p90"]).all()
-    assert manifiesto["archivos"]["predicciones_prueba.parquet"]["filas"] == 3
+
+    ancho = pd.read_parquet(tmp_path / "datos" / "predicciones_prueba.parquet")
+    assert len(ancho) == len(largas) // 3
+    assert {"real_mwh", "baseline_mwh", "lineal_mwh", "ensemble_mwh", "final_mwh", "es_festivo", "nombre_festivo"} <= set(ancho)
+    assert (ancho["final_mwh"] == ancho["ensemble_mwh"]).all()
+    assert ancho["baseline_mwh"].to_numpy() == pytest.approx(ancho["real_mwh"].to_numpy() * 1.03)
+    # 25 de diciembre: festivo con nombre, tomado del panel
+    navidad = ancho[ancho["fecha_hora"].dt.strftime("%m-%d") == "12-25"]
+    assert len(navidad) == 24 and navidad["es_festivo"].all() and navidad["nombre_festivo"].notna().all()
+    registro = manifiesto["archivos"]["predicciones_prueba.parquet"]["registro"]
+    assert registro["final"] == {"r24": "ensemble"} and registro["horas_sin_calendario"] == 0
     assert [f["archivo"] for f in manifiesto["faltantes"]] == ["probabilidades_alerta.parquet"]
+
+
+def test_exportador_sin_predicciones_las_calcula_con_los_modelos_guardados(tmp_path):
+    """Si evaluar_final.py no dejo las predicciones, se cargan los modelos guardados (con su SHA-256) y no se reentrena."""
+    import joblib
+    from sklearn.linear_model import LinearRegression
+    from variables.construir import construir_tabla
+
+    exportador = _cargar_exportador()
+    panel = panel_dos_anios()
+    ruta_panel = tmp_path / "panel.parquet"
+    panel.to_parquet(ruta_panel, index=False)
+    procesado, modelos, resultados = tmp_path / "procesado", tmp_path / "models", tmp_path / "resultados"
+    for carpeta in (procesado, modelos, resultados):
+        carpeta.mkdir()
+    tabla, _ = construir_tabla(panel, 24)
+    tabla.to_parquet(procesado / "tabla_modelado_r24.parquet", index=False)
+    variables = [c for c in tabla.columns if c not in ("fecha_hora", "demanda_mwh")]
+    (procesado / "registro_variables.json").write_text(json.dumps({"versiones": {"r24": {
+        "rezago_minimo_h": 24, "archivo": "tabla_modelado_r24.parquet", "variables": variables,
+        "sha256": exportador.sha256(procesado / "tabla_modelado_r24.parquet")}}}), encoding="utf-8")
+
+    filas_ajuste = tabla["fecha_hora"] < pd.Timestamp("2025-06-01", tz="America/Bogota")
+    entradas = []
+    for rol in ("baseline", "lineal", "ensemble"):
+        columnas = ["lag_168"] if rol == "baseline" else variables
+        modelo = LinearRegression().fit(tabla.loc[filas_ajuste, variables].assign(
+            **{c: 0.0 for c in variables if c not in columnas}), tabla.loc[filas_ajuste, "demanda_mwh"])
+        ruta = modelos / f"prueba_{rol}_r24.joblib"
+        joblib.dump(modelo, ruta)
+        entradas.append({"rol": rol, "modelo": f"lr {rol}", "modelo_guardado": {
+            "ruta": f"models/{ruta.name}", "sha256": exportador.sha256(ruta)}})
+    entradas.append({"rol": "clasificador", "modelo": "svm", "modelo_guardado": {"ruta": "models/no_existe", "sha256": "x"}})
+    seleccion = {"bloque_prueba": ["2025-09-03 00:00:00-05:00", "2025-12-26 23:00:00-05:00"],
+                 "tablas": {"r24": {"final": {"rol": "lineal"}, "tabla_seleccion": entradas}}}
+    (resultados / "modelado_seleccion.json").write_text(json.dumps(seleccion), encoding="utf-8")
+
+    manifiesto = exportador.exportar(ruta_panel, resultados, tmp_path / "datos", procesado=procesado, modelos=modelos)
+    ancho = pd.read_parquet(tmp_path / "datos" / "predicciones_prueba.parquet")
+    prueba = tabla[tabla["fecha_hora"] >= pd.Timestamp("2025-09-03", tz="America/Bogota")]
+    assert len(ancho) == len(prueba)
+    esperado = joblib.load(modelos / "prueba_lineal_r24.joblib").predict(prueba[variables])
+    assert ancho["lineal_mwh"].to_numpy() == pytest.approx(esperado)
+    assert (ancho["final_mwh"] == ancho["lineal_mwh"]).all()
+    assert "predecir_con_modelos_guardados" in manifiesto["archivos"]["predicciones_prueba.parquet"]["origen"]
+
+    # un modelo que no es el anotado no se usa: se anota como pendiente
+    joblib.dump(LinearRegression().fit([[0.0]], [0.0]), modelos / "prueba_lineal_r24.joblib")
+    manifiesto = exportador.exportar(ruta_panel, resultados, tmp_path / "datos2", procesado=procesado, modelos=modelos)
+    faltan = {f["archivo"]: f["falta"] for f in manifiesto["faltantes"]}
+    assert "SHA-256" in faltan["predicciones_prueba.parquet"]
 
 
 def test_exportador_sin_panel_falla_con_el_comando(tmp_path):
@@ -340,15 +448,22 @@ def test_exportador_sin_panel_falla_con_el_comando(tmp_path):
 
 
 def test_app_datos_versionado_cuadra_con_su_manifiesto():
-    """Lo que esta en app/datos/ es lo que dice el manifiesto (nadie lo edito a mano)."""
+    """Lo que esta en app/datos/ es lo que dice el manifiesto (nadie lo edito a mano) y sigue a docs/resultados."""
     exportador = _cargar_exportador()
     destino = APP / "datos"
     manifiesto = json.loads((destino / "manifiesto_interfaz.json").read_text(encoding="utf-8"))
     for nombre, info in manifiesto["archivos"].items():
         assert exportador.sha256(destino / nombre) == info["sha256"], nombre
-    for nombre in ("predicciones_prueba.parquet", "probabilidades_alerta.parquet"):
-        origen = RAIZ / "docs" / "resultados" / nombre
-        if origen.exists() and nombre in manifiesto["archivos"]:
-            assert exportador.sha256(origen) == manifiesto["archivos"][nombre]["sha256"], (
-                f"{nombre} cambio en docs/resultados: vuelve a correr python scripts/exportar_interfaz.py"
-            )
+    regenera = "vuelve a correr python scripts/exportar_interfaz.py"
+    origen = RAIZ / "docs" / "resultados" / "probabilidades_alerta.parquet"
+    if origen.exists():
+        pd.testing.assert_frame_equal(pd.read_parquet(destino / "probabilidades_alerta.parquet"), pd.read_parquet(origen),
+                                      obj=f"probabilidades_alerta.parquet cambio en docs/resultados: {regenera}")
+    origen = RAIZ / "docs" / "resultados" / "predicciones_prueba.parquet"
+    if origen.exists():
+        largas = pd.read_parquet(origen)
+        ancho = pd.read_parquet(destino / "predicciones_prueba.parquet").set_index(["fecha_hora", "tabla"])
+        for rol, filas in largas.groupby("rol"):
+            filas = filas.set_index(["fecha_hora", "tabla"])
+            assert ancho.loc[filas.index, f"{rol}_mwh"].to_numpy() == pytest.approx(filas["prediccion_mwh"].to_numpy()), (
+                f"predicciones_prueba.parquet cambio en docs/resultados: {regenera}")

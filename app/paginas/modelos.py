@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
 from componentes import carga, modelado, pendiente
-from componentes.estilo import CATEGORICA, REJILLA, TINTA_SECUNDARIA, titulo
+from componentes.estilo import CATEGORICA, REJILLA, TINTA, TINTA_SECUNDARIA, titulo
 from componentes.formato import num, pct
 
 ARCHIVOS = {
@@ -20,12 +21,12 @@ SELECCION = "docs/resultados/modelado_seleccion.json"
 COLOR_FAMILIA = {"Baseline": TINTA_SECUNDARIA, "Lineal": CATEGORICA[0], "Ensemble": CATEGORICA[1], "Búsqueda": CATEGORICA[2]}
 
 st.title("Modelos")
-st.caption("Todo lo que se entrenó, medido en el bloque de validación (un año antes de la prueba). "
-           "La prueba no interviene en nada de esta página.")
+st.caption("Todo lo que se entrenó, elegido y comparado en el bloque de validación. El MAPE de prueba solo existe para "
+           "los candidatos que llegaron a la evaluación final, que se hizo una sola vez.")
 
 resultados = {familia: carga.json_(ruta) for familia, ruta in ARCHIVOS.items()}
-version = st.radio("Versión de la tabla", ["r24", "r120"], horizontal=True, key="modelos_version",
-                   help="r24: demanda conocida hasta t − 24 h. r120: hasta t − 120 h.")
+seleccion = carga.json_(SELECCION)
+VERSIONES = ["r24", "r120"]
 
 pestanas = st.tabs(["Regresión", "Error por pliegue", "Grid frente a Random", "Clasificación de picos"])
 
@@ -34,44 +35,55 @@ with pestanas[0]:
     for familia, ruta in ARCHIVOS.items():
         if resultados[familia] is None:
             pendiente.aviso(ruta)
-    tabla = modelado.tabla_regresion(resultados, version)
+    tabla = modelado.tabla_regresion_completa(resultados, seleccion, VERSIONES)
     if not tabla.empty:
+        filtros = st.columns([2, 1, 1])
+        familias = filtros[0].multiselect("Familias", list(dict.fromkeys(tabla["familia"])),
+                                          default=list(dict.fromkeys(tabla["familia"])))
+        versiones = filtros[1].multiselect("Versiones", VERSIONES, default=VERSIONES,
+                                           help="r24: demanda conocida hasta t − 24 h. r120: hasta t − 120 h.")
+        solo_finales = filtros[2].toggle("Solo los evaluados en prueba", value=False)
+        visibles = tabla[tabla["familia"].isin(familias) & tabla["version"].isin(versiones)]
+        if solo_finales:
+            visibles = visibles[visibles["mape_prueba_pct"].notna()]
+
+        version = st.radio("Versión del gráfico", [v for v in VERSIONES if v in versiones] or VERSIONES, horizontal=True,
+                           key="modelos_version")
+        grafico = visibles[visibles["version"] == version].sort_values("mape_pct")
+        etiqueta = grafico["modelo"] + grafico["forma"].map(lambda f: "" if f == "-" else f" ({f})")
         referencia = carga.obtener(resultados["lineal"], "tablas", version, "baseline_referencia", "mape_validacion_pct")
         if referencia is None:
-            fila = tabla[(tabla["familia"] == "Baseline") & (tabla["modelo"] == "estacional")]
+            fila = tabla[(tabla["version"] == version) & (tabla["familia"] == "Baseline") & (tabla["modelo"] == "estacional")]
             referencia = None if fila.empty else float(fila["mape_pct"].iloc[0])
 
-        familias = st.multiselect("Familias", list(dict.fromkeys(tabla["familia"])), default=list(dict.fromkeys(tabla["familia"])))
-        visibles = tabla[tabla["familia"].isin(familias)].sort_values("mape_pct")
-        etiqueta = visibles["modelo"] + visibles["forma"].map(lambda f: "" if f == "-" else f" ({f})")
-
         figura = go.Figure(go.Bar(
-            x=visibles["mape_pct"], y=etiqueta, orientation="h",
-            marker_color=[COLOR_FAMILIA.get(f, CATEGORICA[3]) for f in visibles["familia"]],
-            customdata=visibles[["familia", "mape_pico_pct", "mejora_mape_pct"]].fillna(0),
+            x=grafico["mape_pct"], y=etiqueta, orientation="h",
+            marker_color=[COLOR_FAMILIA.get(f, CATEGORICA[3]) for f in grafico["familia"]],
+            marker_line=dict(color=[TINTA if pd.notna(v) else "rgba(0,0,0,0)" for v in grafico["mape_prueba_pct"]], width=2),
+            customdata=grafico[["familia", "mape_pico_pct", "mejora_mape_pct"]].fillna(0),
             hovertemplate="%{y} · %{customdata[0]}<br>MAPE %{x:.2f} %<br>MAPE en pico %{customdata[1]:.2f} %"
                           "<br>mejora frente al baseline %{customdata[2]:.1f} %<extra></extra>",
         ))
         if referencia is not None:
-            figura.add_vline(x=referencia, line_dash="dash", line_color=TINTA_SECUNDARIA,
+            figura.add_vline(x=referencia, line_dash="dash", line_color=TINTA_SECUNDARIA, line_width=2,
                              annotation_text=f"baseline estacional {pct(referencia, 2)}", annotation_position="top")
-            meta = carga.obtener(carga.json_(SELECCION), "criterio_exito", "mejora_mape_minima_pct")
+            meta = carga.obtener(seleccion, "criterio_exito", "mejora_mape_minima_pct")
             if meta is not None:
                 figura.add_vrect(x0=0, x1=referencia * (1 - meta / 100), fillcolor=CATEGORICA[2], opacity=0.08,
                                  line_width=0, annotation_text=f"zona de mejora ≥ {pct(meta, 0)}",
                                  annotation_position="top left")
-        figura.update_layout(height=max(360, 26 * len(visibles) + 120), xaxis_title="MAPE en validación (%)",
+        figura.update_layout(height=max(360, 26 * len(grafico) + 120), xaxis_title="MAPE en validación (%)",
                              yaxis=dict(autorange="reversed"), showlegend=False)
-        titulo(figura, "MAPE de validación por modelo (color: familia)")
+        titulo(figura, f"MAPE de validación por modelo en {version} (color: familia; borde: evaluado en prueba)")
         st.plotly_chart(figura)
 
         st.dataframe(
             visibles, hide_index=True, placeholder="—",
             column_config={
-                "familia": "familia", "modelo": "modelo", "forma": "forma",
-                "mape_pct": st.column_config.NumberColumn("MAPE %", format="%.2f"),
-                "mape_pico_pct": st.column_config.NumberColumn("MAPE pico %", format="%.2f"),
-                "mejora_mape_pct": st.column_config.NumberColumn("mejora %", format="%.1f"),
+                "version": "versión", "familia": "familia", "modelo": "modelo", "forma": "forma",
+                "mape_pct": st.column_config.NumberColumn("MAPE val. %", format="%.2f"),
+                "mape_pico_pct": st.column_config.NumberColumn("MAPE pico val. %", format="%.2f"),
+                "mejora_mape_pct": st.column_config.NumberColumn("mejora val. %", format="%.1f"),
                 "mae_mwh": st.column_config.NumberColumn("MAE (MWh)", format="%.0f"),
                 "rmse_mwh": st.column_config.NumberColumn("RMSE (MWh)", format="%.0f"),
                 "sesgo_medio_mwh": st.column_config.NumberColumn("sesgo (MWh)", format="%.0f"),
@@ -81,6 +93,9 @@ with pestanas[0]:
                 "mape_cv_desviacion_pct": st.column_config.NumberColumn("± CV", format="%.2f"),
                 "ajuste_s": st.column_config.NumberColumn("ajuste (s)", format="%.2f"),
                 "prediccion_ms_por_1000_filas": st.column_config.NumberColumn("ms / 1000 filas", format="%.2f"),
+                "rol_en_prueba": "rol en prueba",
+                "mape_prueba_pct": st.column_config.NumberColumn("MAPE prueba %", format="%.2f"),
+                "mape_pico_prueba_pct": st.column_config.NumberColumn("MAPE pico prueba %", format="%.2f"),
             },
         )
         st.caption("Baselines: la misma hora de la semana anterior (estacional, `lag_168`) y del día anterior "
@@ -90,7 +105,7 @@ with pestanas[0]:
         comparacion = carga.obtener(resultados["ensembles"], "tablas", version, "comparacion_formas")
         maximo = carga.obtener(resultados["ensembles"], "tablas", version, "maximo_entrenamiento_mwh")
         if comparacion:
-            with st.expander("Nivel frente a diferenciado: el límite de los árboles"):
+            with st.expander(f"Nivel frente a diferenciado: el límite de los árboles ({version})"):
                 st.markdown(
                     f"Un árbol no predice por encima del máximo que vio al entrenar ({num(maximo)} MWh). "
                     "Como la demanda crece, en validación hay horas por encima de ese techo; modelar "
@@ -110,6 +125,7 @@ with pestanas[0]:
 
 # --- Pliegues ---------------------------------------------------------------
 with pestanas[1]:
+    version = st.radio("Versión", VERSIONES, horizontal=True, key="modelos_version_pliegues")
     datos = modelado.pliegues(resultados, version)
     if datos.empty:
         pendiente.requerir(ARCHIVOS["lineal"], ARCHIVOS["ensembles"])
@@ -124,13 +140,17 @@ with pestanas[1]:
         modelos = sorted(datos["modelo"].unique())
         por_defecto = [m for m in modelos if m in ("ridge", "polinomial_ridge", "random_forest (nivel)", "hist_gradient (nivel)")] or modelos[:4]
         elegidos = st.multiselect("Modelos", modelos, default=por_defecto)
+        orden = datos[datos["modelo"].isin(elegidos)].groupby("modelo")["mape_pct"].median().sort_values().index
         figura = go.Figure()
-        for i, modelo in enumerate(elegidos):
+        for i, modelo in enumerate(orden):
             serie = datos[datos["modelo"] == modelo]
-            figura.add_trace(go.Scatter(x=serie["pliegue"], y=serie["mape_pct"], mode="lines+markers", name=modelo,
-                                        line=dict(color=CATEGORICA[i % len(CATEGORICA)])))
-        figura.update_layout(height=380, xaxis=dict(title="pliegue", dtick=1), yaxis_title="MAPE (%)")
+            figura.add_trace(go.Box(y=serie["mape_pct"], name=modelo, boxpoints="all", jitter=0.3, pointpos=0,
+                                    marker_color=CATEGORICA[i % len(CATEGORICA)], customdata=serie["pliegue"],
+                                    hovertemplate="pliegue %{customdata} · MAPE %{y:.2f} %<extra></extra>"))
+        figura.update_layout(height=400, yaxis_title="MAPE del pliegue (%)", showlegend=False)
+        titulo(figura, "Error de cada pliegue de la validación cruzada (un punto por pliegue)")
         st.plotly_chart(figura)
+        st.caption("Una caja estrecha es un modelo estable entre periodos; una ancha depende de qué meses le toquen.")
         if cortes:
             st.dataframe(
                 [{"pliegue": c.get("pliegue"),
@@ -146,6 +166,7 @@ with pestanas[1]:
 
 # --- Busqueda ---------------------------------------------------------------
 with pestanas[2]:
+    version = st.radio("Versión", VERSIONES, horizontal=True, key="modelos_version_busqueda")
     if resultados["busqueda"] is None:
         pendiente.aviso(ARCHIVOS["busqueda"])
     else:
@@ -181,6 +202,7 @@ with pestanas[2]:
 
 # --- Clasificacion ----------------------------------------------------------
 with pestanas[3]:
+    version = st.radio("Versión", VERSIONES, horizontal=True, key="modelos_version_clasificacion")
     clasificacion = carga.json_(CLASIFICACION)
     if clasificacion is None:
         pendiente.aviso(CLASIFICACION)

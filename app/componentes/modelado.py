@@ -70,6 +70,46 @@ def tabla_regresion(resultados: dict[str, dict | None], version: str) -> pd.Data
     return pd.DataFrame(filas)
 
 
+FAMILIA_DE_ORIGEN = {
+    "modelado_baselines.json": "Baseline",
+    "modelado_regresion.json": "Lineal",
+    "modelado_ensembles.json": "Ensemble",
+    "modelado_busqueda.json": "Búsqueda",
+}
+
+
+def metricas_prueba(seleccion: dict | None, version: str) -> pd.DataFrame:
+    """MAPE de prueba de los candidatos que llegaron a la evaluacion final, con la misma clave que tabla_regresion."""
+    filas = []
+    for fila in obtener(seleccion, "tablas", version, "tabla_seleccion") or []:
+        prueba = obtener(fila, "rendimiento", "prueba") or {}
+        if "mape_pct" not in prueba:
+            continue
+        origen = str(fila.get("origen", ""))
+        archivo = origen.split(" ")[0]
+        familia = FAMILIA_DE_ORIGEN.get(archivo, archivo)
+        modelo = fila.get("nombre")
+        if familia == "Búsqueda" and "(" in origen:
+            modelo = f"{modelo} · {origen.split('(')[1].rstrip(')')}"
+        filas.append({"familia": familia, "modelo": modelo, "forma": fila.get("forma", "-"),
+                      "rol_en_prueba": fila.get("rol") + (" (final)" if fila.get("es_final") else ""),
+                      "mape_prueba_pct": prueba.get("mape_pct"), "mape_pico_prueba_pct": prueba.get("mape_pico_pct")})
+    return pd.DataFrame(filas, columns=["familia", "modelo", "forma", "rol_en_prueba", "mape_prueba_pct", "mape_pico_prueba_pct"])
+
+
+def tabla_regresion_completa(resultados: dict[str, dict | None], seleccion: dict | None, versiones: list[str]) -> pd.DataFrame:
+    """tabla_regresion de cada version, con su columna `version` y el MAPE de prueba de los candidatos finales."""
+    partes = []
+    for version in versiones:
+        tabla = tabla_regresion(resultados, version)
+        if tabla.empty:
+            continue
+        tabla = tabla.merge(metricas_prueba(seleccion, version), on=["familia", "modelo", "forma"], how="left")
+        tabla.insert(0, "version", version)
+        partes.append(tabla)
+    return pd.concat(partes, ignore_index=True) if partes else pd.DataFrame()
+
+
 def tabla_clasificacion(clasificacion: dict | None, version: str) -> pd.DataFrame:
     tabla = obtener(clasificacion, "tablas", version) or {}
     filas = []
@@ -150,11 +190,27 @@ def mape(real: pd.Series, prediccion: pd.Series) -> float:
     return float(100 * np.mean(np.abs(prediccion - real) / real))
 
 
-def error_hora_dia(predicciones: pd.DataFrame) -> pd.DataFrame:
-    """MAPE (%) por dia de la semana (filas, 0 = lunes) y hora (columnas)."""
-    tiempo = pd.to_datetime(predicciones["fecha_hora"])
-    ape = 100 * (predicciones["prediccion_mwh"] - predicciones["real_mwh"]).abs() / predicciones["real_mwh"]
-    return ape.groupby([tiempo.dt.dayofweek.rename("dia"), tiempo.dt.hour.rename("hora")]).mean().unstack("hora")
+def error_hora_dia(fechas: pd.Series, real: pd.Series, prediccion: pd.Series, medida: str = "mae") -> pd.DataFrame:
+    """Error medio por dia de la semana (filas, 0 = lunes) y hora (columnas).
+
+    medida="mae": error absoluto medio en MWh; medida="mape": en % de la demanda real.
+    """
+    tiempo = pd.to_datetime(fechas)
+    error = (prediccion - real).abs()
+    if medida == "mape":
+        error = 100 * error / real
+    clave = [tiempo.dt.dayofweek.rename("dia").to_numpy(), tiempo.dt.hour.rename("hora").to_numpy()]
+    return error.groupby(clave).mean().rename_axis(["dia", "hora"]).unstack("hora")
+
+
+def peores_semanas(fechas: pd.Series, real: pd.Series, prediccion: pd.Series, n: int = 3) -> pd.DataFrame:
+    """Las `n` semanas completas (lunes a domingo) con mayor MAPE."""
+    tiempo = pd.to_datetime(fechas)
+    lunes = (tiempo.dt.normalize() - pd.to_timedelta(tiempo.dt.dayofweek, unit="D")).dt.tz_localize(None)
+    ape = 100 * (prediccion - real).abs() / real
+    semanas = pd.DataFrame({"lunes": lunes.to_numpy(), "ape": ape.to_numpy()}).groupby("lunes")["ape"].agg(["mean", "size"])
+    completas = semanas[semanas["size"] == 168]
+    return completas.nlargest(n, "mean").rename(columns={"mean": "mape_pct", "size": "horas"}).reset_index()
 
 
 def matriz_confusion(real: np.ndarray, probabilidad: np.ndarray, umbral: float) -> dict[str, float]:
@@ -192,3 +248,41 @@ def probabilidad_de_puntaje(puntaje: float, calibracion: dict | None) -> float |
     if not calibracion or calibracion.get("pendiente") is None or calibracion.get("intercepto") is None:
         return None
     return float(1 / (1 + np.exp(-(calibracion["pendiente"] * puntaje + calibracion["intercepto"]))))
+
+
+# --------------------------------------------------------------------------
+# Interpretabilidad
+# --------------------------------------------------------------------------
+
+
+def _mwh(valor: float) -> str:
+    return f"{valor:,.0f}".replace(",", " ")
+
+
+def lectura_lime(caso: dict[str, Any]) -> str:
+    """Una frase que lee un caso de LIME: error, lo que mas sube, lo que mas baja y cuanto fiarse."""
+    real, prediccion = caso.get("demanda_real_mwh"), caso.get("prediccion_mwh")
+    partes = []
+    if real is not None and prediccion is not None:
+        error = prediccion - real
+        partes.append(
+            f"El modelo predijo {_mwh(prediccion)} MWh frente a {_mwh(real)} reales "
+            f"({'sobrestima' if error > 0 else 'subestima'} {_mwh(abs(error))} MWh, "
+            f"{abs(error) / real * 100:.1f} %)".replace(".", ",") + "."
+        )
+    pesos = sorted(caso.get("pesos") or [], key=lambda p: p["peso_mwh"])
+    sube = [p for p in pesos if p["peso_mwh"] > 0]
+    baja = [p for p in pesos if p["peso_mwh"] < 0]
+    efectos = []
+    if sube:
+        efectos.append(f"lo que más la empuja hacia arriba es `{sube[-1]['regla']}` (+{_mwh(sube[-1]['peso_mwh'])} MWh)")
+    if baja:
+        efectos.append(f"lo que más la baja, `{baja[0]['regla']}` ({_mwh(baja[0]['peso_mwh'])} MWh)")
+    if efectos:
+        frase = "; ".join(efectos)
+        partes.append(frase[0].upper() + frase[1:] + ".")
+    r2 = caso.get("r2_local")
+    if r2 is not None:
+        calidad = "buena" if r2 >= 0.5 else ("aproximada" if r2 >= 0.25 else "débil")
+        partes.append(f"R² local {r2:.2f}".replace(".", ",") + f": la explicación local es {calidad}.")
+    return " ".join(partes)

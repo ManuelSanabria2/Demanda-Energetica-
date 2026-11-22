@@ -1,6 +1,6 @@
 {
   "version_formato": 1,
-  "momento": "2026-11-22T05:07:16",
+  "momento": "2026-11-22T05:53:42",
   "panel": {
     "ruta": "data/procesado/panel_modelado.parquet",
     "sha256": "fc8962d3e06737c6fe36dc80657f2017c51c1b940283d403ded44601e4bede70",
@@ -90,7 +90,7 @@
         "p90",
         "dias"
       ],
-      "origen": "data/procesado/panel_modelado.parquet",
+      "origen": "docs/resultados/mineria_etiquetas_dia.csv",
       "registro": {
         "operacion": "centroides_grupos",
         "criterio": "media y percentiles 10/90 de la forma diaria (dia / su media) de los dias de cada grupo",
@@ -104,23 +104,74 @@
       }
     },
     "predicciones_prueba.parquet": {
-      "sha256": "604e3b54e96ee29386088f94e96cccc3ea9b3ea17bc3a307e11986c07e2a46b3",
-      "bytes": 728073,
-      "filas": 52560,
+      "sha256": "2f6c68a6473447133a312c36cbb6288964ef7d7a902631eaf63471c31baaaebb",
+      "bytes": 814631,
+      "filas": 17520,
+      "columnas": [
+        "fecha_hora",
+        "tabla",
+        "real_mwh",
+        "baseline_mwh",
+        "ensemble_mwh",
+        "lineal_mwh",
+        "final_mwh",
+        "es_festivo",
+        "es_vispera_festivo",
+        "es_puente",
+        "es_semana_santa",
+        "es_ultima_semana_diciembre",
+        "nombre_festivo"
+      ],
       "origen": "docs/resultados/predicciones_prueba.parquet",
       "registro": {
-        "operacion": "copiar",
-        "criterio": "copia byte a byte"
+        "operacion": "predicciones_ancho",
+        "criterio": "pivote de las predicciones de prueba por rol; final_mwh = el rol con es_final; calendario del panel por marca de tiempo",
+        "filas_por_tabla": {
+          "r120": 8760,
+          "r24": 8760
+        },
+        "modelos": {
+          "r120": {
+            "baseline": "baseline estacional (lag_168)",
+            "ensemble": "random_forest (nivel)",
+            "lineal": "polinomial_ridge"
+          },
+          "r24": {
+            "baseline": "baseline estacional (lag_168)",
+            "ensemble": "hist_gradient (nivel)",
+            "lineal": "polinomial_ridge"
+          }
+        },
+        "final": {
+          "r120": "ensemble",
+          "r24": "ensemble"
+        },
+        "horas_sin_calendario": 0
       }
     },
     "probabilidades_alerta.parquet": {
       "sha256": "0a15ee9d35f4669d4da3e89bfc43d10761642a7b2c958bccdfc4dc88cb9b4e53",
       "bytes": 553225,
       "filas": 17520,
+      "columnas": [
+        "fecha_hora",
+        "tabla",
+        "modelo",
+        "umbral_alerta_mwh",
+        "real_mwh",
+        "alerta_real",
+        "puntaje",
+        "probabilidad",
+        "alerta_predicha"
+      ],
       "origen": "docs/resultados/probabilidades_alerta.parquet",
       "registro": {
         "operacion": "copiar",
-        "criterio": "copia byte a byte"
+        "criterio": "probabilidad calibrada y etiqueta real de alerta_pico del clasificador final, por hora de prueba",
+        "filas_por_tabla": {
+          "r120": 8760,
+          "r24": 8760
+        }
       }
     }
   },

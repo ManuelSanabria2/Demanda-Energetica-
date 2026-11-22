@@ -6,7 +6,7 @@ import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
-from componentes import carga, pendiente
+from componentes import carga, modelado, pendiente
 from componentes.estilo import CATEGORICA, TINTA_SECUNDARIA, titulo
 from componentes.formato import num
 
@@ -76,19 +76,21 @@ with pestanas[1]:
         c2.metric("Filas explicadas", num(shap.get("filas_explicadas")), border=True, help=shap.get("motivo_muestra"))
         c3.metric("Error de aditividad máximo", f"{shap.get('error_aditividad_max_mwh'):.1e} MWh", border=True,
                   help="Valor base + suma de SHAP − predicción: cero salvo redondeo, así que la explicación es exacta.")
+        izquierda, derecha = st.columns(2)
         serie = pd.Series(media_abs).sort_values()
         figura = go.Figure(go.Bar(x=serie.to_numpy(), y=serie.index, orientation="h", marker_color=CATEGORICA[2],
                                   hovertemplate="%{y}: %{x:.1f} MWh<extra></extra>"))
-        figura.update_layout(height=max(380, 24 * len(serie) + 100), xaxis_title="|SHAP| medio (MWh)")
+        figura.update_layout(height=max(420, 24 * len(serie) + 100), xaxis_title="|SHAP| medio (MWh)")
         titulo(figura, "Cuánto mueve cada variable la predicción, en promedio")
-        st.plotly_chart(figura)
+        izquierda.plotly_chart(figura)
+        with derecha:
+            resumen = carga.imagen(shap["figura_resumen"]) if shap.get("figura_resumen") else None
+            if resumen:
+                st.markdown("**Resumen de SHAP** (un punto por hora de validación; color: valor de la variable)")
+                st.image(resumen, width="stretch")
+            elif shap.get("figura_resumen"):
+                pendiente.aviso(shap["figura_resumen"])
         st.caption(f"Método: `{shap.get('metodo')}`.")
-    resumen = carga.imagen(shap.get("figura_resumen", "")) if shap.get("figura_resumen") else None
-    if resumen:
-        with st.expander("Gráfico de resumen de SHAP (un punto por hora de validación)"):
-            st.image(resumen, width="stretch")
-    elif shap.get("figura_resumen"):
-        pendiente.aviso(shap["figura_resumen"])
 
 # --- Temperatura ------------------------------------------------------------
 with pestanas[2]:
@@ -115,8 +117,8 @@ with pestanas[2]:
     if figura_temp:
         imagen = carga.imagen(figura_temp)
         if imagen:
-            with st.expander("Dependencia de SHAP con la temperatura (figura del informe)"):
-                st.image(imagen, width="stretch")
+            st.markdown("**Dependencia de SHAP con la temperatura** (figura del informe, los dos candidatos)")
+            st.image(imagen, width="stretch")
         else:
             pendiente.aviso(figura_temp)
 
@@ -127,29 +129,29 @@ with pestanas[3]:
     disponibles = {clave: caso[rol] for clave, caso in casos.items() if rol in caso}
     if disponibles:
         st.markdown("LIME ajusta un modelo lineal **local** alrededor de una hora concreta para explicar esa predicción. "
-                    "Cada barra es una regla sobre una variable y lo que suma o resta en MWh.")
-        clave = st.radio("Caso", list(disponibles), horizontal=True, format_func=lambda c: NOMBRE_CASO.get(c, c), key="interp_caso")
-        caso = disponibles[clave]
-        st.caption(f"{str(caso.get('fecha_hora'))[:16]} · {caso.get('regla')}")
-        c1, c2, c3, c4 = st.columns(4)
-        c1.metric("Real", f"{num(caso.get('demanda_real_mwh'))} MWh", border=True)
-        c2.metric("Predicción del modelo", f"{num(caso.get('prediccion_mwh'))} MWh", border=True,
-                  delta=f"{num(caso.get('prediccion_mwh', 0) - caso.get('demanda_real_mwh', 0))} MWh", delta_color="off")
-        c3.metric("Predicción de LIME", f"{num(caso.get('prediccion_local_mwh'))} MWh", border=True,
-                  help=f"Intercepto local {num(caso.get('intercepto_local_mwh'))} MWh + suma de las barras.")
-        c4.metric("R² local", num(caso.get("r2_local"), 2), border=True,
-                  help="Qué tan bien el modelo lineal local imita al modelo cerca de esta hora.")
-        pesos = pd.DataFrame(caso.get("pesos") or [])
-        if not pesos.empty:
-            pesos = pesos.iloc[pesos["peso_mwh"].abs().argsort()]
-            figura = go.Figure(go.Bar(x=pesos["peso_mwh"], y=pesos["regla"], orientation="h",
-                                      marker_color=[CATEGORICA[1] if v > 0 else CATEGORICA[0] for v in pesos["peso_mwh"]],
-                                      hovertemplate="%{y}: %{x:+.0f} MWh<extra></extra>"))
-            figura.update_layout(height=max(320, 32 * len(pesos) + 80), xaxis_title="aporte (MWh)")
-            st.plotly_chart(figura)
+                    "Cada barra es una regla sobre una variable y lo que suma (naranja) o resta (azul) en MWh.")
+        claves = list(disponibles)
+        for inicio in range(0, len(claves), 2):
+            columnas = st.columns(2)
+            for columna, clave in zip(columnas, claves[inicio:inicio + 2]):
+                caso = disponibles[clave]
+                with columna, st.container(border=True):
+                    st.markdown(f"#### {NOMBRE_CASO.get(clave, clave)}")
+                    st.caption(f"{str(caso.get('fecha_hora'))[:16]} · {caso.get('regla')}")
+                    st.markdown(modelado.lectura_lime(caso))
+                    pesos = pd.DataFrame(caso.get("pesos") or [])
+                    if not pesos.empty:
+                        pesos = pesos.iloc[pesos["peso_mwh"].abs().argsort()]
+                        figura = go.Figure(go.Bar(
+                            x=pesos["peso_mwh"], y=pesos["regla"], orientation="h",
+                            marker_color=[CATEGORICA[1] if v > 0 else CATEGORICA[0] for v in pesos["peso_mwh"]],
+                            hovertemplate="%{y}: %{x:+.0f} MWh<extra></extra>"))
+                        figura.update_layout(height=300, xaxis_title="aporte (MWh)", margin=dict(t=10))
+                        st.plotly_chart(figura, key=f"lime_{version}_{rol}_{clave}")
         if configuracion:
             st.caption(f"`{configuracion.get('explicador')}`, {configuracion.get('num_samples')} muestras, "
-                       f"{configuracion.get('num_features')} variables, semilla {configuracion.get('semilla')}.")
+                       f"{configuracion.get('num_features')} variables, semilla {configuracion.get('semilla')}. "
+                       "R² local: qué tan bien el modelo lineal local imita al modelo cerca de esa hora.")
     else:
         st.info("No hay casos de LIME para este modelo.")
     figura_lime = carga.obtener(tabla, "figuras", "lime")

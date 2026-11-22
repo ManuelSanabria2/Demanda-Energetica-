@@ -63,6 +63,32 @@ def _leer_csv(destino: str, marca: int, tamano: int) -> pd.DataFrame:
     return pd.read_csv(destino, encoding="utf-8")
 
 
+@st.cache_data(show_spinner=False)
+def _leer_texto(destino: str, marca: int, tamano: int) -> str:
+    return Path(destino).read_text(encoding="utf-8")
+
+
+def texto(relativa: str) -> str | None:
+    firma = _firma(relativa)
+    return _leer_texto(*firma) if firma else None
+
+
+def secciones(markdown: str, nivel: int) -> dict[str, str]:
+    """Titulo -> cuerpo de cada seccion de `nivel` (2 para ##, 3 para ###), hasta la siguiente del mismo nivel o mayor."""
+    resultado: dict[str, str] = {}
+    actual: str | None = None
+    for linea in markdown.splitlines():
+        marcas = len(linea) - len(linea.lstrip("#"))
+        if 0 < marcas <= nivel and linea[marcas:marcas + 1] == " ":
+            actual = linea[marcas:].strip() if marcas == nivel else None
+            if actual is not None:
+                resultado[actual] = ""
+            continue
+        if actual is not None:
+            resultado[actual] += linea + "\n"
+    return {titulo: cuerpo.strip() for titulo, cuerpo in resultado.items()}
+
+
 def json_(relativa: str) -> Any | None:
     firma = _firma(relativa)
     return _leer_json(*firma) if firma else None

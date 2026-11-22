@@ -101,6 +101,12 @@ if final and baseline:
         f"y evaluado una sola vez en el año de prueba "
         f"({fecha(carga.obtener(seleccion, 'bloque_prueba', 0))} a {fecha(carga.obtener(seleccion, 'bloque_prueba', 1))})."
     )
+    rezago = carga.obtener(seleccion, "costo_rezago", "final") or {}
+    if rezago:
+        st.caption(
+            f"Lo que cuesta el rezago de publicación: el MAPE del modelo final pasa de {pct(rezago.get('mape_r24_pct'), 2)} "
+            f"en r24 a {pct(rezago.get('mape_r120_pct'), 2)} en r120 (+{num(rezago.get('aumento_puntos'), 2)} puntos)."
+        )
 else:
     with c2:
         pendiente.aviso(SELECCION)

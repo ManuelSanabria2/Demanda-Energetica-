@@ -29,6 +29,9 @@ GENERADORES = {
     "docs/resultados/modelado_busqueda.json": "python scripts/entrenar.py --tabla r24 --familia busqueda (y r120)",
     "docs/resultados/modelado_interpretabilidad.json": "python scripts/entrenar.py --tabla r24 --familia interpretabilidad (y r120)",
     "docs/resultados/modelado_seleccion.json": "python scripts/evaluar_final.py",
+    "docs/modelado/": "python scripts/evaluar_final.py",
+    # La evaluacion economica la produce otro frente del proyecto; todavia no tiene script.
+    "docs/resultados/evaluacion_economica.json": "el frente de evaluación económica (todavía sin script)",
     "docs/figuras/modelado/": "python scripts/entrenar.py / python scripts/evaluar_final.py",
     "docs/figuras/cloud/arquitectura.png": "python infra/diagrama/arquitectura.py",
     "infra/costos/": "python infra/costos/estimar_costos.py",

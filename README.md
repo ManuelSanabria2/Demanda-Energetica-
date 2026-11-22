@@ -428,8 +428,12 @@ fallar.
 `scripts/exportar_interfaz.py` deja en `app/datos/` (versionado a propósito) lo
 que la app necesita y no está en git: la serie diaria con su tipo de día, el
 perfil hora × día, la autocorrelación hasta 336 h, los centroides de los grupos
-de días, una copia de las predicciones y probabilidades del año de prueba, y
-`manifiesto_interfaz.json` con el SHA-256 de cada archivo.
+de días, las predicciones del año de prueba (una fila por hora y versión: real,
+baseline, cada candidato y el final, con las banderas del calendario), las
+probabilidades de alerta del clasificador y `manifiesto_interfaz.json` con el
+SHA-256 de cada archivo. Las predicciones salen de las que guardó
+`scripts/evaluar_final.py`; si no están, se calculan cargando los modelos de
+`models/` con el SHA-256 anotado en `modelado_seleccion.json`, sin reentrenar.
 
 | sección CRISP-DM | páginas |
 |---|---|
@@ -439,13 +443,17 @@ de días, una copia de las predicciones y probabilidades del año de prueba, y
 | evaluación | Predicción frente a real, Alertas de pico, Interpretabilidad, Selección y costo |
 | despliegue | Nube: arquitectura y costos |
 
-Las páginas de modelado leen `docs/resultados/modelado_*.json` y las
-predicciones del año de prueba: todos los modelos con su error por pliegue y
-Grid frente a Random Search; una semana de prueba con las curvas real, baseline
-y modelo; la alerta de pico con un umbral ajustable que recalcula la matriz de
+Las páginas de modelado leen `docs/resultados/modelado_*.json`,
+`docs/modelado/seleccion.md` y las predicciones exportadas: todos los modelos de
+r24 y r120 en una tabla filtrable (validación, prueba y tiempos), el error por
+pliegue y Grid frente a Random Search; una semana de prueba con las curvas real,
+baseline y final, festivos sombreados y un atajo a las tres semanas con más
+error; la alerta de pico con un umbral ajustable que recalcula la matriz de
 confusión y la curva precisión-recall (con el umbral del modelo reproduce la
-evaluación registrada); importancias, SHAP y LIME; y la elección del modelo,
-el costo del rezago (r24 frente a r120) y la evaluación económica.
+evaluación registrada); importancias, SHAP y los casos de LIME con su lectura; y
+la elección del modelo, el costo del rezago y los insumos de la evaluación
+económica (su resultado se muestra cuando exista
+`docs/resultados/evaluacion_economica.json`).
 
 `app/requirements.txt` fija las versiones (las mismas de `requirements.txt`,
 lo vigila `tests/test_requisitos.py`); **usa Python 3.12**: pyarrow 14 no tiene
