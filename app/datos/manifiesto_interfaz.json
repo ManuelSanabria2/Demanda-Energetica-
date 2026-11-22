@@ -1,0 +1,128 @@
+{
+  "version_formato": 1,
+  "momento": "2026-11-22T05:07:16",
+  "panel": {
+    "ruta": "data/procesado/panel_modelado.parquet",
+    "sha256": "fc8962d3e06737c6fe36dc80657f2017c51c1b940283d403ded44601e4bede70",
+    "filas": 49824
+  },
+  "dias_parciales_excluidos": 5,
+  "archivos": {
+    "serie_diaria.parquet": {
+      "sha256": "5683109ca4178db55cbd1c1890582132cd66e215dc27a7db3b043c3aae0b1a28",
+      "bytes": 79893,
+      "filas": 2071,
+      "columnas": [
+        "fecha",
+        "demanda_mwh",
+        "demanda_media_mwh",
+        "temperatura_media_c",
+        "tipo_dia",
+        "es_festivo",
+        "nombre_festivo",
+        "horas_atipicas"
+      ],
+      "origen": "data/procesado/panel_modelado.parquet",
+      "registro": {
+        "operacion": "serie_diaria",
+        "criterio": "energia diaria = suma de las 24 h en MWh; solo dias con las 24 h; se descartan los ultimos 5 dias por publicacion parcial; tipo de dia: semana_santa > festivo > domingo > sabado > laboral; horas_atipicas = marca causal `atipico`",
+        "dias": 2071,
+        "dias_incompletos": 0,
+        "rango": [
+          "2021-01-01",
+          "2026-09-02"
+        ],
+        "tipos": {
+          "laboral": 1370,
+          "sabado": 285,
+          "domingo": 284,
+          "festivo": 90,
+          "semana_santa": 42
+        }
+      }
+    },
+    "perfil_horario.parquet": {
+      "sha256": "26662c45fa9448f1b8a05bfe7f71f63c63c3053c04ec9a26750da604b6e4018a",
+      "bytes": 7776,
+      "filas": 168,
+      "columnas": [
+        "dia_semana",
+        "nombre_dia",
+        "hora",
+        "demanda_media_mwh",
+        "demanda_mediana_mwh",
+        "n"
+      ],
+      "origen": "data/procesado/panel_modelado.parquet",
+      "registro": {
+        "operacion": "perfil_horario",
+        "criterio": "media y mediana de la demanda horaria (MWh) por dia de la semana (0 = lunes) y hora local",
+        "filas": 168,
+        "horas": 49704
+      }
+    },
+    "autocorrelacion.parquet": {
+      "sha256": "d68bf23f9d2ab4b4694a610a15b9d3adb515656c14314ff22791b8c0ae6c678e",
+      "bytes": 7733,
+      "filas": 337,
+      "columnas": [
+        "rezago_h",
+        "acf",
+        "pacf"
+      ],
+      "origen": "data/procesado/panel_modelado.parquet",
+      "registro": {
+        "operacion": "autocorrelacion",
+        "criterio": "mineria.eda.autocorrelacion sobre la serie horaria sin dias parciales: ACF hasta 336 h, PACF hasta 48 h",
+        "rezagos": 336,
+        "banda_95": 0.008791447785241685
+      }
+    },
+    "centroides_grupos.parquet": {
+      "sha256": "fb6c11a6d413dd6748cadfd8673021002d82e4398c9dc61f2df027d4f5ce9156",
+      "bytes": 5629,
+      "filas": 48,
+      "columnas": [
+        "grupo",
+        "hora",
+        "forma_media",
+        "p10",
+        "p90",
+        "dias"
+      ],
+      "origen": "data/procesado/panel_modelado.parquet",
+      "registro": {
+        "operacion": "centroides_grupos",
+        "criterio": "media y percentiles 10/90 de la forma diaria (dia / su media) de los dias de cada grupo",
+        "dias_etiquetados": 2071,
+        "dias_con_perfil": 2071,
+        "dias_sin_perfil": 0,
+        "grupos": [
+          "G1",
+          "G2"
+        ]
+      }
+    },
+    "predicciones_prueba.parquet": {
+      "sha256": "604e3b54e96ee29386088f94e96cccc3ea9b3ea17bc3a307e11986c07e2a46b3",
+      "bytes": 728073,
+      "filas": 52560,
+      "origen": "docs/resultados/predicciones_prueba.parquet",
+      "registro": {
+        "operacion": "copiar",
+        "criterio": "copia byte a byte"
+      }
+    },
+    "probabilidades_alerta.parquet": {
+      "sha256": "0a15ee9d35f4669d4da3e89bfc43d10761642a7b2c958bccdfc4dc88cb9b4e53",
+      "bytes": 553225,
+      "filas": 17520,
+      "origen": "docs/resultados/probabilidades_alerta.parquet",
+      "registro": {
+        "operacion": "copiar",
+        "criterio": "copia byte a byte"
+      }
+    }
+  },
+  "faltantes": []
+}

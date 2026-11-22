@@ -407,6 +407,46 @@ sobre el máximo diario, sesgo medio (negativo si subestima) y mejora de MAPE
 frente al baseline estacional. Baselines: **estacional**, `y_pred = lag_168`,
 en las dos tablas, y **diario**, `y_pred = lag_24`, solo en r24.
 
+## Interfaz para la sustentación
+
+Una aplicación de Streamlit recorre el proyecto en el orden de CRISP-DM, del
+problema al despliegue, con gráficas interactivas de Plotly:
+
+```bash
+pip install -r requirements.txt          # o solo app/requirements.txt para la app
+python scripts/exportar_interfaz.py      # si cambió el panel o los resultados
+streamlit run app/Inicio.py
+```
+
+**La app no entrena ni descarga datos: solo lee artefactos** que ya genera el
+pipeline (`docs/resultados/`, `docs/figuras/`, `infra/costos/`, los registros de
+`data/procesado/` y `app/datos/`). Así sus cifras son exactamente las del
+informe, y cabe en el plan gratuito de Streamlit Community Cloud. Si falta un
+artefacto, la página lo dice y muestra el comando que lo genera, en vez de
+fallar.
+
+`scripts/exportar_interfaz.py` deja en `app/datos/` (versionado a propósito) lo
+que la app necesita y no está en git: la serie diaria con su tipo de día, el
+perfil hora × día, la autocorrelación hasta 336 h, los centroides de los grupos
+de días, una copia de las predicciones y probabilidades del año de prueba, y
+`manifiesto_interfaz.json` con el SHA-256 de cada archivo.
+
+| sección CRISP-DM | páginas |
+|---|---|
+| comprensión del negocio | Inicio: problema, ODS 9.1, pregunta de minería, cifras clave |
+| comprensión de los datos | Datos (fuentes, flujo, calidad, r24 frente a r120), Exploración |
+| modelado | Minería no supervisada, Modelos |
+| evaluación | Predicción frente a real, Alertas de pico, Interpretabilidad, Selección y costo |
+| despliegue | Nube: arquitectura y costos |
+
+Las páginas de Modelos, Predicción, Alertas, Interpretabilidad y Selección están
+creadas y por ahora listan los artefactos que van a leer.
+
+`app/requirements.txt` fija las versiones (las mismas de `requirements.txt`,
+lo vigila `tests/test_requisitos.py`); **usa Python 3.12**: pyarrow 14 no tiene
+wheels para 3.13. `tests/test_interfaz.py` ejecuta cada página con
+`streamlit.testing` sobre los artefactos reales y sobre un directorio vacío.
+
 ## Ausencia de fuga temporal
 
 Las marcas de atípicos se calculan con estadísticos **causales**: cada fila se
@@ -625,6 +665,12 @@ a las métricas de pronóstico del CND, que sí se publican por adelantado.
 ## Estructura
 
 ```
+app/
+  Inicio.py       punto de entrada de la interfaz (st.navigation en orden CRISP-DM)
+  paginas/        una página por archivo: inicio, datos, exploracion, mineria, ..., nube
+  componentes/    carga.py (lectura con caché), pendiente.py (aviso de artefacto faltante), estilo, formato
+  datos/          lo que exporta scripts/exportar_interfaz.py, con su manifiesto
+  requirements.txt  dependencias de la app, fijadas
 src/mineria/
   perfiles.py     dia x hora: forma (media 1) y nivel; atributos de calendario por dia
   clustering.py   K-means con seleccion de k (silueta + estabilidad), Ward, V de Cramer
@@ -666,6 +712,7 @@ src/ingesta/
 scripts/
   eda.py                 EDA: figuras en docs/figuras/eda, cifras en docs/resultados/eda.json
   mineria_no_supervisada.py  clustering, reglas y sectores -> docs/figuras/mineria
+  exportar_interfaz.py   resume el panel y copia las predicciones a app/datos/ para la interfaz
   generar_entrega.py     encadena panel, EDA, mineria, modelado, evaluacion final, costos, notebooks y el PDF
   descargar_datasets.py  genera datasets/ en CSV, tramo a tramo
   generar_notebooks.py   define y regenera los notebooks
@@ -693,6 +740,7 @@ tests/
   test_modelado_busqueda.py  selección de candidatos, mismo espacio en Grid y Random, sin fuga
   test_modelado_interpretabilidad.py  SHAP suma la predicción; casos de LIME; selección y calificaciones
   test_modelado_final.py  el ajuste final no ve la prueba; regla de elección; alarma de fuga; predecir.py
+  test_interfaz.py    cada página con y sin artefactos (streamlit.testing); exportador de app/datos
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
   test_datasets.py    escritor de CSV: escritura atómica, orden fijo, gzip
