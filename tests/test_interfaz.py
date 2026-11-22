@@ -80,7 +80,7 @@ def test_cada_pagina_esta_en_la_navegacion():
     inicio = (APP / "Inicio.py").read_text(encoding="utf-8")
     registradas = set(re.findall(r'_pagina\("(\w+)\.py"', inicio))
     assert registradas == set(PAGINAS)
-    assert len(PAGINAS) == 10
+    assert len(PAGINAS) == 11
 
 
 def test_la_paleta_de_la_app_es_la_del_informe():
@@ -95,17 +95,24 @@ def test_la_paleta_de_la_app_es_la_del_informe():
 
 
 def test_la_app_no_entrena_ni_descarga():
-    """La regla central: app/ solo lee artefactos. Ni sklearn, ni clientes de las APIs, ni red."""
-    prohibidos = {"sklearn", "requests", "urllib", "http", "socket", "joblib", "ingesta", "modelado", "variables"}
+    """La regla central: app/ no entrena ni sale a la red. Lee artefactos y, en Probar el modelo,
+    carga el modelo final ya entrenado; nunca llama a fit, y joblib solo se usa en componentes/modelo.py."""
+    prohibidos = {"sklearn", "requests", "urllib", "http", "socket", "ingesta", "modelado", "variables"}
+    entrenar = {"fit", "fit_transform", "fit_predict", "partial_fit"}
     for ruta in APP.rglob("*.py"):
+        nombre = ruta.relative_to(RAIZ)
         for nodo in ast.walk(ast.parse(ruta.read_text(encoding="utf-8"))):
+            if isinstance(nodo, ast.Call) and isinstance(nodo.func, ast.Attribute):
+                assert nodo.func.attr not in entrenar, f"{nombre} llama a .{nodo.func.attr}(): la app no entrena"
             if isinstance(nodo, ast.Import):
                 nombres = {a.name.split(".")[0] for a in nodo.names}
             elif isinstance(nodo, ast.ImportFrom) and nodo.module and nodo.level == 0:
                 nombres = {nodo.module.split(".")[0]}
             else:
                 continue
-            assert not nombres & prohibidos, f"{ruta.relative_to(RAIZ)} importa {nombres & prohibidos}"
+            assert not nombres & prohibidos, f"{nombre} importa {nombres & prohibidos}"
+            if "joblib" in nombres:
+                assert ruta.name == "modelo.py", f"{nombre} importa joblib: el modelo se carga solo en componentes/modelo.py"
 
 
 def test_cada_artefacto_tiene_un_generador_conocido():
@@ -177,7 +184,7 @@ def test_filtro_de_reglas(monkeypatch):
     assert any(c.value.startswith(f"{esperadas} de {len(reglas)} reglas") for c in app.caption)
 
 
-@pytest.mark.parametrize("pagina", ["modelos", "prediccion", "alertas", "interpretabilidad", "seleccion"])
+@pytest.mark.parametrize("pagina", ["modelos", "prediccion", "alertas", "interpretabilidad", "seleccion", "probar"])
 def test_pagina_de_modelado_en_r120(pagina, monkeypatch):
     """Cada pagina de modelado tiene su selector de version; con r120 tampoco falla."""
     monkeypatch.delenv("SIEM_INTERFAZ_RAIZ", raising=False)
@@ -195,6 +202,38 @@ def test_alertas_con_el_umbral_del_modelo_reproduce_la_evaluacion(monkeypatch):
     assert valores["Alertas emitidas"] == num(registrada["vp"] + registrada["fp"])
     app.slider[0].set_value(0.9).run()
     assert {m.label: m.value for m in app.metric}["Alertas emitidas"] != valores["Alertas emitidas"]
+
+
+@pytest.mark.parametrize("version", ["r24", "r120"])
+def test_probar_el_modelo(version, monkeypatch):
+    """La prediccion en vivo es la registrada en la evaluacion final, SHAP la explica entera y el escenario recalcula."""
+    monkeypatch.delenv("SIEM_INTERFAZ_RAIZ", raising=False)
+    app = _ejecutar("probar")
+    if version == "r120":
+        app.radio[0].set_value("r120").run()
+    assert not app.exception, [e.value for e in app.exception]
+    assert any(c.value.startswith("Coincide con") for c in app.caption), "la prediccion no es la registrada"
+    aditividad = next(c.value for c in app.caption if "valor base" in c.value)
+    assert float(re.search(r"diferencia ([\d.e+-]+) MWh", aditividad).group(1)) < 1e-3
+    assert any("sensibilidad del modelo, no una relación causal" in w.value for w in app.warning)
+
+    original = {m.label: m.value for m in app.metric}["Predicción con estos cambios"]
+    temperatura = app.slider[0]
+    temperatura.set_value(temperatura.min if temperatura.value - temperatura.min > 5 else temperatura.max).run()
+    app.checkbox[0].set_value(not app.checkbox[0].value).run()
+    assert not app.exception
+    assert {m.label: m.value for m in app.metric}["Predicción con estos cambios"] != original
+
+
+def test_probar_otra_hora(monkeypatch):
+    monkeypatch.delenv("SIEM_INTERFAZ_RAIZ", raising=False)
+    app = _ejecutar("probar")
+    antes = {m.label: m.value for m in app.metric}["Demanda real"]
+    app.date_input[0].set_value(pd.Timestamp("2025-12-25").date()).run()
+    app.select_slider[0].set_value(3).run()
+    assert not app.exception
+    assert {m.label: m.value for m in app.metric}["Demanda real"] != antes
+    assert any("festivo" in c.value and "25 de diciembre" in c.value for c in app.caption)
 
 
 # --------------------------------------------------------------------------
@@ -341,7 +380,8 @@ def test_exportador_manifiesto(exportado):
         assert info["registro"]["operacion"]
     # sin etiquetas de la mineria ni predicciones: se anota y se sigue
     faltan = {f["archivo"]: f["script"] for f in escrito["faltantes"]}
-    assert set(faltan) == {"centroides_grupos.parquet", "predicciones_prueba.parquet", "probabilidades_alerta.parquet"}
+    assert set(faltan) == {"centroides_grupos.parquet", "predicciones_prueba.parquet", "probabilidades_alerta.parquet",
+                           "variables_prueba.parquet", "modelo_final_r24.joblib", "modelo_final_r120.joblib"}
     assert faltan["predicciones_prueba.parquet"] == "python scripts/evaluar_final.py"
     assert not list(destino.glob("*.tmp"))
 
@@ -388,7 +428,7 @@ def test_exportador_centroides_y_predicciones(tmp_path):
     assert len(navidad) == 24 and navidad["es_festivo"].all() and navidad["nombre_festivo"].notna().all()
     registro = manifiesto["archivos"]["predicciones_prueba.parquet"]["registro"]
     assert registro["final"] == {"r24": "ensemble"} and registro["horas_sin_calendario"] == 0
-    assert [f["archivo"] for f in manifiesto["faltantes"]] == ["probabilidades_alerta.parquet"]
+    assert "probabilidades_alerta.parquet" in {f["archivo"] for f in manifiesto["faltantes"]}
 
 
 def test_exportador_sin_predicciones_las_calcula_con_los_modelos_guardados(tmp_path):
@@ -434,12 +474,67 @@ def test_exportador_sin_predicciones_las_calcula_con_los_modelos_guardados(tmp_p
     assert ancho["lineal_mwh"].to_numpy() == pytest.approx(esperado)
     assert (ancho["final_mwh"] == ancho["lineal_mwh"]).all()
     assert "predecir_con_modelos_guardados" in manifiesto["archivos"]["predicciones_prueba.parquet"]["origen"]
+    variables_x = pd.read_parquet(tmp_path / "datos" / "variables_prueba.parquet")
+    assert len(variables_x) == len(prueba) and set(variables) <= set(variables_x.columns)
+    assert variables_x["real_mwh"].to_numpy() == pytest.approx(prueba["demanda_mwh"].to_numpy())
 
     # un modelo que no es el anotado no se usa: se anota como pendiente
     joblib.dump(LinearRegression().fit([[0.0]], [0.0]), modelos / "prueba_lineal_r24.joblib")
     manifiesto = exportador.exportar(ruta_panel, resultados, tmp_path / "datos2", procesado=procesado, modelos=modelos)
     faltan = {f["archivo"]: f["falta"] for f in manifiesto["faltantes"]}
     assert "SHA-256" in faltan["predicciones_prueba.parquet"]
+
+
+def test_exportar_modelos_respeta_el_limite_de_tamano(tmp_path):
+    """Pequeno: copia exacta. Grande: comprimido. Grande aun comprimido: variante HistGradientBoosting. Sin reentrenar."""
+    import joblib
+    import numpy as np
+    from sklearn.ensemble import HistGradientBoostingRegressor, RandomForestRegressor
+
+    exportador = _cargar_exportador()
+    modelos, destino = tmp_path / "models", tmp_path / "datos"
+    modelos.mkdir()
+    destino.mkdir()
+    rng = np.random.default_rng(42)
+    X, y = rng.normal(size=(400, 3)), rng.normal(size=400)
+    bosque = RandomForestRegressor(n_estimators=30, random_state=42).fit(X, y)
+    joblib.dump(bosque, modelos / "final_r120.joblib")
+    joblib.dump(HistGradientBoostingRegressor(max_iter=10, random_state=42).fit(X, y), modelos / "hgb_r120.joblib")
+    sha = {n: exportador.sha256(modelos / f"{n}.joblib") for n in ("final_r120", "hgb_r120")}
+    seleccion = {"tablas": {"r120": {"final": {"rol": "ensemble", "etiqueta": "random_forest (nivel)", "modelo": {
+        "ruta": "models/final_r120.joblib", "sha256": sha["final_r120"]}}}}}
+    ensembles = {"tablas": {"r120": {"modelos": {"hist_gradient": {"nivel": {
+        "modelo": {"ruta": "models/hgb_r120.joblib", "sha256": sha["hgb_r120"]}, "metricas_validacion": {"mape_pct": 2.5}}}}}}}
+    tamano = (modelos / "final_r120.joblib").stat().st_size / 1e6
+
+    archivos, faltan = exportador.exportar_modelos(seleccion, ensembles, modelos, destino, limite_mb=tamano * 2)
+    registro = archivos["modelo_final_r120.joblib"]["registro"]
+    assert not faltan and registro["guardado"] == "copia byte a byte"
+    assert archivos["modelo_final_r120.joblib"]["sha256"] == sha["final_r120"]
+
+    comprimido = tamano * 0.9
+    archivos, _ = exportador.exportar_modelos(seleccion, ensembles, modelos, destino, limite_mb=comprimido)
+    registro = archivos["modelo_final_r120.joblib"]["registro"]
+    assert registro["guardado"] == "joblib compress=3" and not registro["variante"]
+    assert (destino / "modelo_final_r120.joblib").stat().st_size <= comprimido * 1e6
+    cargado = joblib.load(destino / "modelo_final_r120.joblib")
+    assert cargado.predict(X) == pytest.approx(bosque.predict(X))
+    # volver a exportar sin cambios en el origen no reescribe el archivo (comprimir no es determinista)
+    manifiesto = {"archivos": archivos}
+    antes = (destino / "modelo_final_r120.joblib").stat().st_mtime_ns
+    de_nuevo, _ = exportador.exportar_modelos(seleccion, ensembles, modelos, destino, limite_mb=comprimido, anterior=manifiesto)
+    assert de_nuevo == archivos and (destino / "modelo_final_r120.joblib").stat().st_mtime_ns == antes
+
+    (tmp_path / "otro").mkdir()
+    archivos, _ = exportador.exportar_modelos(seleccion, ensembles, modelos, tmp_path / "otro", limite_mb=0.001)
+    registro = archivos["modelo_final_r120.joblib"]["registro"]
+    assert registro["variante"] and registro["sha256_origen"] == sha["hgb_r120"] and registro["mape_validacion_pct"] == 2.5
+    assert isinstance(joblib.load(tmp_path / "otro" / "modelo_final_r120.joblib"), HistGradientBoostingRegressor)
+
+    # un modelo que no es el anotado no se exporta
+    seleccion["tablas"]["r120"]["final"]["modelo"]["sha256"] = "0" * 64
+    archivos, faltan = exportador.exportar_modelos(seleccion, ensembles, modelos, tmp_path / "otro")
+    assert not archivos and "SHA-256" in faltan[0]["falta"]
 
 
 def test_exportador_sin_panel_falla_con_el_comando(tmp_path):

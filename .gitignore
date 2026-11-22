@@ -64,4 +64,6 @@ models/
 !app/datos/
 !app/datos/*.parquet
 !app/datos/manifiesto_interfaz.json
+# El modelo final de cada version (pagina Probar el modelo), nunca de mas de 25 MB.
+!app/datos/modelo_final_*.joblib
 app/datos/*.tmp

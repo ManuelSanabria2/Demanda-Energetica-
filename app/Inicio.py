@@ -5,7 +5,8 @@
 Recorre el proyecto en el orden de CRISP-DM, del problema al despliegue. La app
 no entrena ni descarga datos: solo lee artefactos que ya genera el pipeline
 (docs/resultados/, docs/figuras/, infra/costos/ y app/datos/). Si falta uno, la
-pagina que lo usa muestra que archivo falta y que comando lo genera.
+pagina que lo usa muestra que archivo falta y que comando lo genera. La pagina
+Probar el modelo carga el modelo final ya entrenado (app/datos/) y predice con el.
 """
 
 from __future__ import annotations
@@ -52,6 +53,7 @@ PAGINAS = {
         _pagina("seleccion.py", "Selección y costo", ":material/fact_check:"),
     ],
     "Despliegue": [
+        _pagina("probar.py", "Probar el modelo", ":material/tune:"),
         _pagina("nube.py", "Nube", ":material/cloud:"),
     ],
 }

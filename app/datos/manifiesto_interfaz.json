@@ -1,6 +1,6 @@
 {
   "version_formato": 1,
-  "momento": "2026-11-22T05:53:42",
+  "momento": "2026-11-22T06:59:04",
   "panel": {
     "ruta": "data/procesado/panel_modelado.parquet",
     "sha256": "fc8962d3e06737c6fe36dc80657f2017c51c1b940283d403ded44601e4bede70",
@@ -8,6 +8,40 @@
   },
   "dias_parciales_excluidos": 5,
   "archivos": {
+    "modelo_final_r24.joblib": {
+      "sha256": "6554597cd49a9a34c927e5346fbf9dfd3fc2302b7556864c77eac1070faad5b4",
+      "bytes": 1094896,
+      "origen": "models/final_r24.joblib",
+      "registro": {
+        "operacion": "exportar_modelo",
+        "criterio": "modelo final verificado por SHA-256; si pasa de 25 MB, comprimido y, si aun asi, la variante HistGradientBoosting",
+        "sha256_final": "6554597cd49a9a34c927e5346fbf9dfd3fc2302b7556864c77eac1070faad5b4",
+        "modelo": "hist_gradient (nivel)",
+        "rol": "ensemble",
+        "variante": false,
+        "origen": "models/final_r24.joblib",
+        "sha256_origen": "6554597cd49a9a34c927e5346fbf9dfd3fc2302b7556864c77eac1070faad5b4",
+        "bytes_origen": 1094896,
+        "guardado": "copia byte a byte"
+      }
+    },
+    "modelo_final_r120.joblib": {
+      "sha256": "afbce96bccbe227dba7a842ecc92a91e7a2bd58635347672bad0d882e8151c43",
+      "bytes": 19767321,
+      "origen": "models/final_r120.joblib",
+      "registro": {
+        "operacion": "exportar_modelo",
+        "criterio": "modelo final verificado por SHA-256; si pasa de 25 MB, comprimido y, si aun asi, la variante HistGradientBoosting",
+        "sha256_final": "08ececf12633ee837b71e5d21c90bf1357db11f55110964e169db6f5e315fe64",
+        "modelo": "random_forest (nivel)",
+        "rol": "ensemble",
+        "variante": false,
+        "origen": "models/final_r120.joblib",
+        "sha256_origen": "08ececf12633ee837b71e5d21c90bf1357db11f55110964e169db6f5e315fe64",
+        "bytes_origen": 57591585,
+        "guardado": "joblib compress=3"
+      }
+    },
     "serie_diaria.parquet": {
       "sha256": "5683109ca4178db55cbd1c1890582132cd66e215dc27a7db3b043c3aae0b1a28",
       "bytes": 79893,
@@ -168,6 +202,45 @@
       "registro": {
         "operacion": "copiar",
         "criterio": "probabilidad calibrada y etiqueta real de alerta_pico del clasificador final, por hora de prueba",
+        "filas_por_tabla": {
+          "r120": 8760,
+          "r24": 8760
+        }
+      }
+    },
+    "variables_prueba.parquet": {
+      "sha256": "32393ba1d644034b9373dd8bb9466bfff12afe57ab7e7b4689415a04679ff46d",
+      "bytes": 650038,
+      "filas": 17520,
+      "columnas": [
+        "fecha_hora",
+        "tabla",
+        "real_mwh",
+        "lag_24",
+        "lag_168",
+        "ma_168",
+        "std_168",
+        "temperatura_c",
+        "hora_sin",
+        "hora_cos",
+        "dia_semana_sin",
+        "dia_semana_cos",
+        "mes_sin",
+        "mes_cos",
+        "es_festivo",
+        "es_vispera_festivo",
+        "es_puente",
+        "es_semana_santa",
+        "es_ultima_semana_diciembre"
+      ],
+      "origen": "data/procesado",
+      "registro": {
+        "operacion": "variables_prueba",
+        "criterio": "X de la tabla de modelado (SHA-256 verificado contra registro_variables.json) en el bloque de prueba",
+        "sha256_tablas": {
+          "r24": "6bb6260ce166b2dbeb72167fd3a4daad4c13755673873eecd7817f5fae3b847f",
+          "r120": "9f7273d62c56838387a2106cbc99acf045a8b4dba57daf5ceb387ba5b061e6b0"
+        },
         "filas_por_tabla": {
           "r120": 8760,
           "r24": 8760

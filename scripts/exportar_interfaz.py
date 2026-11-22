@@ -17,12 +17,20 @@ manifiesto (fecha y SHA-256 de cada archivo):
 | predicciones_prueba.parquet   | por hora de prueba y version: real, baseline, cada candidato |
 |                               | y el final, mas las banderas del calendario                  |
 | probabilidades_alerta.parquet | probabilidad y etiqueta de alerta_pico del clasificador      |
+| variables_prueba.parquet      | variables (X) y real de cada hora de prueba, para el modelo  |
+| modelo_final_r24.joblib, ...  | modelo final de cada version, para la pagina Probar el modelo |
 | manifiesto_interfaz.json      | momento, origen y SHA-256 de cada archivo; lo que falto      |
 
 Las predicciones salen de docs/resultados/predicciones_prueba.parquet, que
 escribe scripts/evaluar_final.py. Si no esta, se calculan cargando los modelos
 guardados en models/ que anota modelado_seleccion.json (comprobando su SHA-256 y
 el de la tabla de modelado): no se reentrena nada.
+
+Los modelos finales se leen de models/ comprobando el SHA-256 anotado en
+modelado_seleccion.json. Los que pesan mas de LIMITE_MB se guardan comprimidos
+(joblib, compress=3); si aun asi lo superan, se exporta en su lugar la variante
+HistGradientBoosting (nivel) de esa version, y el manifiesto lo dice para que la
+pagina lo muestre. Asi ningun archivo de app/datos/ pasa de LIMITE_MB en git.
 
 Si falta una entrada opcional (las etiquetas de la mineria o las predicciones
 del modelado), se anota en `faltantes` del manifiesto y se sigue: la pagina que
@@ -56,6 +64,7 @@ TIPOS_DIA = ("laboral", "sabado", "domingo", "festivo", "semana_santa")
 ROLES_REGRESION = ("baseline", "lineal", "ensemble")
 BANDERAS = ("es_festivo", "es_vispera_festivo", "es_puente", "es_semana_santa", "es_ultima_semana_diciembre")
 GENERA_MODELADO = "python scripts/evaluar_final.py"
+LIMITE_MB = 25
 
 
 # --------------------------------------------------------------------------
@@ -305,6 +314,101 @@ def predicciones_ancho(largo: pd.DataFrame, panel: pd.DataFrame) -> tuple[pd.Dat
     return marco, registro
 
 
+def variables_prueba(seleccion: dict[str, Any], procesado: Path) -> tuple[pd.DataFrame, dict[str, Any]]:
+    """X y demanda real de cada hora del bloque de prueba, para predecir y explicar una hora en la app.
+
+    Una fila por hora y version; las variables que una version no tiene (lag_24 en r120) quedan vacias.
+    """
+    from modelado.datos import cargar_tabla
+
+    desde, hasta = (pd.Timestamp(m) for m in seleccion["bloque_prueba"])
+    partes, sha = [], {}
+    for clave in seleccion["tablas"]:
+        datos, paso = cargar_tabla(clave, procesado)
+        fechas = pd.to_datetime(datos.fechas)
+        filas = ((fechas >= desde) & (fechas <= hasta)).to_numpy()
+        partes.append(datos.X[filas].assign(fecha_hora=fechas[filas].to_numpy(), tabla=clave,
+                                            real_mwh=datos.y[filas].to_numpy(dtype="float64")))
+        sha[clave] = paso["sha256"]
+    marco = pd.concat(partes, ignore_index=True)
+    marco = marco[["fecha_hora", "tabla", "real_mwh", *[c for c in marco.columns if c not in ("fecha_hora", "tabla", "real_mwh")]]]
+    registro = {"operacion": "variables_prueba",
+                "criterio": "X de la tabla de modelado (SHA-256 verificado contra registro_variables.json) en el bloque de prueba",
+                "sha256_tablas": sha, "filas_por_tabla": {t: int(n) for t, n in marco.groupby("tabla").size().items()}}
+    return marco, registro
+
+
+def exportar_modelos(seleccion: dict[str, Any], ensembles: dict[str, Any] | None, modelos: Path, destino: Path,
+                     limite_mb: float = LIMITE_MB, anterior: dict[str, Any] | None = None,
+                     ) -> tuple[dict[str, dict[str, Any]], list[dict[str, str]]]:
+    """Modelo final de cada version en destino/modelo_final_<version>.joblib, sin pasar de `limite_mb`.
+
+    Nunca se reentrena: se copia el archivo, se vuelve a guardar comprimido o se toma la variante
+    HistGradientBoosting ya entrenada (modelado_ensembles.json), siempre comprobando su SHA-256.
+
+    Volver a comprimir un bosque no da los mismos bytes, asi que si `anterior` (el manifiesto previo)
+    dice que el archivo ya exportado salio del mismo modelo de origen y sigue intacto, se conserva:
+    sin esto, cada exportacion reescribiria decenas de MB en git sin que nada haya cambiado.
+    """
+    import joblib
+    from modelado.tiempos import cargar_modelo
+
+    archivos, faltantes = {}, []
+    limite = limite_mb * 1e6
+    for clave, tabla in seleccion["tablas"].items():
+        nombre = f"modelo_final_{clave}.joblib"
+        final = tabla.get("final") or {}
+        guardado = final.get("modelo") or {}
+        try:
+            origen = modelos / Path(guardado["ruta"]).name
+            modelo = cargar_modelo(origen, guardado["sha256"])
+        except Exception as error:  # noqa: BLE001
+            faltantes.append({"archivo": nombre, "falta": f"{guardado.get('ruta')} ({error})", "script": GENERA_MODELADO})
+            continue
+        ruta = destino / nombre
+        previo = ((anterior or {}).get("archivos") or {}).get(nombre)
+        if (previo and ruta.exists() and sha256(ruta) == previo.get("sha256")
+                and previo.get("registro", {}).get("sha256_final") == guardado["sha256"]):
+            archivos[nombre] = previo
+            continue
+        temporal = ruta.with_suffix(ruta.suffix + ".tmp")
+        info = {"sha256_final": guardado["sha256"], "modelo": final.get("etiqueta"), "rol": final.get("rol"), "variante": False,
+                "origen": f"models/{origen.name}", "sha256_origen": guardado["sha256"], "bytes_origen": origen.stat().st_size}
+        if origen.stat().st_size <= limite:
+            temporal.write_bytes(origen.read_bytes())
+            info["guardado"] = "copia byte a byte"
+        else:
+            joblib.dump(modelo, temporal, compress=3)
+            info["guardado"] = "joblib compress=3"
+            if temporal.stat().st_size > limite:
+                variante = obtener_variante_hgb(ensembles, clave)
+                if variante is None:
+                    temporal.unlink()
+                    faltantes.append({"archivo": nombre, "falta": f"{origen.name} comprimido pasa de {limite_mb} MB y no hay "
+                                      "variante HistGradientBoosting", "script": GENERA_MODELADO})
+                    continue
+                origen = modelos / Path(variante["ruta"]).name
+                joblib.dump(cargar_modelo(origen, variante["sha256"]), temporal, compress=3)
+                info.update({"modelo": f"hist_gradient (nivel), variante de {final.get('etiqueta')}", "variante": True,
+                             "origen": f"models/{origen.name}", "sha256_origen": variante["sha256"],
+                             "bytes_origen": origen.stat().st_size, "mape_validacion_pct": variante.get("mape_validacion_pct"),
+                             "motivo_variante": f"el modelo final comprimido pasa de {limite_mb} MB"})
+        temporal.replace(ruta)
+        archivos[nombre] = {"sha256": sha256(ruta), "bytes": ruta.stat().st_size, "origen": info["origen"],
+                            "registro": {"operacion": "exportar_modelo", "criterio":
+                                         f"modelo final verificado por SHA-256; si pasa de {limite_mb} MB, comprimido y, "
+                                         "si aun asi, la variante HistGradientBoosting", **info}}
+    return archivos, faltantes
+
+
+def obtener_variante_hgb(ensembles: dict[str, Any] | None, clave: str) -> dict[str, Any] | None:
+    entrada = (((ensembles or {}).get("tablas") or {}).get(clave) or {}).get("modelos", {}).get("hist_gradient", {}).get("nivel")
+    if not entrada or not entrada.get("modelo"):
+        return None
+    return {"ruta": entrada["modelo"]["ruta"], "sha256": entrada["modelo"]["sha256"],
+            "mape_validacion_pct": (entrada.get("metricas_validacion") or {}).get("mape_pct")}
+
+
 # --------------------------------------------------------------------------
 # Orquestacion
 # --------------------------------------------------------------------------
@@ -367,7 +471,26 @@ def exportar(
         faltantes.append({"archivo": "probabilidades_alerta.parquet", "falta": _relativa(ruta_probabilidades),
                           "script": GENERA_MODELADO})
 
+    seleccion = json.loads(ruta_seleccion.read_text(encoding="utf-8")) if ruta_seleccion.exists() else None
+    if seleccion is not None:
+        try:
+            tablas["variables_prueba.parquet"] = (*variables_prueba(seleccion, procesado), _relativa(procesado))
+        except Exception as error:  # noqa: BLE001
+            faltantes.append({"archivo": "variables_prueba.parquet", "falta": f"tablas de modelado ({error})",
+                              "script": "python scripts/construir_variables.py"})
+    else:
+        faltantes += [{"archivo": n, "falta": _relativa(ruta_seleccion), "script": GENERA_MODELADO}
+                      for n in ("variables_prueba.parquet", "modelo_final_r24.joblib", "modelo_final_r120.joblib")]
+
     archivos: dict[str, dict[str, Any]] = {}
+    if seleccion is not None:
+        ruta_ensembles = resultados / "modelado_ensembles.json"
+        ensembles = json.loads(ruta_ensembles.read_text(encoding="utf-8")) if ruta_ensembles.exists() else None
+        ruta_manifiesto = destino / "manifiesto_interfaz.json"
+        anterior = json.loads(ruta_manifiesto.read_text(encoding="utf-8")) if ruta_manifiesto.exists() else None
+        de_modelos, sin_modelo = exportar_modelos(seleccion, ensembles, modelos, destino, anterior=anterior)
+        archivos.update(de_modelos)
+        faltantes += sin_modelo
     for nombre, (marco, registro, origen_archivo) in tablas.items():
         ruta = destino / nombre
         _escribir_parquet(marco, ruta)
@@ -397,7 +520,8 @@ def main(argv: list[str] | None = None) -> int:
     manifiesto = exportar(args.panel, args.resultados, args.destino, args.dias_parciales)
     print(f"\n=== Interfaz === {_relativa(args.destino)}")
     for nombre, info in manifiesto["archivos"].items():
-        print(f"  {nombre:<32} {info['filas']:>7,} filas  {info['bytes'] / 1024:>7.0f} KB  {info['sha256'][:12]}")
+        filas = f"{info['filas']:>7,} filas" if 'filas' in info else "     modelo"
+        print(f"  {nombre:<32} {filas}  {info['bytes'] / 1024:>7.0f} KB  {info['sha256'][:12]}")
     for falta in manifiesto["faltantes"]:
         print(f"  PENDIENTE {falta['archivo']}: falta {falta['falta']} ({falta['script']})")
     return 0

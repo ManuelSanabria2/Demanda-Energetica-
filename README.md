@@ -455,6 +455,18 @@ la elección del modelo, el costo del rezago y los insumos de la evaluación
 económica (su resultado se muestra cuando exista
 `docs/resultados/evaluacion_economica.json`).
 
+**Probar el modelo** es la única página que usa un modelo: carga el final de
+cada versión (`app/datos/modelo_final_r24.joblib` y `_r120`, con
+`st.cache_resource` y comprobando su SHA-256 contra el manifiesto), predice la
+hora que se elija del año de prueba, la explica con la cascada de SHAP y deja
+mover la temperatura y las banderas de festivo y víspera para ver la
+sensibilidad del modelo (no una relación causal). No entrena nada: las pruebas
+fallan si algo en `app/` llama a `fit`. El exportador no deja en git ningún
+modelo de más de 25 MB: el Random Forest de r120 (58 MB) se guarda comprimido
+(`joblib`, `compress=3`, 19,8 MB) y, si aun así pasara del límite, se usaría la
+variante HistGradientBoosting ya entrenada y la página lo diría. Recorriendo
+las 11 páginas en local, el proceso de Streamlit llega a unos 500 MB de RAM.
+
 `app/requirements.txt` fija las versiones (las mismas de `requirements.txt`,
 lo vigila `tests/test_requisitos.py`); **usa Python 3.12**: pyarrow 14 no tiene
 wheels para 3.13. `tests/test_interfaz.py` ejecuta cada página con
