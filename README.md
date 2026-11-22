@@ -53,7 +53,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 421 pruebas, ninguna toca la red
+python -m pytest tests -q          # 437 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -297,6 +297,8 @@ python scripts/entrenar.py --tabla r24  --familia clasificacion   # y lo mismo c
 python scripts/entrenar.py --tabla r24  --familia ensembles       # y lo mismo con r120
 python scripts/entrenar.py --tabla r24  --familia busqueda        # después de las anteriores
 python scripts/entrenar.py --tabla r24  --familia interpretabilidad  # explica los modelos guardados
+python scripts/evaluar_final.py                                   # el único paso que usa la prueba
+python scripts/predecir.py --tabla r120                           # predice con el modelo final
 ```
 
 | bloque | rango (hora local) | uso |
@@ -370,6 +372,21 @@ y `LinearExplainer`; resumen y dependencia de `temperatura_c` por hora), LIME
 en una hora pico laboral, un festivo, un día de Semana Santa y la hora de mayor
 error, y el contraste con la autocorrelación del EDA. Cada modelo del proyecto
 lleva una calificación de interpretabilidad (alta, media o baja) con su motivo.
+
+La **evaluación final** (`scripts/evaluar_final.py`, `src/modelado/final.py`)
+es el único paso que usa el bloque de prueba. Reentrena con entrenamiento +
+validación el baseline estacional, el mejor lineal, el mejor ensemble tras la
+búsqueda y el mejor clasificador, con los hiperparámetros ya elegidos, y los
+evalúa una vez en prueba (no se repite sin `--forzar`). El modelo final se
+elige con una regla fijada sobre validación; la prueba dice si se cumple el
+criterio de éxito (−20 % de MAPE frente al baseline estacional y ventaja en
+horas pico). Escribe la tabla de selección con sus tres ejes (rendimiento,
+interpretabilidad, eficiencia) en `docs/resultados/modelado_seleccion.json`, la
+justificación generada en [`docs/modelado/seleccion.md`](docs/modelado/seleccion.md),
+las predicciones de prueba en `docs/resultados/predicciones_prueba.parquet` y
+`probabilidades_alerta.parquet`, y el modelo final en `models/final_r24.joblib`
+y `final_r120.joblib` con su SHA-256. `scripts/predecir.py` carga ese modelo,
+comprueba su huella y predice a partir de una tabla de modelado.
 
 Métricas de regresión: MAE, RMSE, MAPE, MAPE en horas pico (18–20 h), error
 sobre el máximo diario, sesgo medio (negativo si subestima) y mejora de MAPE
@@ -615,6 +632,7 @@ src/modelado/
   ensembles.py    RF, AdaBoost, GB e HistGB sobre el nivel y sobre y - lag_168
   busqueda.py     GridSearchCV frente a RandomizedSearchCV para los mejores de cada paso
   interpretabilidad.py  importancias, SHAP, LIME y calificación de los candidatos finales
+  final.py        reentreno con entrenamiento + validación, evaluación en prueba, elección, residuales
 src/limpieza/
   limpiar.py      limpieza trazable: cada operación devuelve marco + registro
   grupos.py       limpieza de tablas desagregadas, un grupo cada vez
@@ -640,6 +658,8 @@ scripts/
   construir_panel.py  demanda limpia + clima + calendario -> panel de modelado
   construir_variables.py  panel -> tablas de modelado r24 y r120 + registro
   entrenar.py         ajusta y evalúa una familia en validación -> docs/resultados/modelado_*.json
+  evaluar_final.py    evaluación única en prueba, tabla de selección y docs/modelado/seleccion.md
+  predecir.py         predicciones del modelo final a partir de una tabla de modelado
   explorar_apis.py    vuelca el JSON crudo y describe su estructura
   verificar_apis.py   comprueba los invariantes de los que depende el código
   reconciliar.py      XM vs SIMEM; resuelve empíricamente la convención HourNN
@@ -658,6 +678,7 @@ tests/
   test_modelado_ensembles.py  el bosque no pasa del máximo sobre el nivel; diferenciado sí; sin fuga
   test_modelado_busqueda.py  selección de candidatos, mismo espacio en Grid y Random, sin fuga
   test_modelado_interpretabilidad.py  SHAP suma la predicción; casos de LIME; selección y calificaciones
+  test_modelado_final.py  el ajuste final no ve la prueba; regla de elección; alarma de fuga; predecir.py
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
   test_datasets.py    escritor de CSV: escritura atómica, orden fijo, gzip
