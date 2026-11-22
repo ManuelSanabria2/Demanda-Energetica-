@@ -13,6 +13,7 @@ muestra en rojo: el informe nunca presenta como resultado algo que no se calculo
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[2]
@@ -228,6 +229,13 @@ def main() -> int:
     m["costoNat"] = _num(costos.get("decision_sin_nat_gateway_ahorro_usd_mes"), 2)
     m["trm"] = _num(costos.get("trm_cop_usd"), 2)
 
+    # --- Modelado supervisado: de docs/resultados/modelado_*.json (ver valores_modelado.py)
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from valores_modelado import macros_modelado
+
+    macros_mod, tablas_mod = macros_modelado(RAIZ / "docs" / "resultados", _num)
+    m.update(macros_mod)
+
     lineas = [r"% Generado por docs/informe/generar_valores.py. No editar a mano."]
     for nombre, valor in sorted(m.items()):
         lineas.append(rf"\newcommand{{\{nombre}}}{{{valor}}}")
@@ -311,6 +319,9 @@ def main() -> int:
 
     (SALIDA / "interpretacion_grupos.tex").write_text(_interpretar_grupos(dias) + "\n", encoding="utf-8")
     (SALIDA / "interpretacion_sectores.tex").write_text(_interpretar_sectores(sect) + "\n", encoding="utf-8")
+
+    for nombre, contenido in tablas_mod.items():
+        (SALIDA / nombre).write_text(contenido, encoding="utf-8")
 
     print(f"{len(m)} macros · EDA {'si' if hay_eda else 'NO'} · mineria {'si' if hay_min else 'NO'} -> {SALIDA}")
     return 0

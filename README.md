@@ -1,8 +1,10 @@
 # Ingesta de demanda energética horaria — SIN Colombia
 
 > **Avance del proyecto integrador (Minería de Datos y Cloud Computing):**
-> índice de entregables en [`docs/ENTREGA_AVANCE.md`](docs/ENTREGA_AVANCE.md),
-> reporte IEEE en [`docs/informe/`](docs/informe/), infraestructura en
+> índice de entregables en [`docs/ENTREGA_AVANCE.md`](docs/ENTREGA_AVANCE.md);
+> el modelado supervisado, requisito por requisito, en
+> [`docs/ENTREGA_FINAL.md`](docs/ENTREGA_FINAL.md); reporte IEEE en
+> [`docs/informe/`](docs/informe/), infraestructura en
 > [`infra/`](infra/README.md). Todo se regenera con `python scripts/generar_entrega.py`.
 
 Capa de ingesta para un modelo predictivo de demanda energética horaria del
@@ -53,7 +55,7 @@ Scripts de verificación:
 python scripts/explorar_apis.py               # JSON crudo sin intermediarios
 python scripts/verificar_apis.py              # comprueba los invariantes del código
 python scripts/reconciliar.py --mes 2026-08   # XM vs SIMEM, resuelve HourNN
-python -m pytest tests -q          # 437 pruebas, ninguna toca la red
+python -m pytest tests -q          # 444 pruebas, ninguna toca la red
 ```
 
 `tests/conftest.py` **bloquea la red para toda la suite**: una prueba que
@@ -175,6 +177,9 @@ notebooks/
   00_configuracion.ipynb          comprueba entorno, paquete y datasets
   01_carga_y_exploracion.ipynb    columnas, perfiles, la trampa de las versiones de SIMEM
   02_diagnostico_calidad.ipynb    huecos, días incompletos, atípicos por dos criterios
+  03_eda.ipynb                    tendencia, estacionalidad, calendario y temperatura
+  04_mineria_no_supervisada.ipynb K-means sobre la forma del día, reglas y sectores CIIU
+  05_modelado_supervisado.ipynb   de la partición a la selección del modelo final
   limpieza/
     xm_demanda_real/        DemaReal/Sistema, la serie objetivo
     xm_demanda_comercial/   DemaCome/Sistema y coherencia con la real
@@ -300,6 +305,15 @@ python scripts/entrenar.py --tabla r24  --familia interpretabilidad  # explica l
 python scripts/evaluar_final.py                                   # el único paso que usa la prueba
 python scripts/predecir.py --tabla r120                           # predice con el modelo final
 ```
+
+`python scripts/generar_entrega.py` encadena todas las familias en r24 y r120 y
+la evaluación final (~1 h; `--sin-busqueda` reutiliza la búsqueda guardada y la
+evaluación en prueba no se repite sin `--reevaluar-prueba`). El recorrido
+completo, llamando a `src/modelado` y leyendo estos JSON, está en
+[`notebooks/05_modelado_supervisado.ipynb`](notebooks/05_modelado_supervisado.ipynb),
+y el resultado y su justificación en
+[`docs/modelado/seleccion.md`](docs/modelado/seleccion.md). Las cifras del
+informe salen de los JSON como macros (`docs/informe/valores_modelado.py`).
 
 | bloque | rango (hora local) | uso |
 |---|---|---|
@@ -652,7 +666,7 @@ src/ingesta/
 scripts/
   eda.py                 EDA: figuras en docs/figuras/eda, cifras en docs/resultados/eda.json
   mineria_no_supervisada.py  clustering, reglas y sectores -> docs/figuras/mineria
-  generar_entrega.py     encadena panel, EDA, mineria, costos y el PDF del informe
+  generar_entrega.py     encadena panel, EDA, mineria, modelado, evaluacion final, costos, notebooks y el PDF
   descargar_datasets.py  genera datasets/ en CSV, tramo a tramo
   generar_notebooks.py   define y regenera los notebooks
   construir_panel.py  demanda limpia + clima + calendario -> panel de modelado
@@ -687,8 +701,15 @@ tests/
 descargar.py          CLI de la capa cruda
 docs/
   diccionario_variables.md  una fila por columna de la tabla de modelado
+  ENTREGA_AVANCE.md   entregables del avance (minería y cloud)
+  ENTREGA_FINAL.md    requisitos de machine learning -> evidencia en el repo
+  modelado/seleccion.md  elección del modelo final, generada desde modelado_seleccion.json
+  resultados/         JSON de cada paso (eda, mineria, modelado_*) y predicciones de prueba
+  figuras/            eda/, mineria/, modelado/, cloud/
+  informe/            reporte IEEE; generar_valores.py y valores_modelado.py -> macros
+models/               modelos entrenados (fuera de git), con su SHA-256 en los JSON
 datasets/             CSV de trabajo (fuera de git salvo README, manifiesto y registros)
   limpios/            salidas de los notebooks de limpieza
-notebooks/            00–02 exploración y diagnóstico
+notebooks/            00–02 exploración y diagnóstico, 03 EDA, 04 minería, 05 modelado supervisado
   limpieza/           una carpeta por dataset: xm_* y simem_*
 ```

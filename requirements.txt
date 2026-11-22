@@ -28,3 +28,7 @@ numba==0.68.1
 lime==0.2.0.1
 # joblib.dump/load de los pipelines entrenados en models/. Ya venia con scikit-learn.
 joblib==1.6.0
+# notebooks/05_modelado_supervisado reduce las figuras (pillow, ya venia con matplotlib) y las
+# muestra con IPython.display (ipython, ya venia con ipykernel).
+pillow==13.0.0
+ipython==9.18.1
