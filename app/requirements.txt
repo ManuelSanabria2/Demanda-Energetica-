@@ -1,0 +1,18 @@
+# Dependencias de la interfaz (app/), fijadas y probadas en Python 3.12.
+# Streamlit Community Cloud usa este archivo porque esta junto al punto de entrada.
+# Las versiones coinciden con las de requirements.txt (lo vigila tests/test_requisitos.py).
+# Python 3.13 no sirve: pyarrow 14 no tiene wheels para esa version.
+streamlit==1.67.0
+plotly==7.1.0
+pandas==2.3.3
+pyarrow==14.0.2
+# pyarrow 14 esta compilado contra numpy 1: con numpy 2 `import pyarrow` falla.
+numpy==1.26.4
+# Pagina Probar el modelo: carga el modelo final (joblib, que necesita scikit-learn para
+# deserializarlo) y lo explica con SHAP. shap 0.49.1 es la ultima que acepta numpy 1.26;
+# numba (la parte compilada de shap) y scipy se fijan en las versiones verificadas con numpy 1.26.4.
+scikit-learn==1.5.2
+joblib==1.6.0
+shap==0.49.1
+numba==0.68.1
+scipy==1.13.1

@@ -1,0 +1,252 @@
+{
+  "version_formato": 1,
+  "momento": "2026-11-22T06:59:04",
+  "panel": {
+    "ruta": "data/procesado/panel_modelado.parquet",
+    "sha256": "fc8962d3e06737c6fe36dc80657f2017c51c1b940283d403ded44601e4bede70",
+    "filas": 49824
+  },
+  "dias_parciales_excluidos": 5,
+  "archivos": {
+    "modelo_final_r24.joblib": {
+      "sha256": "6554597cd49a9a34c927e5346fbf9dfd3fc2302b7556864c77eac1070faad5b4",
+      "bytes": 1094896,
+      "origen": "models/final_r24.joblib",
+      "registro": {
+        "operacion": "exportar_modelo",
+        "criterio": "modelo final verificado por SHA-256; si pasa de 25 MB, comprimido y, si aun asi, la variante HistGradientBoosting",
+        "sha256_final": "6554597cd49a9a34c927e5346fbf9dfd3fc2302b7556864c77eac1070faad5b4",
+        "modelo": "hist_gradient (nivel)",
+        "rol": "ensemble",
+        "variante": false,
+        "origen": "models/final_r24.joblib",
+        "sha256_origen": "6554597cd49a9a34c927e5346fbf9dfd3fc2302b7556864c77eac1070faad5b4",
+        "bytes_origen": 1094896,
+        "guardado": "copia byte a byte"
+      }
+    },
+    "modelo_final_r120.joblib": {
+      "sha256": "afbce96bccbe227dba7a842ecc92a91e7a2bd58635347672bad0d882e8151c43",
+      "bytes": 19767321,
+      "origen": "models/final_r120.joblib",
+      "registro": {
+        "operacion": "exportar_modelo",
+        "criterio": "modelo final verificado por SHA-256; si pasa de 25 MB, comprimido y, si aun asi, la variante HistGradientBoosting",
+        "sha256_final": "08ececf12633ee837b71e5d21c90bf1357db11f55110964e169db6f5e315fe64",
+        "modelo": "random_forest (nivel)",
+        "rol": "ensemble",
+        "variante": false,
+        "origen": "models/final_r120.joblib",
+        "sha256_origen": "08ececf12633ee837b71e5d21c90bf1357db11f55110964e169db6f5e315fe64",
+        "bytes_origen": 57591585,
+        "guardado": "joblib compress=3"
+      }
+    },
+    "serie_diaria.parquet": {
+      "sha256": "5683109ca4178db55cbd1c1890582132cd66e215dc27a7db3b043c3aae0b1a28",
+      "bytes": 79893,
+      "filas": 2071,
+      "columnas": [
+        "fecha",
+        "demanda_mwh",
+        "demanda_media_mwh",
+        "temperatura_media_c",
+        "tipo_dia",
+        "es_festivo",
+        "nombre_festivo",
+        "horas_atipicas"
+      ],
+      "origen": "data/procesado/panel_modelado.parquet",
+      "registro": {
+        "operacion": "serie_diaria",
+        "criterio": "energia diaria = suma de las 24 h en MWh; solo dias con las 24 h; se descartan los ultimos 5 dias por publicacion parcial; tipo de dia: semana_santa > festivo > domingo > sabado > laboral; horas_atipicas = marca causal `atipico`",
+        "dias": 2071,
+        "dias_incompletos": 0,
+        "rango": [
+          "2021-01-01",
+          "2026-09-02"
+        ],
+        "tipos": {
+          "laboral": 1370,
+          "sabado": 285,
+          "domingo": 284,
+          "festivo": 90,
+          "semana_santa": 42
+        }
+      }
+    },
+    "perfil_horario.parquet": {
+      "sha256": "26662c45fa9448f1b8a05bfe7f71f63c63c3053c04ec9a26750da604b6e4018a",
+      "bytes": 7776,
+      "filas": 168,
+      "columnas": [
+        "dia_semana",
+        "nombre_dia",
+        "hora",
+        "demanda_media_mwh",
+        "demanda_mediana_mwh",
+        "n"
+      ],
+      "origen": "data/procesado/panel_modelado.parquet",
+      "registro": {
+        "operacion": "perfil_horario",
+        "criterio": "media y mediana de la demanda horaria (MWh) por dia de la semana (0 = lunes) y hora local",
+        "filas": 168,
+        "horas": 49704
+      }
+    },
+    "autocorrelacion.parquet": {
+      "sha256": "d68bf23f9d2ab4b4694a610a15b9d3adb515656c14314ff22791b8c0ae6c678e",
+      "bytes": 7733,
+      "filas": 337,
+      "columnas": [
+        "rezago_h",
+        "acf",
+        "pacf"
+      ],
+      "origen": "data/procesado/panel_modelado.parquet",
+      "registro": {
+        "operacion": "autocorrelacion",
+        "criterio": "mineria.eda.autocorrelacion sobre la serie horaria sin dias parciales: ACF hasta 336 h, PACF hasta 48 h",
+        "rezagos": 336,
+        "banda_95": 0.008791447785241685
+      }
+    },
+    "centroides_grupos.parquet": {
+      "sha256": "fb6c11a6d413dd6748cadfd8673021002d82e4398c9dc61f2df027d4f5ce9156",
+      "bytes": 5629,
+      "filas": 48,
+      "columnas": [
+        "grupo",
+        "hora",
+        "forma_media",
+        "p10",
+        "p90",
+        "dias"
+      ],
+      "origen": "docs/resultados/mineria_etiquetas_dia.csv",
+      "registro": {
+        "operacion": "centroides_grupos",
+        "criterio": "media y percentiles 10/90 de la forma diaria (dia / su media) de los dias de cada grupo",
+        "dias_etiquetados": 2071,
+        "dias_con_perfil": 2071,
+        "dias_sin_perfil": 0,
+        "grupos": [
+          "G1",
+          "G2"
+        ]
+      }
+    },
+    "predicciones_prueba.parquet": {
+      "sha256": "2f6c68a6473447133a312c36cbb6288964ef7d7a902631eaf63471c31baaaebb",
+      "bytes": 814631,
+      "filas": 17520,
+      "columnas": [
+        "fecha_hora",
+        "tabla",
+        "real_mwh",
+        "baseline_mwh",
+        "ensemble_mwh",
+        "lineal_mwh",
+        "final_mwh",
+        "es_festivo",
+        "es_vispera_festivo",
+        "es_puente",
+        "es_semana_santa",
+        "es_ultima_semana_diciembre",
+        "nombre_festivo"
+      ],
+      "origen": "docs/resultados/predicciones_prueba.parquet",
+      "registro": {
+        "operacion": "predicciones_ancho",
+        "criterio": "pivote de las predicciones de prueba por rol; final_mwh = el rol con es_final; calendario del panel por marca de tiempo",
+        "filas_por_tabla": {
+          "r120": 8760,
+          "r24": 8760
+        },
+        "modelos": {
+          "r120": {
+            "baseline": "baseline estacional (lag_168)",
+            "ensemble": "random_forest (nivel)",
+            "lineal": "polinomial_ridge"
+          },
+          "r24": {
+            "baseline": "baseline estacional (lag_168)",
+            "ensemble": "hist_gradient (nivel)",
+            "lineal": "polinomial_ridge"
+          }
+        },
+        "final": {
+          "r120": "ensemble",
+          "r24": "ensemble"
+        },
+        "horas_sin_calendario": 0
+      }
+    },
+    "probabilidades_alerta.parquet": {
+      "sha256": "0a15ee9d35f4669d4da3e89bfc43d10761642a7b2c958bccdfc4dc88cb9b4e53",
+      "bytes": 553225,
+      "filas": 17520,
+      "columnas": [
+        "fecha_hora",
+        "tabla",
+        "modelo",
+        "umbral_alerta_mwh",
+        "real_mwh",
+        "alerta_real",
+        "puntaje",
+        "probabilidad",
+        "alerta_predicha"
+      ],
+      "origen": "docs/resultados/probabilidades_alerta.parquet",
+      "registro": {
+        "operacion": "copiar",
+        "criterio": "probabilidad calibrada y etiqueta real de alerta_pico del clasificador final, por hora de prueba",
+        "filas_por_tabla": {
+          "r120": 8760,
+          "r24": 8760
+        }
+      }
+    },
+    "variables_prueba.parquet": {
+      "sha256": "32393ba1d644034b9373dd8bb9466bfff12afe57ab7e7b4689415a04679ff46d",
+      "bytes": 650038,
+      "filas": 17520,
+      "columnas": [
+        "fecha_hora",
+        "tabla",
+        "real_mwh",
+        "lag_24",
+        "lag_168",
+        "ma_168",
+        "std_168",
+        "temperatura_c",
+        "hora_sin",
+        "hora_cos",
+        "dia_semana_sin",
+        "dia_semana_cos",
+        "mes_sin",
+        "mes_cos",
+        "es_festivo",
+        "es_vispera_festivo",
+        "es_puente",
+        "es_semana_santa",
+        "es_ultima_semana_diciembre"
+      ],
+      "origen": "data/procesado",
+      "registro": {
+        "operacion": "variables_prueba",
+        "criterio": "X de la tabla de modelado (SHA-256 verificado contra registro_variables.json) en el bloque de prueba",
+        "sha256_tablas": {
+          "r24": "6bb6260ce166b2dbeb72167fd3a4daad4c13755673873eecd7817f5fae3b847f",
+          "r120": "9f7273d62c56838387a2106cbc99acf045a8b4dba57daf5ceb387ba5b061e6b0"
+        },
+        "filas_por_tabla": {
+          "r120": 8760,
+          "r24": 8760
+        }
+      }
+    }
+  },
+  "faltantes": []
+}

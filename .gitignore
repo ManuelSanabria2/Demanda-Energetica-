@@ -57,3 +57,13 @@ infra/terraform/evidencia/**/*_sin_redactar.*
 # Modelos entrenados: pesados y regenerables. Su SHA-256 queda anotado en
 # docs/resultados/modelado_*.json, que si se versiona.
 models/
+
+# app/datos/: lo que exporta scripts/exportar_interfaz.py para la interfaz. Si se
+# versiona a proposito, aunque sea Parquet: la app desplegada (Streamlit Community
+# Cloud) solo ve lo que esta en git, y el panel del que sale no lo esta.
+!app/datos/
+!app/datos/*.parquet
+!app/datos/manifiesto_interfaz.json
+# El modelo final de cada version (pagina Probar el modelo), nunca de mas de 25 MB.
+!app/datos/modelo_final_*.joblib
+app/datos/*.tmp

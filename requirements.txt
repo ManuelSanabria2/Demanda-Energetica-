@@ -32,3 +32,7 @@ joblib==1.6.0
 # muestra con IPython.display (ipython, ya venia con ipykernel).
 pillow==13.0.0
 ipython==9.18.1
+# Interfaz de la sustentacion (app/, ver app/requirements.txt) y sus pruebas
+# (tests/test_interfaz.py usa streamlit.testing). Versiones resueltas con las de arriba.
+streamlit==1.67.0
+plotly==7.1.0

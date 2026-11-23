@@ -21,13 +21,17 @@ PAQUETES_PROPIOS = {"ingesta", "calidad", "limpieza", "variables", "mineria", "m
                     # tests/test_modelado_regresion.py reutiliza las tablas sinteticas de este modulo
                     "test_modelado_base",
                     # docs/informe: macros del modelado, importadas por generar_valores.py y sus pruebas
-                    "valores_modelado"}
+                    "valores_modelado",
+                    # tests/test_interfaz.py reutiliza el panel sintetico de este modulo
+                    "test_scripts_entrega"}
+# app/: la interfaz importa sus propios componentes con `from componentes import ...`.
+PAQUETES_APP = {"componentes", "paginas"}
 
 
-def _requisitos() -> dict[str, str]:
-    """Nombre del paquete -> especificador de version, desde requirements.txt."""
+def _requisitos(archivo: Path = RAIZ / "requirements.txt") -> dict[str, str]:
+    """Nombre del paquete -> especificador de version, desde un requirements.txt."""
     requisitos = {}
-    for linea in (RAIZ / "requirements.txt").read_text(encoding="utf-8").splitlines():
+    for linea in archivo.read_text(encoding="utf-8").splitlines():
         linea = linea.split("#")[0].strip()
         if linea:
             nombre = re.split(r"[<>=!~ ]", linea, maxsplit=1)[0]
@@ -39,7 +43,7 @@ def _codigo_del_proyecto() -> list[str]:
     """Todo el Python del proyecto, celdas de los notebooks incluidas."""
     codigo = [
         ruta.read_text(encoding="utf-8")
-        for carpeta in ("src", "scripts", "tests")
+        for carpeta in ("src", "scripts", "tests", "app")
         for ruta in (RAIZ / carpeta).rglob("*.py")
     ]
     codigo.append((RAIZ / "descargar.py").read_text(encoding="utf-8"))
@@ -62,11 +66,14 @@ def _importados(codigo: str) -> set[str]:
     return nombres
 
 
+# Paquetes cuyo nombre de importacion no coincide con el de PyPI.
+DISTRIBUCION = {"sklearn": "scikit-learn", "PIL": "pillow", "IPython": "ipython"}
+
+
 def test_todo_lo_que_se_importa_esta_en_requirements():
     importados = set().union(*map(_importados, _codigo_del_proyecto()))
-    terceros = importados - set(sys.stdlib_module_names) - PAQUETES_PROPIOS
-    # Paquetes cuyo nombre de importacion no coincide con el de PyPI.
-    distribucion = {"sklearn": "scikit-learn", "PIL": "pillow", "IPython": "ipython"}
+    terceros = importados - set(sys.stdlib_module_names) - PAQUETES_PROPIOS - PAQUETES_APP
+    distribucion = DISTRIBUCION
     faltan = sorted(n for n in terceros if distribucion.get(n, n).lower() not in _requisitos())
     assert not faltan, f"Se importan pero no estan en requirements.txt: {faltan}"
 
@@ -78,3 +85,23 @@ def test_numpy_por_debajo_de_2_mientras_pyarrow_sea_anterior_a_16():
         assert re.fullmatch(r"==\s*1\.[\d.]+|<\s*2(\.0)*", requisitos.get("numpy", "")), (
             f"pyarrow {requisitos['pyarrow']} no importa con numpy 2: fija numpy por debajo de 2"
         )
+
+
+def test_lo_que_importa_la_app_esta_en_app_requirements():
+    """La app desplegada se instala solo con app/requirements.txt: lo que falte ahi rompe en la nube."""
+    codigo = [ruta.read_text(encoding="utf-8") for ruta in (RAIZ / "app").rglob("*.py")]
+    importados = set().union(*map(_importados, codigo))
+    terceros = importados - set(sys.stdlib_module_names) - PAQUETES_APP
+    requisitos_app = _requisitos(RAIZ / "app" / "requirements.txt")
+    faltan = sorted(n for n in terceros if DISTRIBUCION.get(n, n).lower() not in requisitos_app)
+    assert not faltan, f"app/ importa pero no estan en app/requirements.txt: {faltan}"
+    # pandas lee Parquet con pyarrow sin importarlo por nombre
+    assert "pyarrow" in requisitos_app
+
+
+def test_app_requirements_fijado_y_con_las_versiones_del_proyecto():
+    """Mismas versiones que requirements.txt: la app en la nube es la que pasa las pruebas aqui."""
+    raiz = _requisitos()
+    for nombre, version in _requisitos(RAIZ / "app" / "requirements.txt").items():
+        assert version.startswith("=="), f"{nombre} sin version fijada en app/requirements.txt"
+        assert raiz.get(nombre) == version, f"{nombre}{version} en app/ pero {raiz.get(nombre)} en requirements.txt"

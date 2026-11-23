@@ -6,6 +6,9 @@
 > [`docs/ENTREGA_FINAL.md`](docs/ENTREGA_FINAL.md); reporte IEEE en
 > [`docs/informe/`](docs/informe/), infraestructura en
 > [`infra/`](infra/README.md). Todo se regenera con `python scripts/generar_entrega.py`.
+>
+> **Interfaz para la sustentación:** <https://demanda-sin-colombia.streamlit.app>
+> (despliegue, guion y lista de verificación en [`docs/interfaz.md`](docs/interfaz.md)).
 
 Capa de ingesta para un modelo predictivo de demanda energética horaria del
 Sistema Interconectado Nacional colombiano, horizonte 24 h.
@@ -407,6 +410,74 @@ sobre el máximo diario, sesgo medio (negativo si subestima) y mejora de MAPE
 frente al baseline estacional. Baselines: **estacional**, `y_pred = lag_168`,
 en las dos tablas, y **diario**, `y_pred = lag_24`, solo en r24.
 
+## Interfaz para la sustentación
+
+Una aplicación de Streamlit recorre el proyecto en el orden de CRISP-DM, del
+problema al despliegue, con gráficas interactivas de Plotly. En línea:
+<https://demanda-sin-colombia.streamlit.app>; cómo desplegarla, el guion de la
+sustentación y la lista de verificación del día están en
+[`docs/interfaz.md`](docs/interfaz.md).
+
+```bash
+pip install -r requirements.txt          # o solo app/requirements.txt para la app
+python scripts/exportar_interfaz.py      # si cambió el panel o los resultados
+streamlit run app/Inicio.py
+```
+
+**La app no entrena ni descarga datos: solo lee artefactos** que ya genera el
+pipeline (`docs/resultados/`, `docs/figuras/`, `infra/costos/`, los registros de
+`data/procesado/` y `app/datos/`). Así sus cifras son exactamente las del
+informe, y cabe en el plan gratuito de Streamlit Community Cloud. Si falta un
+artefacto, la página lo dice y muestra el comando que lo genera, en vez de
+fallar.
+
+`scripts/exportar_interfaz.py` deja en `app/datos/` (versionado a propósito) lo
+que la app necesita y no está en git: la serie diaria con su tipo de día, el
+perfil hora × día, la autocorrelación hasta 336 h, los centroides de los grupos
+de días, las predicciones del año de prueba (una fila por hora y versión: real,
+baseline, cada candidato y el final, con las banderas del calendario), las
+probabilidades de alerta del clasificador y `manifiesto_interfaz.json` con el
+SHA-256 de cada archivo. Las predicciones salen de las que guardó
+`scripts/evaluar_final.py`; si no están, se calculan cargando los modelos de
+`models/` con el SHA-256 anotado en `modelado_seleccion.json`, sin reentrenar.
+
+| sección CRISP-DM | páginas |
+|---|---|
+| comprensión del negocio | Inicio: problema, ODS 9.1, pregunta de minería, cifras clave |
+| comprensión de los datos | Datos (fuentes, flujo, calidad, r24 frente a r120), Exploración |
+| modelado | Minería no supervisada, Modelos |
+| evaluación | Predicción frente a real, Alertas de pico, Interpretabilidad, Selección y costo |
+| despliegue | Nube: arquitectura y costos |
+
+Las páginas de modelado leen `docs/resultados/modelado_*.json`,
+`docs/modelado/seleccion.md` y las predicciones exportadas: todos los modelos de
+r24 y r120 en una tabla filtrable (validación, prueba y tiempos), el error por
+pliegue y Grid frente a Random Search; una semana de prueba con las curvas real,
+baseline y final, festivos sombreados y un atajo a las tres semanas con más
+error; la alerta de pico con un umbral ajustable que recalcula la matriz de
+confusión y la curva precisión-recall (con el umbral del modelo reproduce la
+evaluación registrada); importancias, SHAP y los casos de LIME con su lectura; y
+la elección del modelo, el costo del rezago y los insumos de la evaluación
+económica (su resultado se muestra cuando exista
+`docs/resultados/evaluacion_economica.json`).
+
+**Probar el modelo** es la única página que usa un modelo: carga el final de
+cada versión (`app/datos/modelo_final_r24.joblib` y `_r120`, con
+`st.cache_resource` y comprobando su SHA-256 contra el manifiesto), predice la
+hora que se elija del año de prueba, la explica con la cascada de SHAP y deja
+mover la temperatura y las banderas de festivo y víspera para ver la
+sensibilidad del modelo (no una relación causal). No entrena nada: las pruebas
+fallan si algo en `app/` llama a `fit`. El exportador no deja en git ningún
+modelo de más de 25 MB: el Random Forest de r120 (58 MB) se guarda comprimido
+(`joblib`, `compress=3`, 19,8 MB) y, si aun así pasara del límite, se usaría la
+variante HistGradientBoosting ya entrenada y la página lo diría. Recorriendo
+las 11 páginas en local, el proceso de Streamlit llega a unos 500 MB de RAM.
+
+`app/requirements.txt` fija las versiones (las mismas de `requirements.txt`,
+lo vigila `tests/test_requisitos.py`); **usa Python 3.12**: pyarrow 14 no tiene
+wheels para 3.13. `tests/test_interfaz.py` ejecuta cada página con
+`streamlit.testing` sobre los artefactos reales y sobre un directorio vacío.
+
 ## Ausencia de fuga temporal
 
 Las marcas de atípicos se calculan con estadísticos **causales**: cada fila se
@@ -625,6 +696,12 @@ a las métricas de pronóstico del CND, que sí se publican por adelantado.
 ## Estructura
 
 ```
+app/
+  Inicio.py       punto de entrada de la interfaz (st.navigation en orden CRISP-DM)
+  paginas/        una página por archivo: inicio, datos, exploracion, mineria, ..., nube
+  componentes/    carga.py (lectura con caché), pendiente.py (aviso de artefacto faltante), estilo, formato
+  datos/          lo que exporta scripts/exportar_interfaz.py, con su manifiesto
+  requirements.txt  dependencias de la app, fijadas
 src/mineria/
   perfiles.py     dia x hora: forma (media 1) y nivel; atributos de calendario por dia
   clustering.py   K-means con seleccion de k (silueta + estabilidad), Ward, V de Cramer
@@ -666,6 +743,7 @@ src/ingesta/
 scripts/
   eda.py                 EDA: figuras en docs/figuras/eda, cifras en docs/resultados/eda.json
   mineria_no_supervisada.py  clustering, reglas y sectores -> docs/figuras/mineria
+  exportar_interfaz.py   resume el panel y copia las predicciones a app/datos/ para la interfaz
   generar_entrega.py     encadena panel, EDA, mineria, modelado, evaluacion final, costos, notebooks y el PDF
   descargar_datasets.py  genera datasets/ en CSV, tramo a tramo
   generar_notebooks.py   define y regenera los notebooks
@@ -693,6 +771,7 @@ tests/
   test_modelado_busqueda.py  selección de candidatos, mismo espacio en Grid y Random, sin fuga
   test_modelado_interpretabilidad.py  SHAP suma la predicción; casos de LIME; selección y calificaciones
   test_modelado_final.py  el ajuste final no ve la prueba; regla de elección; alarma de fuga; predecir.py
+  test_interfaz.py    cada página con y sin artefactos (streamlit.testing); exportador de app/datos
   conftest.py         bloqueo de red para toda la suite
   test_ingesta.py     ventanas, colapso de versiones, cobertura
   test_datasets.py    escritor de CSV: escritura atómica, orden fijo, gzip
@@ -701,6 +780,7 @@ tests/
 descargar.py          CLI de la capa cruda
 docs/
   diccionario_variables.md  una fila por columna de la tabla de modelado
+  interfaz.md         despliegue de la interfaz, guion de la sustentación y lista del día
   ENTREGA_AVANCE.md   entregables del avance (minería y cloud)
   ENTREGA_FINAL.md    requisitos de machine learning -> evidencia en el repo
   modelado/seleccion.md  elección del modelo final, generada desde modelado_seleccion.json
