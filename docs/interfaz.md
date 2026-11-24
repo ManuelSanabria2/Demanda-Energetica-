@@ -4,7 +4,7 @@ Aplicación de Streamlit que recorre el proyecto en el orden de CRISP-DM, del
 problema al modelo final. No entrena ni descarga datos: lee los artefactos del
 pipeline y, en *Probar el modelo*, carga el modelo final ya entrenado.
 
-- **En línea:** <https://demanda-sin-colombia.streamlit.app> (subdominio que se
+- **En línea:** <https://demanda-energetica-sust.streamlit.app> (subdominio que se
   fija en el paso 4 del despliegue).
 - **En local:** `streamlit run app/Inicio.py` (ver [Arrancarla en local](#arrancarla-en-local)).
 - **Código:** `app/` (páginas, componentes y datos exportados), `scripts/exportar_interfaz.py`
@@ -46,8 +46,8 @@ pipeline y, en *Probar el modelo*, carga el modelo final ya entrenado.
    | Branch | `main` (o `interfaz` mientras el PR no esté fusionado) |
    | Main file path | `app/Inicio.py` |
 
-4. **App URL:** escribe el subdominio `demanda-sin-colombia` para que la dirección sea
-   `https://demanda-sin-colombia.streamlit.app`. Si ya está ocupado, elige otro y cambia el
+4. **App URL:** escribe el subdominio `demanda-energetica-sust` para que la dirección sea
+   `https://demanda-energetica-sust.streamlit.app`. Si ya está ocupado, elige otro y cambia el
    enlace en los tres sitios donde aparece: este documento, el README (sección *Interfaz para
    la sustentación*) y el informe (sección *Reproducibility*).
 5. Abre **Advanced settings** y elige **Python 3.12**. Es obligatorio: pyarrow 14 no tiene
@@ -78,8 +78,11 @@ decir «Coincide con la predicción registrada en la evaluación final», en r24
 1. **Lee los registros.** En la app, abajo a la derecha, **Manage app** abre el panel de
    registros (también desde <https://share.streamlit.io>, menú **⋮** de la app → **Logs**).
    El error real suele estar en las últimas líneas de la instalación o en el *traceback*.
-2. **`No matching distribution found for pyarrow==14.0.2` (o numpy, numba) o errores de
-   compilación al instalar:** la app se creó con una versión de Python distinta de 3.12. No se
+2. **`Failed to build pyarrow==14.0.2` con `ModuleNotFoundError: No module named
+   'pkg_resources'`, `No matching distribution found for pyarrow==14.0.2` (o numpy, numba) u
+   otros errores de compilación al instalar:** la app se creó con una versión de Python
+   distinta de 3.12. Se confirma al principio del registro, en la línea
+   `Using Python 3.14... environment` (Community Cloud usa la más reciente si no se elige otra). No se
    puede cambiar: en el menú **⋮** → **Settings** apunta el subdominio, borra la app
    (**Delete**) y vuelve a desplegarla con el mismo subdominio y **Python 3.12** en
    *Advanced settings*.

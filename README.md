@@ -7,7 +7,7 @@
 > [`docs/informe/`](docs/informe/), infraestructura en
 > [`infra/`](infra/README.md). Todo se regenera con `python scripts/generar_entrega.py`.
 >
-> **Interfaz para la sustentación:** <https://demanda-sin-colombia.streamlit.app>
+> **Interfaz para la sustentación:** <https://demanda-energetica-sust.streamlit.app>
 > (despliegue, guion y lista de verificación en [`docs/interfaz.md`](docs/interfaz.md)).
 
 Capa de ingesta para un modelo predictivo de demanda energética horaria del
@@ -414,7 +414,7 @@ en las dos tablas, y **diario**, `y_pred = lag_24`, solo en r24.
 
 Una aplicación de Streamlit recorre el proyecto en el orden de CRISP-DM, del
 problema al despliegue, con gráficas interactivas de Plotly. En línea:
-<https://demanda-sin-colombia.streamlit.app>; cómo desplegarla, el guion de la
+<https://demanda-energetica-sust.streamlit.app>; cómo desplegarla, el guion de la
 sustentación y la lista de verificación del día están en
 [`docs/interfaz.md`](docs/interfaz.md).
 
